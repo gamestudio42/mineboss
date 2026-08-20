@@ -35,6 +35,8 @@ export class ChunkManager {
   private readonly offsets: Array<{ dx: number; dz: number; distance: number }> = [];
 
   private nextJobId = 1;
+  /** In-flight meshes with a lower id are discarded after a new-game reset. */
+  private discardBeforeJobId = 0;
   private lastChunkX = Number.NaN;
   private lastChunkZ = Number.NaN;
 
@@ -113,6 +115,23 @@ export class ChunkManager {
     }
 
     this.dispatch();
+  }
+
+  /** Tears down streamed meshes so a new run can generate the world from scratch. */
+  reset(): void {
+    this.discardBeforeJobId = this.nextJobId;
+    this.queue.length = 0;
+    this.queued.clear();
+    this.pending.clear();
+    this.meshedChunks.clear();
+    this.lastChunkX = Number.NaN;
+    this.lastChunkZ = Number.NaN;
+
+    for (const mesh of this.meshes.values()) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    this.meshes.clear();
   }
 
   dispose(): void {
@@ -246,6 +265,11 @@ export class ChunkManager {
   private handleMeshResult(response: MeshResponse, workerIndex: number): void {
     this.workerLoad[workerIndex] -= 1;
     this.volumePool.push(response.volume);
+
+    if (response.jobId < this.discardBeforeJobId) {
+      this.dispatch();
+      return;
+    }
 
     const job = this.pending.get(response.key);
     this.pending.delete(response.key);

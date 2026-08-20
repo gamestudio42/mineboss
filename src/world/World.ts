@@ -43,6 +43,12 @@ export class World {
     this.chunks.delete(chunkKey(cx, cz));
   }
 
+  /** Drops every column so the next ensure regenerates virgin terrain. */
+  clear(): void {
+    this.chunks.clear();
+    this.dirty.clear();
+  }
+
   /** Bedrock below the world, air above it, air inside ungenerated chunks. */
   getBlock(wx: number, wy: number, wz: number): number {
     if (wy < 0) return Block.Bedrock;

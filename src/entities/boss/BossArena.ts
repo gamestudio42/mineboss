@@ -86,6 +86,13 @@ export class BossArena {
     player.setSpawn(ENTRANCE_SPAWN.x, ENTRANCE_SPAWN.y, ENTRANCE_SPAWN.z);
   }
 
+  /** Clears the hunt so a new game can wake the Warden again. */
+  beginNewRun(): void {
+    this.defeated = false;
+    this.discovered = false;
+    this.boss = null;
+  }
+
   /**
    * Removes the boss and every summon. Leaves `defeated` alone so a later
    * death while exploring cannot reopen a finished fight.

@@ -200,6 +200,8 @@ export class Game {
     this.player.setSpawn(SPAWN_X + 0.5, ground + 1, SPAWN_Z + 0.5);
     this.player.respawn();
     this.player.yaw = Math.atan2(-(ENTRANCE.x - SPAWN_X), -(ENTRANCE.z - SPAWN_Z));
+    this.player.inventory.clear();
+    this.player.inventory.select(0);
     this.player.inventory.add(Block.Cobblestone, 32);
     this.player.inventory.add(Block.Planks, 16);
     this.player.inventory.add(Block.Mushroom, 4);
@@ -236,9 +238,11 @@ export class Game {
         title: 'PAUSED',
         text: 'The world keeps its secrets while you are away.',
         button: 'Resume',
+        secondary: 'New game',
         showSettings: true,
       },
       () => this.startPlaying(),
+      () => this.newGame(),
     );
   }
 
@@ -258,6 +262,7 @@ export class Game {
           ? 'You fall. The depths remain quiet.'
           : 'The Warden returns to its slumber. Respawn at the stairs and right click the altar to wake it again.',
         button: 'Respawn',
+        secondary: 'New game',
         showControls: false,
       },
       () => {
@@ -271,6 +276,7 @@ export class Game {
         }
         this.startPlaying();
       },
+      () => this.newGame(),
     );
   }
 
@@ -285,10 +291,41 @@ export class Game {
         title: 'VICTORY',
         text: 'The Deep Warden collapses into rubble. The depths are yours.',
         button: 'Keep exploring',
+        secondary: 'New game',
         showControls: false,
       },
       () => this.startPlaying(),
+      () => this.newGame(),
     );
+  }
+
+  /** Regenerates the world and sends the player back to the surface spawn. */
+  private newGame(): void {
+    // Lock first, while the click is still a user gesture. Terrain preload
+    // is synchronous and would otherwise make Chrome reject pointer lock.
+    this.sfx.resume();
+    this.input.requestLock();
+
+    this.pendingDeath = false;
+    this.elapsed = 0;
+    this.trauma = 0;
+    this.stepDistance = 0;
+    this.hintedConsumable = false;
+
+    this.entities.clear();
+    this.arena.beginNewRun();
+    this.particles.clear();
+    this.chunks.reset();
+    this.world.clear();
+
+    this.player.swing = 0;
+    this.hud.bossBar.hide();
+    this.hud.hideHint();
+    this.hud.setObjective(null);
+    this.hud.compass.update(false, 0, '');
+
+    this.prepareWorld();
+    this.startPlaying();
   }
 
   private tryStartFight(): void {

@@ -12,14 +12,6 @@ const SWING_PITCH = 0.42;
 const SWING_YAW = -0.08;
 const SWING_ROLL = 0.18;
 
-function shadeHex(hex: number, amount: number): number {
-  const color = new THREE.Color(hex);
-  color.r = Math.min(1, color.r * amount);
-  color.g = Math.min(1, color.g * amount);
-  color.b = Math.min(1, color.b * amount);
-  return color.getHex();
-}
-
 /**
  * BoxGeometry stores four vertices per face. Darken the sides and bottom so an
  * unlit tool still reads as a solid rather than a flat sticker.

@@ -87,6 +87,11 @@ export class Hud {
     this.hintTimer = seconds;
   }
 
+  hideHint(): void {
+    this.hintTimer = 0;
+    this.hintRoot.classList.remove('show');
+  }
+
   setCrosshair(mode: CrosshairMode): void {
     if (mode === this.crosshairMode) return;
     this.crosshairMode = mode;

@@ -35,7 +35,7 @@ Requires Node 20+ and a WebGL2 capable browser.
 | `F` | Toggle fly mode (debug) |
 | `Ctrl` | Descend while flying |
 | `F3` | Frame timing and streaming counters |
-| `Esc` | Pause (volume and look sensitivity) |
+| `Esc` | Pause (volume, look sensitivity, new game) |
 
 ## Finding the fight
 
@@ -46,7 +46,8 @@ through the north wall, so you never have to mine the shell or fall 40 blocks.
 The first time you enter the chamber, your respawn moves to the doorway. Right
 click the runic altar in the centre to wake **The Deep Warden**. If you die
 during the fight the Warden sleeps again; walk back to the altar and activate
-it once more.
+it once more. Pause, death and victory all offer **New game**, which
+regenerates the world and returns you to the surface spawn.
 
 Mushrooms grow on cave floors and restore two hearts. Crystal ore restores
 four. Select the stack and right click — it works while looking at air or the

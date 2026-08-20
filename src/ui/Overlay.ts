@@ -4,6 +4,7 @@ export interface OverlayContent {
   title: string;
   text: string;
   button: string;
+  secondary?: string;
   showControls?: boolean;
   showSettings?: boolean;
 }
@@ -14,6 +15,7 @@ export class Overlay {
   private readonly title: HTMLElement;
   private readonly text: HTMLElement;
   private readonly button: HTMLButtonElement;
+  private readonly secondary: HTMLButtonElement;
   private readonly controls: HTMLElement;
   private readonly settings: HTMLElement;
   private readonly volume: HTMLInputElement;
@@ -23,6 +25,7 @@ export class Overlay {
   private readonly sensitivityValue: HTMLElement;
 
   private action: (() => void) | null = null;
+  private secondaryAction: (() => void) | null = null;
   private current: StoredSettings = { volume: 0.45, muted: false, sensitivity: 1 };
 
   onSettingsChange: ((settings: StoredSettings) => void) | null = null;
@@ -32,6 +35,7 @@ export class Overlay {
     this.title = this.root.querySelector('.title') as HTMLElement;
     this.text = document.getElementById('overlay-text') as HTMLElement;
     this.button = document.getElementById('overlay-button') as HTMLButtonElement;
+    this.secondary = document.getElementById('overlay-secondary') as HTMLButtonElement;
     this.controls = document.getElementById('controls') as HTMLElement;
     this.settings = document.getElementById('settings') as HTMLElement;
     this.volume = document.getElementById('setting-volume') as HTMLInputElement;
@@ -41,6 +45,7 @@ export class Overlay {
     this.sensitivityValue = document.getElementById('setting-sensitivity-value') as HTMLElement;
 
     this.button.addEventListener('click', () => this.action?.());
+    this.secondary.addEventListener('click', () => this.secondaryAction?.());
     this.volume.addEventListener('input', () => this.commit());
     this.sensitivity.addEventListener('input', () => this.commit());
     this.mute.addEventListener('change', () => this.commit());
@@ -55,13 +60,16 @@ export class Overlay {
     this.syncInputs();
   }
 
-  show(content: OverlayContent, action: () => void): void {
+  show(content: OverlayContent, action: () => void, secondaryAction?: () => void): void {
     this.title.textContent = content.title;
     this.text.textContent = content.text;
     this.button.textContent = content.button;
+    this.secondary.textContent = content.secondary ?? 'New game';
+    this.secondary.classList.toggle('hidden', content.secondary === undefined);
     this.controls.classList.toggle('hidden', content.showControls === false);
     this.settings.classList.toggle('hidden', content.showSettings !== true);
     this.action = action;
+    this.secondaryAction = secondaryAction ?? null;
     this.syncInputs();
     this.root.classList.remove('hidden');
   }

@@ -48,6 +48,12 @@ export class ParticleSystem {
     scene.add(this.points);
   }
 
+  clear(): void {
+    this.life.fill(0);
+    this.positions.fill(-1000);
+    this.geometry.attributes.position.needsUpdate = true;
+  }
+
   burst(position: THREE.Vector3, options: BurstOptions = {}): void {
     const count = options.count ?? 12;
     const speed = options.speed ?? 3;
