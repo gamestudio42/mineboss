@@ -22,6 +22,7 @@ export class Input {
     window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('blur', this.handleBlur);
     document.addEventListener('pointerlockchange', this.handlePointerLockChange);
+    canvas.addEventListener('click', this.handleClick);
     canvas.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mouseup', this.handleMouseUp);
     window.addEventListener('mousemove', this.handleMouseMove);
@@ -79,6 +80,10 @@ export class Input {
   private readonly handleBlur = (): void => {
     this.held.clear();
     this.buttonsHeld.clear();
+  };
+
+  private readonly handleClick = (): void => {
+    if (!this.locked) this.requestLock();
   };
 
   private readonly handleMouseDown = (event: MouseEvent): void => {
