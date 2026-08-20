@@ -30,7 +30,7 @@ Requires Node 20+ and a WebGL2 capable browser.
 | `Space` | Jump |
 | `Shift` | Sprint |
 | Left click | Mine a block, or attack when aiming at an enemy |
-| Right click | Place the selected block, or activate the altar |
+| Right click | Place the selected block, eat food, or activate the altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
 | `F` | Toggle fly mode (debug) |
 | `Ctrl` | Descend while flying |
@@ -47,6 +47,11 @@ The first time you enter the chamber, your respawn moves to the doorway. Right
 click the runic altar in the centre to wake **The Deep Warden**. If you die
 during the fight the Warden sleeps again; walk back to the altar and activate
 it once more.
+
+Mushrooms grow on cave floors and restore two hearts. Crystal ore restores
+four. Select the stack and right click — it works while looking at air or the
+Warden, so you can eat in the middle of the fight. You cannot eat at full
+health, and food is never placed as a block.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, it takes double damage and it cannot retaliate. That window is where the

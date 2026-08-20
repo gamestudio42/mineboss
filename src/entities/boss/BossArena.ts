@@ -144,6 +144,8 @@ export class BossArena {
         return 'Descend the stairs into the dark';
       case 'altar':
         return 'Right click the runic altar';
+      case 'fight':
+        return 'Stagger it, then strike — eat to recover';
       default:
         return null;
     }

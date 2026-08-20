@@ -165,6 +165,7 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.RunicSide]: runic('side'),
   [Tile.DarkBrick]: bricks([58, 56, 66], [38, 36, 46]),
   [Tile.Glowstone]: combine(fill([228, 190, 96], 20), speckles([255, 240, 176], 7, 2.2, 24)),
+  [Tile.Mushroom]: combine(fill([168, 42, 38], 18), speckles([236, 226, 210], 6, 1.8, 14)),
 };
 
 export interface BlockAtlas {

@@ -7,8 +7,8 @@ import { Hotbar } from './Hotbar.ts';
 
 const HEARTS = 10;
 
-export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar';
-const CROSSHAIR_MODES: CrosshairMode[] = ['idle', 'block', 'attack', 'altar'];
+export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal';
+const CROSSHAIR_MODES: CrosshairMode[] = ['idle', 'block', 'attack', 'altar', 'heal'];
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -70,7 +70,14 @@ export class Hud {
   }
 
   flashDamage(intensity = 1): void {
+    this.flash.classList.remove('heal');
     this.flash.style.opacity = String(Math.min(0.9, 0.35 + intensity * 0.2));
+    this.flashTimer = 0.35;
+  }
+
+  flashHeal(): void {
+    this.flash.classList.add('heal');
+    this.flash.style.opacity = '0.55';
     this.flashTimer = 0.35;
   }
 

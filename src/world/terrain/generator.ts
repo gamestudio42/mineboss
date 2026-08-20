@@ -46,6 +46,7 @@ export class TerrainGenerator {
     }
 
     this.plantTrees(chunk, baseX, baseZ);
+    this.plantMushrooms(chunk, baseX, baseZ);
     if (chunkTouchesArena(chunk.cx, chunk.cz)) this.carveArena(chunk, baseX, baseZ);
     if (chunkTouchesArena(chunk.cx, chunk.cz) || chunkTouchesEntrance(chunk.cx, chunk.cz)) {
       this.carveEntrance(chunk, baseX, baseZ);
@@ -129,6 +130,29 @@ export class TerrainGenerator {
         if (this.isCave(wx, ground, wz, ground)) continue;
 
         this.buildTree(chunk, baseX, baseZ, wx, wz, ground, roll);
+      }
+    }
+  }
+
+  /** Cave-floor mushrooms: a common heal the player can pick before the fight. */
+  private plantMushrooms(chunk: Chunk, baseX: number, baseZ: number): void {
+    for (let z = 0; z < CHUNK_SIZE; z++) {
+      for (let x = 0; x < CHUNK_SIZE; x++) {
+        const wx = baseX + x;
+        const wz = baseZ + z;
+        if (distanceToArenaCenter(wx, wz) < ARENA.radius + ARENA.wall) continue;
+        if (Math.hypot(wx - ENTRANCE.x, wz - ENTRANCE.z) < 12) continue;
+
+        const height = Math.min(this.surfaceHeight(wx, wz), WORLD_HEIGHT - 12);
+        const top = Math.min(height - 2, 56);
+
+        for (let y = LAVA_LEVEL + 2; y <= top; y++) {
+          if (chunk.get(x, y, z) !== Block.Air) continue;
+          const floor = chunk.get(x, y - 1, z);
+          if (floor === Block.Air || floor === Block.Lava || floor === Block.Mushroom) continue;
+          if (hash2(wx * 13 + y, wz * 19 + y, this.seed ^ 0x81) >= 0.014) continue;
+          chunk.set(x, y, z, Block.Mushroom);
+        }
       }
     }
   }

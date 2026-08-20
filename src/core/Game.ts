@@ -73,6 +73,7 @@ export class Game {
   private stepDistance = 0;
   /** Death is applied at the end of the tick so leftover attacks cannot eat the altar. */
   private pendingDeath = false;
+  private hintedConsumable = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -132,7 +133,7 @@ export class Game {
       onSummon: (name) => {
         this.hud.bossBar.show(name);
         this.hud.bossBar.setPhase('Phase I');
-        this.hud.showHint('Jump the shockwave. Hit the cores when it staggers.', 5);
+        this.hud.showHint('Jump the shockwave. Hit the cores when it staggers. Eat to heal.', 5);
         this.sfx.play('roar');
       },
       onPhase: (_phase, label) => {
@@ -164,6 +165,18 @@ export class Game {
     this.overlay.onSettingsChange = (next) => this.applySettings(next);
 
     this.interaction.onAltarActivated = () => this.tryStartFight();
+    this.interaction.onConsumed = (healed) => {
+      if (healed <= 0) {
+        this.hud.showHint('Already at full health', 1.6);
+        return;
+      }
+      this.hud.flashHeal();
+    };
+    this.interaction.onConsumableFound = (name) => {
+      if (this.hintedConsumable) return;
+      this.hintedConsumable = true;
+      this.hud.showHint(`Right click to eat ${name} and recover health`, 3.5);
+    };
     this.player.health.onDamage = (amount) => {
       this.hud.flashDamage(amount / 6);
       this.sfx.play('hurt');
@@ -189,6 +202,7 @@ export class Game {
     this.player.yaw = Math.atan2(-(ENTRANCE.x - SPAWN_X), -(ENTRANCE.z - SPAWN_Z));
     this.player.inventory.add(Block.Cobblestone, 32);
     this.player.inventory.add(Block.Planks, 16);
+    this.player.inventory.add(Block.Mushroom, 4);
     this.controller.update(0.0001, this.input);
   }
 
@@ -371,6 +385,7 @@ export class Game {
   private updateCrosshair(): void {
     if (this.combat.aimed) this.hud.setCrosshair('attack');
     else if (this.interaction.aimingAltar) this.hud.setCrosshair('altar');
+    else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
     else if (this.interaction.target) this.hud.setCrosshair('block');
     else this.hud.setCrosshair('idle');
   }

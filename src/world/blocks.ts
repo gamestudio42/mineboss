@@ -24,6 +24,7 @@ export enum Block {
   RunicStone = 17,
   DarkBrick = 18,
   Glowstone = 19,
+  Mushroom = 20,
 }
 
 export enum Tile {
@@ -49,6 +50,7 @@ export enum Tile {
   RunicSide = 19,
   DarkBrick = 20,
   Glowstone = 21,
+  Mushroom = 22,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -72,6 +74,8 @@ export interface BlockDef {
   tiles: [Tile, Tile, Tile];
   /** What lands in the inventory when mined; null means nothing. */
   drop: Block | null;
+  /** Hit points restored when the player right-clicks the item; 0 means not food. */
+  heal: number;
 }
 
 function def(
@@ -90,6 +94,7 @@ function def(
     contactDamage: options.contactDamage ?? 0,
     glow: options.glow ?? 0,
     drop: options.drop === undefined ? id : options.drop,
+    heal: options.heal ?? 0,
   };
 }
 
@@ -126,6 +131,7 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.CrystalOre, 'Crystal Ore', [Tile.CrystalOre, Tile.CrystalOre, Tile.CrystalOre], {
     hardness: 1.1,
     glow: 0.35,
+    heal: 8,
   }),
   def(Block.Bedrock, 'Bedrock', [Tile.Bedrock, Tile.Bedrock, Tile.Bedrock], {
     hardness: Infinity,
@@ -150,6 +156,11 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.Glowstone, 'Glowstone', [Tile.Glowstone, Tile.Glowstone, Tile.Glowstone], {
     hardness: 0.4,
     glow: 1,
+  }),
+  def(Block.Mushroom, 'Mushroom', [Tile.Mushroom, Tile.Mushroom, Tile.Mushroom], {
+    hardness: 0.08,
+    solid: false,
+    heal: 4,
   }),
 ];
 
@@ -182,6 +193,10 @@ export function isSolid(id: number): boolean {
 
 export function isOpaque(id: number): boolean {
   return OPAQUE[id] === 1;
+}
+
+export function isConsumable(id: number): boolean {
+  return getBlockDef(id).heal > 0;
 }
 
 /** Blocks the player can pick up and place from the hotbar. */

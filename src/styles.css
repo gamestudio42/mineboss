@@ -76,6 +76,10 @@ body {
   --ch: #c4b5fd;
 }
 
+#crosshair.heal {
+  --ch: #7dff9a;
+}
+
 #bottom-bar {
   position: absolute;
   left: 50%;
@@ -325,6 +329,10 @@ body {
   opacity: 0;
   background: radial-gradient(ellipse at center, transparent 35%, rgba(190, 20, 15, 0.75) 100%);
   transition: opacity 0.35s ease-out;
+}
+
+#damage-flash.heal {
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(40, 190, 90, 0.55) 100%);
 }
 
 /* ------------------------------------------------------- Overlay menu */

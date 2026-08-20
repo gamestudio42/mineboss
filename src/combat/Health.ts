@@ -39,8 +39,12 @@ export class Health {
     return true;
   }
 
-  heal(amount: number): void {
+  /** Returns the amount actually restored. */
+  heal(amount: number): number {
+    if (this.dead || amount <= 0) return 0;
+    const before = this.current;
     this.current = Math.min(this.max, this.current + amount);
+    return this.current - before;
   }
 
   reset(): void {

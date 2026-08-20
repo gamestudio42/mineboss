@@ -5,12 +5,13 @@ import type { Input } from '../core/Input.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
 import { ALTAR } from '../world/arena.ts';
-import { Block, TILE_SIDE, getBlockDef } from '../world/blocks.ts';
+import { Block, TILE_SIDE, getBlockDef, isConsumable } from '../world/blocks.ts';
 import { raycastVoxels, type VoxelHit } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
 import { PLAYER_HEIGHT, PLAYER_REACH, PLAYER_WIDTH, type Player } from './Player.ts';
 
 const PLACE_COOLDOWN = 0.18;
+const EAT_COOLDOWN = 0.55;
 
 export interface InteractionResult {
   /** Distance to the aimed block, or Infinity when nothing is in range. */
@@ -24,6 +25,9 @@ export class BlockInteraction {
   progress = 0;
 
   onAltarActivated: (() => void) | null = null;
+  /** Fired after a right-click eat attempt; amount is 0 when already full. */
+  onConsumed: ((healed: number) => void) | null = null;
+  onConsumableFound: ((name: string) => void) | null = null;
 
   private readonly origin = new THREE.Vector3();
   private readonly direction = new THREE.Vector3();
@@ -74,11 +78,11 @@ export class BlockInteraction {
     if (this.target && !entityBlocksAim) {
       if (input.isMouseDown(0)) brokeBlock = this.mine(dt, this.target);
       else this.progress = 0;
-
-      if (input.isMouseDown(2) && this.placeCooldown === 0) this.useOrPlace(this.target);
     } else {
       this.progress = 0;
     }
+
+    if (input.isMouseDown(2) && this.placeCooldown === 0) this.useItem(this.target);
 
     this.updateVisuals();
     return { targetDistance: this.target?.distance ?? Infinity, brokeBlock };
@@ -115,7 +119,11 @@ export class BlockInteraction {
       life: 0.7,
     });
 
-    if (def.drop !== null) this.player.inventory.add(def.drop, 1);
+    if (def.drop !== null) {
+      this.player.inventory.add(def.drop, 1);
+      const drop = getBlockDef(def.drop);
+      if (drop.heal > 0) this.onConsumableFound?.(drop.name);
+    }
     this.sfx.play('break');
     return true;
   }
@@ -124,15 +132,25 @@ export class BlockInteraction {
     return this.target !== null && this.isAltarBlock(this.target);
   }
 
-  /** Right click either wakes the altar or places the selected block. */
-  private useOrPlace(hit: VoxelHit): void {
-    this.placeCooldown = PLACE_COOLDOWN;
+  get holdingConsumable(): boolean {
+    const block = this.player.inventory.selectedSlot.block;
+    return block !== null && isConsumable(block);
+  }
 
-    if (this.isAltarBlock(hit)) {
+  /**
+   * Right click wakes the altar, eats a selected consumable, or places a block.
+   * Eating works while looking at air or an enemy so it is usable mid-fight.
+   */
+  private useItem(hit: VoxelHit | null): void {
+    if (hit && this.isAltarBlock(hit)) {
+      this.placeCooldown = PLACE_COOLDOWN;
       this.player.startSwing();
       this.onAltarActivated?.();
       return;
     }
+
+    if (this.tryConsume()) return;
+    if (!hit) return;
 
     const x = hit.x + hit.nx;
     const y = hit.y + hit.ny;
@@ -140,12 +158,42 @@ export class BlockInteraction {
     if (this.world.getBlock(x, y, z) !== Block.Air) return;
     if (this.intersectsPlayer(x, y, z)) return;
 
-    const block = this.player.inventory.takeSelected();
-    if (block === null) return;
+    const block = this.player.inventory.selectedSlot.block;
+    if (block === null || isConsumable(block)) return;
 
+    this.placeCooldown = PLACE_COOLDOWN;
+    this.player.inventory.takeSelected();
     this.world.setBlock(x, y, z, block);
     this.player.startSwing();
     this.sfx.play('place');
+  }
+
+  private tryConsume(): boolean {
+    const slot = this.player.inventory.selectedSlot;
+    if (this.player.dead || slot.block === null || !isConsumable(slot.block)) return false;
+
+    this.placeCooldown = EAT_COOLDOWN;
+    const heal = getBlockDef(slot.block).heal;
+    const restored = this.player.health.heal(heal);
+    if (restored <= 0) {
+      this.onConsumed?.(0);
+      return true;
+    }
+
+    this.player.inventory.takeSelected();
+    this.player.startSwing();
+    this.sfx.play('eat');
+    this.player.getEyePosition(this.origin);
+    this.particles.burst(this.origin, {
+      count: 10,
+      color: 0x7dff9a,
+      speed: 1.6,
+      spread: 0.45,
+      life: 0.4,
+      gravity: 6,
+    });
+    this.onConsumed?.(restored);
+    return true;
   }
 
   private isAltarBlock(hit: VoxelHit): boolean {
