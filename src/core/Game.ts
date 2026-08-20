@@ -71,6 +71,8 @@ export class Game {
   private elapsed = 0;
   private trauma = 0;
   private stepDistance = 0;
+  /** Death is applied at the end of the tick so leftover attacks cannot eat the altar. */
+  private pendingDeath = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -167,7 +169,9 @@ export class Game {
       this.sfx.play('hurt');
       this.shake(Math.min(0.4, amount / 24));
     };
-    this.player.health.onDeath = () => this.die();
+    this.player.health.onDeath = () => {
+      this.pendingDeath = true;
+    };
 
     window.addEventListener('resize', this.resize);
     this.resize();
@@ -226,6 +230,7 @@ export class Game {
 
   private die(): void {
     if (this.state === 'dead') return;
+    this.pendingDeath = false;
     this.state = 'dead';
     this.sfx.play('death');
     this.input.releaseLock();
@@ -243,6 +248,7 @@ export class Game {
       },
       () => {
         this.player.respawn();
+        if (!this.arena.defeated) this.arena.rebuildAltar(this.context.world);
         if (this.arena.discovered) {
           this.player.yaw = Math.atan2(
             -(ALTAR.x - this.player.spawn.x),
@@ -323,6 +329,13 @@ export class Game {
       Math.hypot(this.player.velocity.x, this.player.velocity.z),
     );
     this.updateHud(dt);
+
+    if (this.pendingDeath) {
+      this.die();
+      // Voxel writes from reset land after the regular remesh; flush them now
+      // so the restored altar is visible on the death screen.
+      this.chunks.update(this.player.position.x, this.player.position.z);
+    }
   }
 
   private handleHotbarInput(): void {

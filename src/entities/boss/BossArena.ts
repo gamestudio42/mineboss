@@ -3,6 +3,8 @@ import type * as THREE from 'three';
 import type { EntityManager } from '../EntityManager.ts';
 import type { EntityContext } from '../Entity.ts';
 import type { Player } from '../../player/Player.ts';
+import { Block } from '../../world/blocks.ts';
+import type { World } from '../../world/World.ts';
 import {
   ALTAR,
   ARENA,
@@ -94,6 +96,27 @@ export class BossArena {
     }
     context.entities.flushRemoved();
     this.boss = null;
+    if (!this.defeated) this.rebuildAltar(context.world);
+  }
+
+  /** Rebuilds the 5x5 obsidian plinth, 3x3 runes and the crystal cap. */
+  rebuildAltar(world: World): void {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const x = ALTAR.x + dx;
+        const z = ALTAR.z + dz;
+        world.setBlock(x, ARENA.floorY + 1, z, Block.Obsidian);
+
+        const inner = Math.abs(dx) <= 1 && Math.abs(dz) <= 1;
+        world.setBlock(x, ARENA.floorY + 2, z, inner ? Block.RunicStone : Block.Air);
+        world.setBlock(
+          x,
+          ARENA.floorY + 3,
+          z,
+          dx === 0 && dz === 0 ? Block.CrystalOre : Block.Air,
+        );
+      }
+    }
   }
 
   guideStage(position: THREE.Vector3): GuideStage {
