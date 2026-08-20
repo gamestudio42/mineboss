@@ -336,12 +336,11 @@ export class Game {
 
     this.applyShake(dt);
     this.updateFootsteps(dt);
-    this.viewModel.update(
-      dt,
-      this.player.swing,
-      SWING_DURATION,
-      Math.hypot(this.player.velocity.x, this.player.velocity.z),
-    );
+    // Fly mode must not drive the walk sway, or the pickaxe looks like footsteps.
+    const walkSpeed = this.player.flying
+      ? 0
+      : Math.hypot(this.player.velocity.x, this.player.velocity.z);
+    this.viewModel.update(dt, this.player.swing, SWING_DURATION, walkSpeed);
     this.updateHud(dt);
 
     if (this.pendingDeath) {

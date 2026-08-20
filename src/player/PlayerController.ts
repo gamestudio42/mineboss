@@ -120,7 +120,7 @@ export class PlayerController {
   private updateCamera(dt: number, moving: boolean): void {
     const player = this.player;
     const speed = Math.hypot(player.velocity.x, player.velocity.z);
-    const walking = moving && player.body.onGround && speed > 0.5;
+    const walking = moving && !player.flying && player.body.onGround && speed > 0.5;
 
     this.bobPhase += dt * speed * 1.9;
     this.bobAmount = damp(this.bobAmount, walking ? Math.min(speed / SPRINT_SPEED, 1) : 0, 8, dt);
