@@ -12,7 +12,7 @@ export const SWING_DURATION = 0.24;
 
 /** Player state: body, orientation, hit points and carried blocks. */
 export class Player {
-  readonly body = new VoxelBody(PLAYER_WIDTH, PLAYER_HEIGHT, 0.6);
+  readonly body = new VoxelBody(PLAYER_WIDTH, PLAYER_HEIGHT, 1.05);
   readonly health = new Health(20, 0.5);
   readonly inventory = new Inventory();
   readonly spawn = new THREE.Vector3();

@@ -23,6 +23,24 @@ export const ALTAR = {
   z: ARENA.centerZ,
 } as const;
 
+/**
+ * North-side stairwell: just outside the shell so the drop lands beside the
+ * altar instead of on top of it. Negative Z is north in world space.
+ */
+export const ENTRANCE = {
+  x: ARENA.centerX,
+  z: ARENA.centerZ - (ARENA.radius + 4),
+  /** Chebyshev radius of the walkable shaft (5 x 5). */
+  shaft: 2,
+} as const;
+
+/** Safe respawn just inside the doorway, on the arena floor. */
+export const ENTRANCE_SPAWN = {
+  x: ENTRANCE.x + 0.5,
+  y: ARENA_STAND_Y,
+  z: ARENA.centerZ - (ARENA.radius - 4) + 0.5,
+} as const;
+
 export function distanceToArenaCenter(x: number, z: number): number {
   return Math.hypot(x - ARENA.centerX, z - ARENA.centerZ);
 }
@@ -42,4 +60,20 @@ export function chunkTouchesArena(cx: number, cz: number): boolean {
   const closestX = Math.max(minX, Math.min(ARENA.centerX, minX + CHUNK_SIZE - 1));
   const closestZ = Math.max(minZ, Math.min(ARENA.centerZ, minZ + CHUNK_SIZE - 1));
   return distanceToArenaCenter(closestX, closestZ) <= reach;
+}
+
+/** True when this column overlaps the shrine, shaft or doorway corridor. */
+export function chunkTouchesEntrance(cx: number, cz: number): boolean {
+  const minX = cx * CHUNK_SIZE;
+  const maxX = minX + CHUNK_SIZE - 1;
+  const minZ = cz * CHUNK_SIZE;
+  const maxZ = minZ + CHUNK_SIZE - 1;
+
+  const pad = ENTRANCE.shaft + 6;
+  const boxMinX = ENTRANCE.x - pad;
+  const boxMaxX = ENTRANCE.x + pad;
+  const boxMinZ = ENTRANCE.z - pad;
+  const boxMaxZ = ARENA.centerZ - (ARENA.radius - 5);
+
+  return minX <= boxMaxX && maxX >= boxMinX && minZ <= boxMaxZ && maxZ >= boxMinZ;
 }

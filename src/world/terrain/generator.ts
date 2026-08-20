@@ -1,7 +1,14 @@
 import { createNoise2D, createNoise3D, type NoiseFunction2D, type NoiseFunction3D } from 'simplex-noise';
 
 import { hash2, mulberry32 } from '../../core/math.ts';
-import { ARENA, chunkTouchesArena, distanceToArenaCenter } from '../arena.ts';
+import {
+  ARENA,
+  ARENA_STAND_Y,
+  ENTRANCE,
+  chunkTouchesArena,
+  chunkTouchesEntrance,
+  distanceToArenaCenter,
+} from '../arena.ts';
 import { Block } from '../blocks.ts';
 import { CHUNK_SIZE, Chunk, WORLD_HEIGHT } from '../Chunk.ts';
 
@@ -40,6 +47,9 @@ export class TerrainGenerator {
 
     this.plantTrees(chunk, baseX, baseZ);
     if (chunkTouchesArena(chunk.cx, chunk.cz)) this.carveArena(chunk, baseX, baseZ);
+    if (chunkTouchesArena(chunk.cx, chunk.cz) || chunkTouchesEntrance(chunk.cx, chunk.cz)) {
+      this.carveEntrance(chunk, baseX, baseZ);
+    }
 
     chunk.generated = true;
   }
@@ -112,6 +122,7 @@ export class TerrainGenerator {
         const roll = hash2(wx, wz, this.seed ^ 0x7a11);
         if (roll < 0.988) continue;
         if (distanceToArenaCenter(wx, wz) < ARENA.radius + ARENA.wall) continue;
+        if (Math.hypot(wx - ENTRANCE.x, wz - ENTRANCE.z) < 10) continue;
 
         const ground = this.surfaceHeight(wx, wz);
         if (ground < SEA_LEVEL + 1 || ground > WORLD_HEIGHT - 20) continue;
@@ -217,6 +228,146 @@ export class TerrainGenerator {
         this.buildAltar(chunk, x, z, wx, wz);
       }
     }
+  }
+
+  /**
+   * Surface shrine plus a spiral stair that punches the north wall so the
+   * player can walk into the arena without a lethal drop.
+   */
+  private carveEntrance(chunk: Chunk, baseX: number, baseZ: number): void {
+    const top = Math.min(this.surfaceHeight(ENTRANCE.x, ENTRANCE.z), WORLD_HEIGHT - 10);
+    const shaft = ENTRANCE.shaft;
+    const wall = shaft + 1;
+    const pad = wall + 1;
+
+    for (let dz = -pad; dz <= pad; dz++) {
+      for (let dx = -pad; dx <= pad; dx++) {
+        this.buildEntranceColumn(chunk, baseX, baseZ, dx, dz, top, shaft, wall);
+      }
+    }
+
+    this.carveDoorway(chunk, baseX, baseZ);
+    this.buildShrineMarkers(chunk, baseX, baseZ, top, pad);
+  }
+
+  private buildEntranceColumn(
+    chunk: Chunk,
+    baseX: number,
+    baseZ: number,
+    dx: number,
+    dz: number,
+    top: number,
+    shaft: number,
+    wall: number,
+  ): void {
+    const wx = ENTRANCE.x + dx;
+    const wz = ENTRANCE.z + dz;
+    const ring = Math.max(Math.abs(dx), Math.abs(dz));
+    const ground = Math.min(this.surfaceHeight(wx, wz), top);
+
+    // Flatten hills above the shrine so the opening is readable from a distance.
+    for (let y = top + 1; y <= top + 8 && y < WORLD_HEIGHT; y++) {
+      this.paint(chunk, baseX, baseZ, wx, y, wz, Block.Air);
+    }
+
+    if (ring > wall) {
+      // Outer walkway: a one-block obsidian lip around the shrine.
+      this.paint(chunk, baseX, baseZ, wx, top, wz, Block.Obsidian);
+      return;
+    }
+
+    // Foundation under the platform, so the shrine never floats over a cave.
+    for (let y = Math.min(ground, top) - 2; y < top; y++) {
+      if (y < 1) continue;
+      if (ring >= shaft) this.paint(chunk, baseX, baseZ, wx, y, wz, Block.DarkBrick);
+    }
+
+    for (let y = ARENA.floorY; y <= top; y++) {
+      let id = Block.Air;
+
+      if (ring === wall) {
+        const doorway =
+          dz === wall && Math.abs(dx) <= 1 && y >= ARENA_STAND_Y && y < ARENA_STAND_Y + 3;
+        if (doorway) id = Block.Air;
+        else if (y === top) id = Block.Obsidian;
+        else id = y % 4 === 0 ? Block.Glowstone : Block.DarkBrick;
+      } else if (y === ARENA.floorY) {
+        id = Block.DarkBrick;
+      } else if (y === top) {
+        id = ring >= shaft ? Block.Obsidian : Block.Air;
+      } else if (y > ARENA.floorY && y < ARENA_STAND_Y) {
+        id = Block.DarkBrick;
+      } else if (y > ARENA_STAND_Y && y < top && this.isStairStep(dx, dz, shaft, top - y)) {
+        id = Block.Obsidian;
+      }
+
+      this.paint(chunk, baseX, baseZ, wx, y, wz, id);
+    }
+  }
+
+  /** One-block-high spiral: a full revolution every four levels. */
+  private isStairStep(dx: number, dz: number, shaft: number, stepsFromTop: number): boolean {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== shaft) return false;
+    const quad = ((stepsFromTop % 4) + 4) % 4;
+    if (quad === 0) return dz === shaft;
+    if (quad === 1) return dx === shaft;
+    if (quad === 2) return dz === -shaft;
+    return dx === -shaft;
+  }
+
+  private carveDoorway(chunk: Chunk, baseX: number, baseZ: number): void {
+    const innerZ = ARENA.centerZ - (ARENA.radius - 3);
+    // Start at the south wall, not the stair ring, so the last steps stay walkable.
+    const startZ = ENTRANCE.z + ENTRANCE.shaft + 1;
+
+    for (let z = startZ; z <= innerZ; z++) {
+      for (let x = ENTRANCE.x - 1; x <= ENTRANCE.x + 1; x++) {
+        this.paint(chunk, baseX, baseZ, x, ARENA.floorY, z, Block.Obsidian);
+        for (let y = ARENA_STAND_Y; y < ARENA_STAND_Y + 3; y++) {
+          this.paint(chunk, baseX, baseZ, x, y, z, Block.Air);
+        }
+      }
+
+      this.paint(chunk, baseX, baseZ, ENTRANCE.x - 2, ARENA_STAND_Y, z, Block.Glowstone);
+      this.paint(chunk, baseX, baseZ, ENTRANCE.x + 2, ARENA_STAND_Y, z, Block.Glowstone);
+    }
+  }
+
+  private buildShrineMarkers(
+    chunk: Chunk,
+    baseX: number,
+    baseZ: number,
+    top: number,
+    pad: number,
+  ): void {
+    for (const side of [-1, 1]) {
+      for (const other of [-1, 1]) {
+        const wx = ENTRANCE.x + side * pad;
+        const wz = ENTRANCE.z + other * pad;
+        for (let dy = 1; dy <= 6; dy++) {
+          const id = dy === 6 || dy === 3 ? Block.Glowstone : Block.Obsidian;
+          this.paint(chunk, baseX, baseZ, wx, top + dy, wz, id);
+        }
+        this.paint(chunk, baseX, baseZ, wx, top + 7, wz, Block.RunicStone);
+      }
+    }
+  }
+
+  /** Writes a world-space block when it belongs to the chunk being generated. */
+  private paint(
+    chunk: Chunk,
+    baseX: number,
+    baseZ: number,
+    wx: number,
+    wy: number,
+    wz: number,
+    id: Block,
+  ): void {
+    const x = wx - baseX;
+    const z = wz - baseZ;
+    if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) return;
+    if (wy < 0 || wy >= WORLD_HEIGHT) return;
+    chunk.set(x, wy, z, id);
   }
 
   private buildAltar(chunk: Chunk, x: number, z: number, wx: number, wz: number): void {
