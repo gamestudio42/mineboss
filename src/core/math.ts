@@ -18,6 +18,13 @@ export function hash2(x: number, z: number, seed: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Wraps an angle in radians into (-PI, PI]. */
+export function wrapAngle(angle: number): number {
+  const tau = Math.PI * 2;
+  let wrapped = ((angle + Math.PI) % tau + tau) % tau - Math.PI;
+  return wrapped === -Math.PI ? Math.PI : wrapped;
+}
+
 export function clamp(value: number, min: number, max: number): number {
   return value < min ? min : value > max ? max : value;
 }

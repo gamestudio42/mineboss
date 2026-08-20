@@ -48,17 +48,32 @@ body {
 }
 
 #crosshair {
+  --ch: #ffffff;
   position: absolute;
   left: 50%;
   top: 50%;
   width: 18px;
   height: 18px;
   transform: translate(-50%, -50%);
-  opacity: 0.85;
+  opacity: 0.92;
   background:
-    linear-gradient(#fff, #fff) center / 2px 100% no-repeat,
-    linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
-  mix-blend-mode: difference;
+    linear-gradient(var(--ch), var(--ch)) center / 2px 100% no-repeat,
+    linear-gradient(var(--ch), var(--ch)) center / 100% 2px no-repeat;
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 1px 2px #000);
+}
+
+#crosshair.block {
+  --ch: #ffe08a;
+}
+
+#crosshair.attack {
+  --ch: #ff5a4a;
+  width: 22px;
+  height: 22px;
+}
+
+#crosshair.altar {
+  --ch: #c4b5fd;
 }
 
 #bottom-bar {
@@ -193,11 +208,86 @@ body {
   background: linear-gradient(180deg, #ff7a5c, #b3231a);
 }
 
-.boss-bar-phase {
+.boss-bar-status {
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.boss-bar-phase {
   font-size: 12px;
   letter-spacing: 2px;
   opacity: 0.75;
+}
+
+.boss-bar-vulnerable {
+  font-size: 12px;
+  letter-spacing: 3px;
+  font-weight: 700;
+  color: #fde68a;
+  text-shadow: 0 0 10px rgba(253, 230, 138, 0.8);
+  animation: vulnerable-pulse 0.7s ease-in-out infinite;
+}
+
+#boss-bar.vulnerable .boss-bar-fill {
+  background: linear-gradient(180deg, #ffe08a, #d97706);
+}
+
+#compass {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.compass-ring {
+  width: 56px;
+  height: 56px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  background: rgba(8, 10, 16, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+#compass-arrow {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 1px 4px #000;
+  transform-origin: 50% 55%;
+}
+
+#compass-label {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 6px #000;
+  opacity: 0.9;
+}
+
+#objective {
+  position: absolute;
+  left: 50%;
+  top: 92px;
+  transform: translateX(-50%);
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 8px #000;
+  opacity: 0;
+  transition: opacity 0.25s;
+  text-align: center;
+}
+
+#objective.show {
+  opacity: 1;
 }
 
 #hint {
@@ -295,6 +385,55 @@ body {
 #overlay-button:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
+}
+
+#settings {
+  margin: 18px 0 0;
+  padding: 14px 4px 0;
+  border-top: 1px solid var(--panel-border);
+  text-align: left;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  opacity: 0.88;
+}
+
+.setting strong {
+  float: right;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.setting input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+  pointer-events: auto;
+}
+
+.setting-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting-check input {
+  pointer-events: auto;
+}
+
+@keyframes vulnerable-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 #controls {

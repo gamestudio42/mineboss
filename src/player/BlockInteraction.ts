@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import type { Sfx } from '../audio/Sfx.ts';
 import type { Input } from '../core/Input.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
@@ -37,6 +38,7 @@ export class BlockInteraction {
     private readonly world: World,
     private readonly atlas: BlockAtlas,
     private readonly particles: ParticleSystem,
+    private readonly sfx: Sfx,
     scene: THREE.Scene,
   ) {
     this.highlight = new THREE.LineSegments(
@@ -114,7 +116,12 @@ export class BlockInteraction {
     });
 
     if (def.drop !== null) this.player.inventory.add(def.drop, 1);
+    this.sfx.play('break');
     return true;
+  }
+
+  get aimingAltar(): boolean {
+    return this.target !== null && this.isAltarBlock(this.target);
   }
 
   /** Right click either wakes the altar or places the selected block. */
@@ -138,6 +145,7 @@ export class BlockInteraction {
 
     this.world.setBlock(x, y, z, block);
     this.player.startSwing();
+    this.sfx.play('place');
   }
 
   private isAltarBlock(hit: VoxelHit): boolean {

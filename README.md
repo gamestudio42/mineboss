@@ -35,13 +35,18 @@ Requires Node 20+ and a WebGL2 capable browser.
 | `F` | Toggle fly mode (debug) |
 | `Ctrl` | Descend while flying |
 | `F3` | Frame timing and streaming counters |
-| `Esc` | Pause |
+| `Esc` | Pause (volume and look sensitivity) |
 
 ## Finding the fight
 
-The altar sits at world origin, roughly 45 blocks below the surface, inside a
-sealed arena of dark brick. A hint on the HUD points the way. Dig down, bring
-blocks to pillar back up, and right click the runic stone to start the fight.
+A runic shrine of obsidian and glowstone stands north of spawn. A compass on
+the HUD points to it. Descend the spiral stairs — they open into the arena
+through the north wall, so you never have to mine the shell or fall 40 blocks.
+
+The first time you enter the chamber, your respawn moves to the doorway. Right
+click the runic altar in the centre to wake **The Deep Warden**. If you die
+during the fight the Warden sleeps again; walk back to the altar and activate
+it once more.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, it takes double damage and it cannot retaliate. That window is where the
@@ -85,7 +90,8 @@ A few decisions worth knowing about:
   intersected into tunnel caves, a third for deep chambers, and threshold bands
   for ore veins. The arena is carved last so caves can never breach it.
 - **Collision** resolves one axis at a time and retries blocked horizontal moves
-  from one step higher, which is what lets you walk up single blocks.
+  from one step higher (just over a full block), which is what lets you walk
+  the shrine stairs without jumping.
 
 ## Not included
 

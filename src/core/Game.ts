@@ -20,7 +20,9 @@ import { TerrainGenerator } from '../world/terrain/generator.ts';
 import { World } from '../world/World.ts';
 import { Input } from './Input.ts';
 import { Loop } from './Loop.ts';
-import { clamp } from './math.ts';
+import { loadSettings, type StoredSettings } from './Settings.ts';
+import { ALTAR, ENTRANCE } from '../world/arena.ts';
+import { clamp, wrapAngle } from './math.ts';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
 
@@ -31,7 +33,6 @@ const UNDERGROUND_Y = 42;
 
 const SPAWN_X = 10;
 const SPAWN_Z = 10;
-const HINT_INTERVAL = 24;
 const STEP_DISTANCE = 2.4;
 
 /** Wires every subsystem together and drives the top-level game state. */
@@ -69,7 +70,6 @@ export class Game {
 
   private elapsed = 0;
   private trauma = 0;
-  private hintTimer = 4;
   private stepDistance = 0;
   private readonly context: EntityContext;
 
@@ -120,6 +120,7 @@ export class Game {
       this.world,
       this.atlas,
       this.particles,
+      this.sfx,
       this.scene,
     );
 
@@ -129,7 +130,7 @@ export class Game {
       onSummon: (name) => {
         this.hud.bossBar.show(name);
         this.hud.bossBar.setPhase('Phase I');
-        this.hud.showHint('The Deep Warden awakens', 3);
+        this.hud.showHint('Jump the shockwave. Hit the cores when it staggers.', 5);
         this.sfx.play('roar');
       },
       onPhase: (_phase, label) => {
@@ -155,6 +156,11 @@ export class Game {
     this.input.onLockChange = (locked) => this.handleLockChange(locked);
     this.loop = new Loop((dt) => this.tick(dt));
 
+    const settings = loadSettings();
+    this.applySettings(settings);
+    this.overlay.bindSettings(settings);
+    this.overlay.onSettingsChange = (next) => this.applySettings(next);
+
     this.interaction.onAltarActivated = () => this.tryStartFight();
     this.player.health.onDamage = (amount) => {
       this.hud.flashDamage(amount / 6);
@@ -176,6 +182,7 @@ export class Game {
     const ground = this.world.surfaceY(SPAWN_X, SPAWN_Z);
     this.player.setSpawn(SPAWN_X + 0.5, ground + 1, SPAWN_Z + 0.5);
     this.player.respawn();
+    this.player.yaw = Math.atan2(-(ENTRANCE.x - SPAWN_X), -(ENTRANCE.z - SPAWN_Z));
     this.player.inventory.add(Block.Cobblestone, 32);
     this.player.inventory.add(Block.Planks, 16);
     this.controller.update(0.0001, this.input);
@@ -187,8 +194,9 @@ export class Game {
     this.overlay.show(
       {
         title: 'MINEBOSS',
-        text: 'Dig into the depths, find the obsidian altar and wake what sleeps beneath.',
+        text: 'Follow the shrine, descend the stairs and wake what sleeps beneath.',
         button: 'Click to play',
+        showSettings: true,
       },
       () => this.startPlaying(),
     );
@@ -210,6 +218,7 @@ export class Game {
         title: 'PAUSED',
         text: 'The world keeps its secrets while you are away.',
         button: 'Resume',
+        showSettings: true,
       },
       () => this.startPlaying(),
     );
@@ -226,12 +235,20 @@ export class Game {
     this.overlay.show(
       {
         title: 'YOU DIED',
-        text: 'The dark closes in. The Warden returns to its slumber, waiting for another challenger.',
+        text: this.arena.defeated
+          ? 'You fall. The depths remain quiet.'
+          : 'The Warden returns to its slumber. Respawn at the stairs and right click the altar to wake it again.',
         button: 'Respawn',
         showControls: false,
       },
       () => {
         this.player.respawn();
+        if (this.arena.discovered) {
+          this.player.yaw = Math.atan2(
+            -(ALTAR.x - this.player.spawn.x),
+            -(ALTAR.z - this.player.spawn.z),
+          );
+        }
         this.startPlaying();
       },
     );
@@ -291,6 +308,7 @@ export class Game {
     this.context.elapsed = this.elapsed;
     this.entities.update(this.context);
     this.arena.update();
+    this.arena.tryDiscover(this.player);
 
     this.player.health.update(dt);
     this.chunks.update(this.player.position.x, this.player.position.z);
@@ -320,19 +338,50 @@ export class Game {
     const boss = this.arena.boss;
     if (boss && !boss.removed) {
       this.hud.bossBar.update(boss.health?.fraction ?? 0);
+      this.hud.bossBar.setVulnerable(boss.stateName === 'stagger');
     } else if (this.arena.defeated) {
       this.hud.bossBar.hide();
     }
 
-    if (!this.arena.active && !this.arena.defeated) {
-      this.hintTimer -= dt;
-      if (this.hintTimer <= 0) {
-        this.hintTimer = HINT_INTERVAL;
-        this.hud.showHint(this.arena.describeAltarDirection(this.player.position), 5);
-      }
-    }
+    this.updateCrosshair();
+    this.updateGuide();
 
     this.hud.debug.update(dt, () => this.debugLines());
+  }
+
+  private applySettings(settings: StoredSettings): void {
+    this.sfx.setVolume(settings.volume);
+    this.sfx.setMuted(settings.muted);
+    this.controller.lookScale = settings.sensitivity;
+  }
+
+  private updateCrosshair(): void {
+    if (this.combat.aimed) this.hud.setCrosshair('attack');
+    else if (this.interaction.aimingAltar) this.hud.setCrosshair('altar');
+    else if (this.interaction.target) this.hud.setCrosshair('block');
+    else this.hud.setCrosshair('idle');
+  }
+
+  private updateGuide(): void {
+    const position = this.player.position;
+    this.hud.setObjective(this.arena.objectiveText(position));
+
+    const target = this.arena.guideTarget(position);
+    if (!target) {
+      this.hud.compass.update(false, 0, '');
+      return;
+    }
+
+    const dx = target.x - position.x;
+    const dz = target.z - position.z;
+    const targetYaw = Math.atan2(-dx, -dz);
+    const relative = wrapAngle(targetYaw - this.player.yaw);
+    const horizontal = Math.round(Math.hypot(dx, dz));
+    const depth = Math.round(position.y - target.y);
+    const depthText =
+      depth > 2 ? `${depth} below` : depth < -2 ? `${-depth} above` : 'level';
+
+    this.hud.compass.update(true, relative, `${horizontal}m · ${depthText}`);
   }
 
   private debugLines(): string[] {

@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 
 import type { Input } from '../core/Input.ts';
+import { BASE_LOOK_SENSITIVITY } from '../core/Settings.ts';
 import { clamp, damp } from '../core/math.ts';
 import { getBlockDef } from '../world/blocks.ts';
 import type { World } from '../world/World.ts';
 import type { Player } from './Player.ts';
 
-const MOUSE_SENSITIVITY = 0.0022;
 const PITCH_LIMIT = Math.PI / 2 - 0.001;
 
 const WALK_SPEED = 4.6;
@@ -29,6 +29,8 @@ export class PlayerController {
   private readonly eye = new THREE.Vector3();
   private bobPhase = 0;
   private bobAmount = 0;
+  /** Multiplier around the default look speed, driven by the pause sliders. */
+  lookScale = 1;
 
   constructor(
     private readonly player: Player,
@@ -38,9 +40,10 @@ export class PlayerController {
 
   look(input: Input): void {
     if (input.mouseDX === 0 && input.mouseDY === 0) return;
-    this.player.yaw -= input.mouseDX * MOUSE_SENSITIVITY;
+    const sensitivity = BASE_LOOK_SENSITIVITY * this.lookScale;
+    this.player.yaw -= input.mouseDX * sensitivity;
     this.player.pitch = clamp(
-      this.player.pitch - input.mouseDY * MOUSE_SENSITIVITY,
+      this.player.pitch - input.mouseDY * sensitivity,
       -PITCH_LIMIT,
       PITCH_LIMIT,
     );

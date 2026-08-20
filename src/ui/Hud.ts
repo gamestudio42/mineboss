@@ -1,10 +1,14 @@
 import type { Inventory } from '../player/Inventory.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import { BossHealthBar } from './BossHealthBar.ts';
+import { Compass } from './Compass.ts';
 import { DebugOverlay } from './DebugOverlay.ts';
 import { Hotbar } from './Hotbar.ts';
 
 const HEARTS = 10;
+
+export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar';
+const CROSSHAIR_MODES: CrosshairMode[] = ['idle', 'block', 'attack', 'altar'];
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -15,11 +19,14 @@ function requireElement(id: string): HTMLElement {
 /** All in-game HUD widgets: hearts, hotbar, hint line, boss bar and debug. */
 export class Hud {
   readonly bossBar: BossHealthBar;
+  readonly compass: Compass;
   readonly debug: DebugOverlay;
 
   private readonly root = requireElement('hud');
   private readonly healthRoot = requireElement('health');
   private readonly hintRoot = requireElement('hint');
+  private readonly objectiveRoot = requireElement('objective');
+  private readonly crosshair = requireElement('crosshair');
   private readonly flash = requireElement('damage-flash');
   private readonly hotbar: Hotbar;
   private readonly hearts: HTMLElement[] = [];
@@ -27,10 +34,12 @@ export class Hud {
   private lastHealth = -1;
   private flashTimer = 0;
   private hintTimer = 0;
+  private crosshairMode: CrosshairMode = 'idle';
 
   constructor(atlas: BlockAtlas) {
     this.hotbar = new Hotbar(requireElement('hotbar'), atlas);
     this.bossBar = new BossHealthBar(requireElement('boss-bar'));
+    this.compass = new Compass();
     this.debug = new DebugOverlay(requireElement('debug'));
 
     for (let i = 0; i < HEARTS; i++) {
@@ -69,6 +78,21 @@ export class Hud {
     if (this.hintRoot.textContent !== text) this.hintRoot.textContent = text;
     this.hintRoot.classList.add('show');
     this.hintTimer = seconds;
+  }
+
+  setCrosshair(mode: CrosshairMode): void {
+    if (mode === this.crosshairMode) return;
+    this.crosshairMode = mode;
+    for (const name of CROSSHAIR_MODES) this.crosshair.classList.toggle(name, name === mode);
+  }
+
+  setObjective(text: string | null): void {
+    if (!text) {
+      this.objectiveRoot.classList.remove('show');
+      return;
+    }
+    if (this.objectiveRoot.textContent !== text) this.objectiveRoot.textContent = text;
+    this.objectiveRoot.classList.add('show');
   }
 
   private updateHealth(health: number): void {

@@ -22,6 +22,8 @@ export class Sfx {
   private noiseBuffer: AudioBuffer | null = null;
 
   muted = false;
+  /** Linear master level, 0–1. The previous hardcoded gain was 0.45. */
+  volume = 0.45;
 
   /** Must be called from a user gesture before the first sound. */
   resume(): void {
@@ -32,12 +34,26 @@ export class Sfx {
 
       this.context = new AudioContextClass();
       this.master = this.context.createGain();
-      this.master.gain.value = 0.45;
       this.master.connect(this.context.destination);
       this.noiseBuffer = this.createNoiseBuffer(this.context);
+      this.applyGain();
     }
 
     if (this.context.state === 'suspended') void this.context.resume();
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.applyGain();
+  }
+
+  setVolume(volume: number): void {
+    this.volume = Math.max(0, Math.min(1, volume));
+    this.applyGain();
+  }
+
+  private applyGain(): void {
+    if (this.master) this.master.gain.value = this.muted ? 0 : this.volume;
   }
 
   play(name: SfxName): void {

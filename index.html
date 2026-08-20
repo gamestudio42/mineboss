@@ -20,9 +20,20 @@
             <div class="boss-bar-chip"></div>
             <div class="boss-bar-fill"></div>
           </div>
-          <div class="boss-bar-phase">Phase I</div>
+          <div class="boss-bar-status">
+            <div class="boss-bar-phase">Phase I</div>
+            <div class="boss-bar-vulnerable hidden">VULNERABLE</div>
+          </div>
         </div>
 
+        <div id="compass" class="hidden">
+          <div class="compass-ring">
+            <div id="compass-arrow">▲</div>
+          </div>
+          <div id="compass-label"></div>
+        </div>
+
+        <div id="objective"></div>
         <div id="hint"></div>
 
         <div id="bottom-bar">
@@ -39,14 +50,28 @@
         <div id="overlay-panel">
           <h1 class="title">MINEBOSS</h1>
           <p id="overlay-text">
-            Dig into the depths, find the obsidian altar and wake what sleeps beneath.
+            Follow the shrine, descend the stairs and wake what sleeps beneath.
           </p>
           <button id="overlay-button" type="button">Click to play</button>
+          <div id="settings" class="hidden">
+            <label class="setting">
+              <span>Volume <strong id="setting-volume-value">45%</strong></span>
+              <input id="setting-volume" type="range" min="0" max="100" value="45" />
+            </label>
+            <label class="setting setting-check">
+              <input id="setting-mute" type="checkbox" />
+              <span>Mute</span>
+            </label>
+            <label class="setting">
+              <span>Look sensitivity <strong id="setting-sensitivity-value">1.0×</strong></span>
+              <input id="setting-sensitivity" type="range" min="40" max="220" value="100" />
+            </label>
+          </div>
           <ul id="controls">
             <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</li>
             <li><kbd>Space</kbd> jump &middot; <kbd>Shift</kbd> sprint</li>
             <li><kbd>Left click</kbd> mine / attack</li>
-            <li><kbd>Right click</kbd> place block</li>
+            <li><kbd>Right click</kbd> place block or activate the altar</li>
             <li><kbd>1</kbd>&hellip;<kbd>9</kbd> or wheel: select slot</li>
             <li><kbd>F</kbd> fly (debug) &middot; <kbd>F3</kbd> debug info</li>
             <li><kbd>Esc</kbd> pause</li>
