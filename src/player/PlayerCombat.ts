@@ -47,7 +47,11 @@ export class PlayerCombat {
     this.player.startSwing();
 
     const critical = !this.player.body.onGround && this.player.velocity.y < -0.1;
-    const damage = BASE_DAMAGE * (critical ? CRITICAL_MULTIPLIER : 1) * this.aimed.damageMultiplier;
+    const damage =
+      BASE_DAMAGE *
+      this.player.meleeDamage *
+      (critical ? CRITICAL_MULTIPLIER : 1) *
+      this.aimed.damageMultiplier;
 
     if (!hitEntity(this.aimed, damage, this.origin, KNOCKBACK, this.particles)) return;
 

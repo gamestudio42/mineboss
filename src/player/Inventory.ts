@@ -53,12 +53,12 @@ export class Inventory {
     return remaining;
   }
 
-  takeSelected(): Block | null {
+  takeSelected(count = 1): Block | null {
     const slot = this.selectedSlot;
-    if (slot.block === null || slot.count <= 0) return null;
+    if (slot.block === null || slot.count < count) return null;
 
     const block = slot.block;
-    slot.count -= 1;
+    slot.count -= count;
     if (slot.count <= 0) slot.block = null;
     return block;
   }

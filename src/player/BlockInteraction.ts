@@ -8,6 +8,7 @@ import { ALTAR } from '../world/arena.ts';
 import { Block, TILE_SIDE, getBlockDef, isConsumable } from '../world/blocks.ts';
 import { raycastVoxels, type VoxelHit } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
+import { HAMMER, HammerTier, UPGRADE_COST, isUpgradeOre, upgradeFrom } from './Hammer.ts';
 import { PLAYER_HEIGHT, PLAYER_REACH, PLAYER_WIDTH, type Player } from './Player.ts';
 
 const PLACE_COOLDOWN = 0.18;
@@ -28,6 +29,8 @@ export class BlockInteraction {
   /** Fired after a right-click eat attempt; amount is 0 when already full. */
   onConsumed: ((healed: number) => void) | null = null;
   onConsumableFound: ((name: string) => void) | null = null;
+  onUpgradeFound: ((name: string) => void) | null = null;
+  onHammerFeedback: ((text: string) => void) | null = null;
 
   private readonly origin = new THREE.Vector3();
   private readonly direction = new THREE.Vector3();
@@ -92,7 +95,7 @@ export class BlockInteraction {
     const def = getBlockDef(hit.block);
     if (!Number.isFinite(def.hardness)) return false;
 
-    this.progress += dt / def.hardness;
+    this.progress += (dt * this.player.mineSpeed) / def.hardness;
     this.player.startSwing();
 
     this.breakPoint.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
@@ -123,6 +126,7 @@ export class BlockInteraction {
       this.player.inventory.add(def.drop, 1);
       const drop = getBlockDef(def.drop);
       if (drop.heal > 0) this.onConsumableFound?.(drop.name);
+      if (isUpgradeOre(def.drop)) this.onUpgradeFound?.(drop.name);
     }
     this.sfx.play('break');
     return true;
@@ -134,7 +138,7 @@ export class BlockInteraction {
 
   get holdingConsumable(): boolean {
     const block = this.player.inventory.selectedSlot.block;
-    return block !== null && isConsumable(block);
+    return block !== null && (isConsumable(block) || isUpgradeOre(block));
   }
 
   /**
@@ -150,6 +154,7 @@ export class BlockInteraction {
     }
 
     if (this.tryConsume()) return;
+    if (this.tryUpgrade()) return;
     if (!hit) return;
 
     const x = hit.x + hit.nx;
@@ -159,7 +164,7 @@ export class BlockInteraction {
     if (this.intersectsPlayer(x, y, z)) return;
 
     const block = this.player.inventory.selectedSlot.block;
-    if (block === null || isConsumable(block)) return;
+    if (block === null || isConsumable(block) || isUpgradeOre(block)) return;
 
     this.placeCooldown = PLACE_COOLDOWN;
     this.player.inventory.takeSelected();
@@ -193,6 +198,47 @@ export class BlockInteraction {
       gravity: 6,
     });
     this.onConsumed?.(restored);
+    return true;
+  }
+
+  private tryUpgrade(): boolean {
+    const slot = this.player.inventory.selectedSlot;
+    if (this.player.dead || slot.block === null) return false;
+
+    const next = upgradeFrom(slot.block);
+    if (next === null) return false;
+
+    this.placeCooldown = EAT_COOLDOWN;
+    const stats = HAMMER[next];
+
+    if (this.player.hammerTier >= next) {
+      this.onHammerFeedback?.(
+        this.player.hammerTier === next
+          ? `Already ${stats.name.toLowerCase()}`
+          : 'The hammer is already stronger',
+      );
+      return true;
+    }
+
+    if (slot.count < UPGRADE_COST) {
+      this.onHammerFeedback?.(`Need ${UPGRADE_COST} ${getBlockDef(slot.block).name}`);
+      return true;
+    }
+
+    this.player.inventory.takeSelected(UPGRADE_COST);
+    this.player.hammerTier = next;
+    this.player.startSwing();
+    this.sfx.play('eat');
+    this.player.getEyePosition(this.origin);
+    this.particles.burst(this.origin, {
+      count: 14,
+      color: next === HammerTier.Gold ? 0xffe08a : 0xc8d0d8,
+      speed: 2,
+      spread: 0.5,
+      life: 0.45,
+      gravity: 6,
+    });
+    this.onHammerFeedback?.(`${stats.name}: mines faster and hits harder`);
     return true;
   }
 

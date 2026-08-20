@@ -5,6 +5,7 @@ import { BossArena } from '../entities/boss/BossArena.ts';
 import { EntityManager } from '../entities/EntityManager.ts';
 import type { EntityContext } from '../entities/Entity.ts';
 import { BlockInteraction } from '../player/BlockInteraction.ts';
+import { HAMMER, HammerTier, UPGRADE_COST } from '../player/Hammer.ts';
 import { Player, SWING_DURATION } from '../player/Player.ts';
 import { PlayerCombat } from '../player/PlayerCombat.ts';
 import { PlayerController } from '../player/PlayerController.ts';
@@ -74,6 +75,7 @@ export class Game {
   /** Death is applied at the end of the tick so leftover attacks cannot eat the altar. */
   private pendingDeath = false;
   private hintedConsumable = false;
+  private hintedUpgrade = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -133,7 +135,7 @@ export class Game {
       onSummon: (name) => {
         this.hud.bossBar.show(name);
         this.hud.bossBar.setPhase('Phase I');
-        this.hud.showHint('Jump the shockwave. Hit the cores when it staggers. Eat to heal.', 5);
+        this.hud.showHint('Jump the shockwave. Stagger it. Eat to heal.', 5);
         this.sfx.play('roar');
       },
       onPhase: (_phase, label) => {
@@ -177,6 +179,12 @@ export class Game {
       this.hintedConsumable = true;
       this.hud.showHint(`Right click to eat ${name} and recover health`, 3.5);
     };
+    this.interaction.onUpgradeFound = (name) => {
+      if (this.hintedUpgrade) return;
+      this.hintedUpgrade = true;
+      this.hud.showHint(`Right click ${UPGRADE_COST} ${name} to strengthen the hammer`, 3.5);
+    };
+    this.interaction.onHammerFeedback = (text) => this.hud.showHint(text, 2.4);
     this.player.health.onDamage = (amount) => {
       this.hud.flashDamage(amount / 6);
       this.sfx.play('hurt');
@@ -311,6 +319,9 @@ export class Game {
     this.trauma = 0;
     this.stepDistance = 0;
     this.hintedConsumable = false;
+    this.hintedUpgrade = false;
+    this.player.hammerTier = HammerTier.Wood;
+    this.viewModel.setTier(HammerTier.Wood);
 
     this.entities.clear();
     this.arena.beginNewRun();
@@ -377,6 +388,7 @@ export class Game {
     const walkSpeed = this.player.flying
       ? 0
       : Math.hypot(this.player.velocity.x, this.player.velocity.z);
+    this.viewModel.setTier(this.player.hammerTier);
     this.viewModel.update(dt, this.player.swing, SWING_DURATION, walkSpeed);
     this.updateHud(dt);
 
@@ -462,6 +474,7 @@ export class Game {
       `tris     ${this.renderer.info.render.triangles}`,
       `entities ${this.entities.entities.length}`,
       `boss     ${boss ? `${boss.stateName} p${boss.phase + 1}` : 'dormant'}`,
+      `hammer   ${HAMMER[this.player.hammerTier].name}`,
       `ground   ${this.player.body.onGround ? 'yes' : 'no'}${this.player.flying ? ' (flying)' : ''}`,
     ];
   }

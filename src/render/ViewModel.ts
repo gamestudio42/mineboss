@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 
 import { lerp } from '../core/math.ts';
+import { HammerTier } from '../player/Hammer.ts';
+
+const METAL: Record<HammerTier, { light: number; mid: number; dark: number; rune: number }> = {
+  [HammerTier.Wood]: { light: 0xc4c8ce, mid: 0x8e949c, dark: 0x5c6168, rune: 0xb48cf0 },
+  [HammerTier.Iron]: { light: 0xdce3ec, mid: 0x9aa4b0, dark: 0x3e4852, rune: 0x8eb4d8 },
+  [HammerTier.Gold]: { light: 0xffe08a, mid: 0xd4a84a, dark: 0x8a6a20, rune: 0xfff1b0 },
+};
 
 /** Anchored low-right so the head sits in the right third and the crosshair stays clear. */
 const REST_POSITION = new THREE.Vector3(0.42, -0.38, -0.64);
@@ -16,7 +23,7 @@ const SWING_ROLL = 0.18;
  * BoxGeometry stores four vertices per face. Darken the sides and bottom so an
  * unlit tool still reads as a solid rather than a flat sticker.
  */
-function shadeFaces(geometry: THREE.BoxGeometry, hex: number): void {
+function shadeFaces(geometry: THREE.BufferGeometry, hex: number): void {
   const color = new THREE.Color(hex);
   const shades = [0.74, 0.62, 1, 0.42, 0.88, 0.7];
   const colors = new Float32Array(geometry.attributes.position.count * 3);
@@ -56,7 +63,9 @@ function part(
 /** First person hammer attached to the camera. */
 export class ViewModel {
   private readonly root = new THREE.Group();
+  private readonly metal = new Map<THREE.Mesh, 'light' | 'mid' | 'dark' | 'rune'>();
   private swayPhase = 0;
+  private tier = HammerTier.Wood;
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.buildHammer();
@@ -66,10 +75,30 @@ export class ViewModel {
     camera.add(this.root);
   }
 
-  private add(width: number, height: number, depth: number, color: number, x: number, y: number, z: number): void {
+  private add(
+    width: number,
+    height: number,
+    depth: number,
+    color: number,
+    x: number,
+    y: number,
+    z: number,
+    metal?: 'light' | 'mid' | 'dark' | 'rune',
+  ): void {
     const mesh = part(width, height, depth, color);
     mesh.position.set(x, y, z);
+    if (metal) this.metal.set(mesh, metal);
     this.root.add(mesh);
+  }
+
+  setTier(tier: HammerTier): void {
+    if (tier === this.tier) return;
+    this.tier = tier;
+    const palette = METAL[tier];
+    for (const [mesh, role] of this.metal) {
+      shadeFaces(mesh.geometry, palette[role]);
+      mesh.geometry.attributes.color.needsUpdate = true;
+    }
   }
 
   /**
@@ -91,32 +120,32 @@ export class ViewModel {
 
     for (const y of [-0.26, -0.1, 0.06]) {
       this.add(0.074, 0.07, 0.074, leather, 0, y, 0);
-      this.add(0.08, 0.012, 0.08, steelDark, 0, y + 0.042, 0);
+      this.add(0.08, 0.012, 0.08, steelDark, 0, y + 0.042, 0, 'dark');
     }
 
-    this.add(0.082, 0.036, 0.082, steelMid, 0, -0.42, 0);
+    this.add(0.082, 0.036, 0.082, steelMid, 0, -0.42, 0, 'mid');
     this.add(0.07, 0.028, 0.07, rubber, 0, -0.448, 0);
     this.add(0.018, 0.07, 0.04, leather, 0, -0.5, 0.03);
     this.add(0.018, 0.07, 0.04, leather, 0, -0.5, -0.03);
     this.add(0.018, 0.018, 0.08, leather, 0, -0.54, 0);
 
     this.add(0.088, 0.11, 0.088, rubber, 0, 0.34, 0);
-    this.add(0.078, 0.032, 0.078, steelDark, 0, 0.41, 0);
+    this.add(0.078, 0.032, 0.078, steelDark, 0, 0.41, 0, 'dark');
 
     const hy = 0.54;
-    this.add(0.34, 0.2, 0.22, steelMid, 0, hy, 0);
-    this.add(0.28, 0.03, 0.16, steel, 0, hy + 0.11, 0);
-    this.add(0.28, 0.03, 0.16, steelDark, 0, hy - 0.11, 0);
+    this.add(0.34, 0.2, 0.22, steelMid, 0, hy, 0, 'mid');
+    this.add(0.28, 0.03, 0.16, steel, 0, hy + 0.11, 0, 'light');
+    this.add(0.28, 0.03, 0.16, steelDark, 0, hy - 0.11, 0, 'dark');
 
-    this.add(0.22, 0.14, 0.045, steel, 0, hy, 0.13);
-    this.add(0.22, 0.14, 0.045, steel, 0, hy, -0.13);
-    this.add(0.16, 0.1, 0.018, steelDark, 0, hy, 0.158);
-    this.add(0.16, 0.1, 0.018, steelDark, 0, hy, -0.158);
+    this.add(0.22, 0.14, 0.045, steel, 0, hy, 0.13, 'light');
+    this.add(0.22, 0.14, 0.045, steel, 0, hy, -0.13, 'light');
+    this.add(0.16, 0.1, 0.018, steelDark, 0, hy, 0.158, 'dark');
+    this.add(0.16, 0.1, 0.018, steelDark, 0, hy, -0.158, 'dark');
 
-    this.add(0.028, 0.13, 0.14, steelDark, 0.182, hy, 0);
-    this.add(0.028, 0.13, 0.14, steelDark, -0.182, hy, 0);
-    this.add(0.012, 0.08, 0.018, rune, 0.196, hy, 0);
-    this.add(0.012, 0.018, 0.07, rune, 0.196, hy, 0);
+    this.add(0.028, 0.13, 0.14, steelDark, 0.182, hy, 0, 'dark');
+    this.add(0.028, 0.13, 0.14, steelDark, -0.182, hy, 0, 'dark');
+    this.add(0.012, 0.08, 0.018, rune, 0.196, hy, 0, 'rune');
+    this.add(0.012, 0.018, 0.07, rune, 0.196, hy, 0, 'rune');
   }
 
   /** `swing` counts down from `swingDuration` to zero after each hit. */

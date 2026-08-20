@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 import { Health } from '../combat/Health.ts';
 import { VoxelBody } from '../physics/VoxelBody.ts';
+import { HAMMER, HammerTier } from './Hammer.ts';
 import { Inventory } from './Inventory.ts';
 
 export const PLAYER_WIDTH = 0.6;
@@ -23,6 +24,15 @@ export class Player {
   sprinting = false;
   /** Seconds left of the swing animation, drives the held-item bob. */
   swing = 0;
+  hammerTier = HammerTier.Wood;
+
+  get mineSpeed(): number {
+    return HAMMER[this.hammerTier].mineSpeed;
+  }
+
+  get meleeDamage(): number {
+    return HAMMER[this.hammerTier].damage;
+  }
 
   get position(): THREE.Vector3 {
     return this.body.position;
