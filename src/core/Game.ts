@@ -1,0 +1,405 @@
+import * as THREE from 'three';
+
+import { Sfx } from '../audio/Sfx.ts';
+import { BossArena } from '../entities/boss/BossArena.ts';
+import { EntityManager } from '../entities/EntityManager.ts';
+import type { EntityContext } from '../entities/Entity.ts';
+import { BlockInteraction } from '../player/BlockInteraction.ts';
+import { Player, SWING_DURATION } from '../player/Player.ts';
+import { PlayerCombat } from '../player/PlayerCombat.ts';
+import { PlayerController } from '../player/PlayerController.ts';
+import { createBlockAtlas } from '../render/atlas.ts';
+import { createTerrainMaterial } from '../render/materials.ts';
+import { ParticleSystem } from '../render/Particles.ts';
+import { ViewModel } from '../render/ViewModel.ts';
+import { Hud } from '../ui/Hud.ts';
+import { Overlay } from '../ui/Overlay.ts';
+import { Block } from '../world/blocks.ts';
+import { ChunkManager } from '../world/ChunkManager.ts';
+import { TerrainGenerator } from '../world/terrain/generator.ts';
+import { World } from '../world/World.ts';
+import { Input } from './Input.ts';
+import { Loop } from './Loop.ts';
+import { clamp } from './math.ts';
+
+export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
+
+const SKY_COLOR = 0x8fb8e0;
+const CAVE_COLOR = 0x090b11;
+/** Below this height the atmosphere is fully underground. */
+const UNDERGROUND_Y = 42;
+
+const SPAWN_X = 10;
+const SPAWN_Z = 10;
+const HINT_INTERVAL = 24;
+const STEP_DISTANCE = 2.4;
+
+/** Wires every subsystem together and drives the top-level game state. */
+export class Game {
+  readonly renderer: THREE.WebGLRenderer;
+  readonly scene = new THREE.Scene();
+  readonly camera: THREE.PerspectiveCamera;
+  readonly input: Input;
+  readonly loop: Loop;
+
+  state: GameState = 'menu';
+
+  private readonly sunLight: THREE.DirectionalLight;
+  private readonly skyLight: THREE.HemisphereLight;
+  private readonly lamp: THREE.PointLight;
+  private readonly fog: THREE.Fog;
+  private readonly skyColor = new THREE.Color(SKY_COLOR);
+  private readonly caveColor = new THREE.Color(CAVE_COLOR);
+  private readonly blendedColor = new THREE.Color();
+
+  private readonly sfx = new Sfx();
+  private readonly atlas = createBlockAtlas();
+  private readonly world: World;
+  private readonly chunks: ChunkManager;
+  private readonly particles: ParticleSystem;
+  private readonly entities: EntityManager;
+  private readonly player = new Player();
+  private readonly controller: PlayerController;
+  private readonly combat: PlayerCombat;
+  private readonly interaction: BlockInteraction;
+  private readonly viewModel: ViewModel;
+  private readonly arena: BossArena;
+  private readonly hud: Hud;
+  private readonly overlay = new Overlay();
+
+  private elapsed = 0;
+  private trauma = 0;
+  private hintTimer = 4;
+  private stepDistance = 0;
+  private readonly context: EntityContext;
+
+  constructor(readonly canvas: HTMLCanvasElement) {
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    this.camera = new THREE.PerspectiveCamera(76, 1, 0.1, 400);
+    this.camera.rotation.order = 'YXZ';
+    // The camera carries the first person view model, so it must be in the graph.
+    this.scene.add(this.camera);
+
+    this.fog = new THREE.Fog(SKY_COLOR, 50, 118);
+    this.scene.fog = this.fog;
+    this.scene.background = this.skyColor.clone();
+
+    this.skyLight = new THREE.HemisphereLight(0xbdd7ff, 0x4a4335, 1.15);
+    this.scene.add(this.skyLight);
+
+    this.sunLight = new THREE.DirectionalLight(0xfff3d6, 1.05);
+    this.sunLight.position.set(0.55, 1, 0.3).normalize();
+    this.scene.add(this.sunLight);
+
+    // Miner's lamp: the only thing that makes caves and the arena readable.
+    this.lamp = new THREE.PointLight(0xffd7a3, 0, 42, 2);
+    this.scene.add(this.lamp);
+
+    const terrainMaterial = createTerrainMaterial(this.atlas);
+    const emissiveMaterial = new THREE.MeshBasicMaterial({
+      map: this.atlas.texture,
+      vertexColors: true,
+    });
+
+    this.world = new World(new TerrainGenerator(1337));
+    this.chunks = new ChunkManager(this.world, this.scene, [terrainMaterial, emissiveMaterial]);
+    this.particles = new ParticleSystem(this.scene);
+    this.entities = new EntityManager(this.scene);
+
+    this.controller = new PlayerController(this.player, this.world, this.camera);
+    this.combat = new PlayerCombat(this.player, this.entities, this.particles, this.sfx);
+    this.interaction = new BlockInteraction(
+      this.player,
+      this.world,
+      this.atlas,
+      this.particles,
+      this.scene,
+    );
+
+    this.viewModel = new ViewModel(this.camera);
+    this.hud = new Hud(this.atlas);
+    this.arena = new BossArena(this.entities, {
+      onSummon: (name) => {
+        this.hud.bossBar.show(name);
+        this.hud.bossBar.setPhase('Phase I');
+        this.hud.showHint('The Deep Warden awakens', 3);
+        this.sfx.play('roar');
+      },
+      onPhase: (_phase, label) => {
+        this.hud.bossBar.setPhase(label);
+        this.hud.showHint(`${label}: it grows angrier`, 2.5);
+      },
+      onVictory: () => this.win(),
+      onShake: (intensity) => this.shake(intensity),
+    });
+
+    this.context = {
+      dt: 0,
+      world: this.world,
+      player: this.player,
+      particles: this.particles,
+      entities: this.entities,
+      atlas: this.atlas,
+      sfx: this.sfx,
+      elapsed: 0,
+    };
+
+    this.input = new Input(canvas);
+    this.input.onLockChange = (locked) => this.handleLockChange(locked);
+    this.loop = new Loop((dt) => this.tick(dt));
+
+    this.interaction.onAltarActivated = () => this.tryStartFight();
+    this.player.health.onDamage = (amount) => {
+      this.hud.flashDamage(amount / 6);
+      this.sfx.play('hurt');
+      this.shake(Math.min(0.4, amount / 24));
+    };
+    this.player.health.onDeath = () => this.die();
+
+    window.addEventListener('resize', this.resize);
+    this.resize();
+
+    this.prepareWorld();
+    this.showMenu();
+  }
+
+  private prepareWorld(): void {
+    this.chunks.preload(SPAWN_X, SPAWN_Z, 2);
+
+    const ground = this.world.surfaceY(SPAWN_X, SPAWN_Z);
+    this.player.setSpawn(SPAWN_X + 0.5, ground + 1, SPAWN_Z + 0.5);
+    this.player.respawn();
+    this.player.inventory.add(Block.Cobblestone, 32);
+    this.player.inventory.add(Block.Planks, 16);
+    this.controller.update(0.0001, this.input);
+  }
+
+  private showMenu(): void {
+    this.state = 'menu';
+    this.hud.setVisible(false);
+    this.overlay.show(
+      {
+        title: 'MINEBOSS',
+        text: 'Dig into the depths, find the obsidian altar and wake what sleeps beneath.',
+        button: 'Click to play',
+      },
+      () => this.startPlaying(),
+    );
+  }
+
+  private startPlaying(): void {
+    this.sfx.resume();
+    this.overlay.hide();
+    this.hud.setVisible(true);
+    this.state = 'playing';
+    this.input.requestLock();
+  }
+
+  private pause(): void {
+    if (this.state !== 'playing') return;
+    this.state = 'paused';
+    this.overlay.show(
+      {
+        title: 'PAUSED',
+        text: 'The world keeps its secrets while you are away.',
+        button: 'Resume',
+      },
+      () => this.startPlaying(),
+    );
+  }
+
+  private die(): void {
+    if (this.state === 'dead') return;
+    this.state = 'dead';
+    this.sfx.play('death');
+    this.input.releaseLock();
+    this.hud.bossBar.hide();
+    this.arena.reset(this.context);
+
+    this.overlay.show(
+      {
+        title: 'YOU DIED',
+        text: 'The dark closes in. The Warden returns to its slumber, waiting for another challenger.',
+        button: 'Respawn',
+        showControls: false,
+      },
+      () => {
+        this.player.respawn();
+        this.startPlaying();
+      },
+    );
+  }
+
+  private win(): void {
+    this.state = 'victory';
+    this.sfx.play('victory');
+    this.input.releaseLock();
+    this.hud.bossBar.hide();
+
+    this.overlay.show(
+      {
+        title: 'VICTORY',
+        text: 'The Deep Warden collapses into rubble. The depths are yours.',
+        button: 'Keep exploring',
+        showControls: false,
+      },
+      () => this.startPlaying(),
+    );
+  }
+
+  private tryStartFight(): void {
+    if (!this.arena.canSummon(this.player.position)) {
+      if (this.arena.defeated) this.hud.showHint('The altar is spent', 2);
+      return;
+    }
+
+    this.sfx.play('summon');
+    this.arena.summon();
+  }
+
+  private handleLockChange(locked: boolean): void {
+    if (!locked && this.state === 'playing') this.pause();
+  }
+
+  private tick(dt: number): void {
+    if (this.state === 'playing') this.updateWorld(dt);
+
+    this.updateAtmosphere();
+    this.renderer.render(this.scene, this.camera);
+    this.input.endFrame();
+  }
+
+  private updateWorld(dt: number): void {
+    this.elapsed += dt;
+
+    this.handleHotbarInput();
+    if (this.input.wasPressed('F3')) this.hud.debug.toggle();
+
+    this.controller.look(this.input);
+    this.controller.update(dt, this.input);
+    this.combat.update(dt, this.input);
+    this.interaction.update(dt, this.input, this.combat.aimed !== null);
+
+    this.context.dt = dt;
+    this.context.elapsed = this.elapsed;
+    this.entities.update(this.context);
+    this.arena.update();
+
+    this.player.health.update(dt);
+    this.chunks.update(this.player.position.x, this.player.position.z);
+    this.particles.update(dt);
+
+    this.applyShake(dt);
+    this.updateFootsteps(dt);
+    this.viewModel.update(
+      dt,
+      this.player.swing,
+      SWING_DURATION,
+      Math.hypot(this.player.velocity.x, this.player.velocity.z),
+    );
+    this.updateHud(dt);
+  }
+
+  private handleHotbarInput(): void {
+    for (let i = 0; i < 9; i++) {
+      if (this.input.wasPressed(`Digit${i + 1}`)) this.player.inventory.select(i);
+    }
+    if (this.input.wheelDelta !== 0) this.player.inventory.cycle(this.input.wheelDelta);
+  }
+
+  private updateHud(dt: number): void {
+    this.hud.update(dt, this.player.inventory, this.player.health.current);
+
+    const boss = this.arena.boss;
+    if (boss && !boss.removed) {
+      this.hud.bossBar.update(boss.health?.fraction ?? 0);
+    } else if (this.arena.defeated) {
+      this.hud.bossBar.hide();
+    }
+
+    if (!this.arena.active && !this.arena.defeated) {
+      this.hintTimer -= dt;
+      if (this.hintTimer <= 0) {
+        this.hintTimer = HINT_INTERVAL;
+        this.hud.showHint(this.arena.describeAltarDirection(this.player.position), 5);
+      }
+    }
+
+    this.hud.debug.update(dt, () => this.debugLines());
+  }
+
+  private debugLines(): string[] {
+    const position = this.player.position;
+    const boss = this.arena.boss;
+
+    return [
+      `fps      ${this.loop.fps.toFixed(0)}`,
+      `pos      ${position.x.toFixed(1)} ${position.y.toFixed(1)} ${position.z.toFixed(1)}`,
+      `chunk    ${Math.floor(position.x / 16)} ${Math.floor(position.z / 16)}`,
+      `chunks   ${this.chunks.loadedChunks} loaded`,
+      `mesh     ${this.chunks.activeJobs} active / ${this.chunks.queuedJobs} queued`,
+      `draws    ${this.renderer.info.render.calls}`,
+      `tris     ${this.renderer.info.render.triangles}`,
+      `entities ${this.entities.entities.length}`,
+      `boss     ${boss ? `${boss.stateName} p${boss.phase + 1}` : 'dormant'}`,
+      `ground   ${this.player.body.onGround ? 'yes' : 'no'}${this.player.flying ? ' (flying)' : ''}`,
+    ];
+  }
+
+  private updateFootsteps(dt: number): void {
+    if (!this.player.body.onGround || this.player.flying) return;
+
+    const speed = Math.hypot(this.player.velocity.x, this.player.velocity.z);
+    this.stepDistance += speed * dt;
+    if (this.stepDistance < STEP_DISTANCE) return;
+
+    this.stepDistance = 0;
+    this.sfx.play('step');
+  }
+
+  private shake(intensity: number): void {
+    this.trauma = clamp(this.trauma + intensity, 0, 1);
+  }
+
+  private applyShake(dt: number): void {
+    if (this.trauma <= 0) return;
+
+    this.trauma = Math.max(0, this.trauma - dt * 1.4);
+    const amount = this.trauma * this.trauma;
+
+    this.camera.position.x += (Math.random() - 0.5) * amount * 0.9;
+    this.camera.position.y += (Math.random() - 0.5) * amount * 0.9;
+    this.camera.rotation.z += (Math.random() - 0.5) * amount * 0.12;
+  }
+
+  /** Blends light and fog toward pitch black as the camera descends. */
+  private updateAtmosphere(): void {
+    const t = clamp((this.camera.position.y - UNDERGROUND_Y) / 26, 0, 1);
+    this.blendedColor.copy(this.caveColor).lerp(this.skyColor, t);
+
+    this.fog.color.copy(this.blendedColor);
+    (this.scene.background as THREE.Color).copy(this.blendedColor);
+    this.fog.near = 4 + t * 46;
+    this.fog.far = 46 + t * 72;
+    this.sunLight.intensity = 0.1 + t * 0.95;
+    this.skyLight.intensity = 0.42 + t * 0.73;
+
+    this.lamp.position.copy(this.camera.position);
+    this.lamp.intensity = 34 * (1 - t);
+  }
+
+  private readonly resize = (): void => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(width, height, false);
+  };
+}

@@ -1,0 +1,22 @@
+{
+  "name": "mineboss",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Voxel sandbox game with a multi-phase boss fight",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.4",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.1"
+  }
+}

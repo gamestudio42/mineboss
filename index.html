@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mineboss</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="viewport"></canvas>
+
+      <div id="hud" class="hidden">
+        <div id="crosshair"></div>
+
+        <div id="boss-bar" class="hidden">
+          <div class="boss-bar-name">The Deep Warden</div>
+          <div class="boss-bar-track">
+            <div class="boss-bar-chip"></div>
+            <div class="boss-bar-fill"></div>
+          </div>
+          <div class="boss-bar-phase">Phase I</div>
+        </div>
+
+        <div id="hint"></div>
+
+        <div id="bottom-bar">
+          <div id="health"></div>
+          <div id="hotbar"></div>
+        </div>
+
+        <div id="debug" class="hidden"></div>
+      </div>
+
+      <div id="damage-flash"></div>
+
+      <div id="overlay">
+        <div id="overlay-panel">
+          <h1 class="title">MINEBOSS</h1>
+          <p id="overlay-text">
+            Dig into the depths, find the obsidian altar and wake what sleeps beneath.
+          </p>
+          <button id="overlay-button" type="button">Click to play</button>
+          <ul id="controls">
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</li>
+            <li><kbd>Space</kbd> jump &middot; <kbd>Shift</kbd> sprint</li>
+            <li><kbd>Left click</kbd> mine / attack</li>
+            <li><kbd>Right click</kbd> place block</li>
+            <li><kbd>1</kbd>&hellip;<kbd>9</kbd> or wheel: select slot</li>
+            <li><kbd>F</kbd> fly (debug) &middot; <kbd>F3</kbd> debug info</li>
+            <li><kbd>Esc</kbd> pause</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
