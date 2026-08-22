@@ -22,6 +22,7 @@ import { TerrainGenerator } from '../world/terrain/generator.ts';
 import { World } from '../world/World.ts';
 import { Input } from './Input.ts';
 import { Loop } from './Loop.ts';
+import { formatRunLine, recordRun, type RunRecord } from './Records.ts';
 import { loadSettings, type StoredSettings } from './Settings.ts';
 import { ALTAR, ENTRANCE } from '../world/arena.ts';
 import { clamp, wrapAngle } from './math.ts';
@@ -285,6 +286,7 @@ export class Game {
         button: 'Respawn',
         secondary: 'New game',
         showControls: false,
+        showSettings: true,
       },
       () => {
         this.player.respawn();
@@ -314,6 +316,7 @@ export class Game {
         button: 'Keep exploring',
         secondary: 'New game',
         showControls: false,
+        showSettings: true,
       },
       () => this.startPlaying(),
       () => this.newGame(),
@@ -432,7 +435,7 @@ export class Game {
   }
 
   private updateHud(dt: number): void {
-    this.hud.update(dt, this.player.inventory, this.player.health.current);
+    this.hud.update(dt, this.player.inventory, this.player.health.current, this.player.hammerTier);
 
     const boss = this.arena.boss;
     if (boss && !boss.removed) {
@@ -458,6 +461,7 @@ export class Game {
     if (this.combat.aimed) this.hud.setCrosshair('attack');
     else if (this.interaction.aimingAltar) this.hud.setCrosshair('altar');
     else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
+    else if (this.interaction.holdingUpgradeOre) this.hud.setCrosshair('smith');
     else if (this.interaction.holdingTorchFuel) this.hud.setCrosshair('craft');
     else if (this.interaction.target) this.hud.setCrosshair('block');
     else this.hud.setCrosshair('idle');
@@ -549,18 +553,26 @@ export class Game {
     this.sfx.setAmbience(t * (1 - fighting * 0.35), (1 - t) * (1 - fighting * 0.2), fighting);
   }
 
+  private currentRun(): RunRecord {
+    return {
+      elapsed: this.elapsed,
+      deaths: this.deaths,
+      hammer: this.player.hammerTier,
+      blocksMined: this.blocksMined,
+    };
+  }
+
   private victoryText(): string {
-    const minutes = Math.floor(this.elapsed / 60);
-    const seconds = Math.floor(this.elapsed % 60)
-      .toString()
-      .padStart(2, '0');
-    const deathLabel = this.deaths === 1 ? '1 death' : `${this.deaths} deaths`;
-    const blockLabel = this.blocksMined === 1 ? '1 block mined' : `${this.blocksMined} blocks mined`;
-    return [
+    const run = this.currentRun();
+    const { best, isNewBest } = recordRun(run);
+    const lines = [
       'The Deep Warden collapses into rubble. The depths are yours.',
       '',
-      `${minutes}:${seconds} · ${deathLabel} · ${HAMMER[this.player.hammerTier].name} · ${blockLabel}`,
-    ].join('\n');
+      formatRunLine(run),
+    ];
+    if (isNewBest) lines.push('New best run');
+    else lines.push(`Best: ${formatRunLine(best)}`);
+    return lines.join('\n');
   }
 
   private readonly resize = (): void => {

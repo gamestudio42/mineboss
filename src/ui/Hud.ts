@@ -1,5 +1,12 @@
+import { HAMMER, HammerTier, UPGRADE_COST, upgradeFrom } from '../player/Hammer.ts';
 import type { Inventory } from '../player/Inventory.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
+import {
+  TORCHES_PER_COAL,
+  getBlockDef,
+  isConsumable,
+  isTorchFuel,
+} from '../world/blocks.ts';
 import { BossHealthBar } from './BossHealthBar.ts';
 import { Compass } from './Compass.ts';
 import { DebugOverlay } from './DebugOverlay.ts';
@@ -7,13 +14,37 @@ import { Hotbar } from './Hotbar.ts';
 
 const HEARTS = 10;
 
-export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal' | 'craft';
-const CROSSHAIR_MODES: CrosshairMode[] = ['idle', 'block', 'attack', 'altar', 'heal', 'craft'];
+export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal' | 'craft' | 'smith';
+const CROSSHAIR_MODES: CrosshairMode[] = [
+  'idle',
+  'block',
+  'attack',
+  'altar',
+  'heal',
+  'craft',
+  'smith',
+];
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);
   if (!element) throw new Error(`Missing UI element #${id}`);
   return element;
+}
+
+function slotHint(block: number | null, count: number, tier: HammerTier): string {
+  if (block === null || count <= 0) return '';
+
+  const name = getBlockDef(block).name;
+  if (isConsumable(block)) return `${name} — right click to eat`;
+  if (isTorchFuel(block)) return `${name} — right click: ${TORCHES_PER_COAL} torches`;
+
+  const next = upgradeFrom(block);
+  if (next !== null) {
+    if (tier >= next) return `${name} — already ${HAMMER[tier].name.toLowerCase()}`;
+    return `${name} — ${UPGRADE_COST} to smith ${HAMMER[next].name}`;
+  }
+
+  return `${name} — right click to place`;
 }
 
 /** All in-game HUD widgets: hearts, hotbar, hint line, boss bar and debug. */
@@ -26,12 +57,16 @@ export class Hud {
   private readonly healthRoot = requireElement('health');
   private readonly hintRoot = requireElement('hint');
   private readonly objectiveRoot = requireElement('objective');
+  private readonly hammerRoot = requireElement('hammer-label');
+  private readonly slotHintRoot = requireElement('slot-hint');
   private readonly crosshair = requireElement('crosshair');
   private readonly flash = requireElement('damage-flash');
   private readonly hotbar: Hotbar;
   private readonly hearts: HTMLElement[] = [];
 
   private lastHealth = -1;
+  private lastHammer = -1;
+  private lastHint = '';
   private flashTimer = 0;
   private hintTimer = 0;
   private crosshairMode: CrosshairMode = 'idle';
@@ -54,9 +89,10 @@ export class Hud {
     this.root.classList.toggle('hidden', !visible);
   }
 
-  update(dt: number, inventory: Inventory, health: number): void {
+  update(dt: number, inventory: Inventory, health: number, hammerTier: HammerTier): void {
     this.hotbar.update(inventory);
     this.updateHealth(health);
+    this.updateLoadout(inventory, hammerTier);
 
     if (this.flashTimer > 0) {
       this.flashTimer = Math.max(0, this.flashTimer - dt);
@@ -105,6 +141,19 @@ export class Hud {
     }
     if (this.objectiveRoot.textContent !== text) this.objectiveRoot.textContent = text;
     this.objectiveRoot.classList.add('show');
+  }
+
+  private updateLoadout(inventory: Inventory, hammerTier: HammerTier): void {
+    if (hammerTier !== this.lastHammer) {
+      this.lastHammer = hammerTier;
+      this.hammerRoot.textContent = HAMMER[hammerTier].name;
+    }
+
+    const slot = inventory.selectedSlot;
+    const hint = slotHint(slot.block, slot.count, hammerTier);
+    if (hint === this.lastHint) return;
+    this.lastHint = hint;
+    this.slotHintRoot.textContent = hint;
   }
 
   private updateHealth(health: number): void {

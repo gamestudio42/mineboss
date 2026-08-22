@@ -32,9 +32,6 @@ Requires Node 20+ and a WebGL2 capable browser.
 | Left click | Mine a block, or attack when aiming at an enemy |
 | Right click | Place, eat, smith iron/gold into the hammer, craft torches from coal, or activate the altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
-| `F` | Toggle fly mode (debug) |
-| `Ctrl` | Descend while flying |
-| `F3` | Frame timing and streaming counters |
 | `Esc` | Pause (volume, look sensitivity, new game) |
 
 ## Finding the fight
@@ -64,7 +61,8 @@ The hammer upgrade and your inventory stay through death. New game returns
 you to the starting hammer and a fresh hotbar.
 
 A short recap after victory lists the run time, deaths, hammer and blocks
-mined, so one descent can be compared with the next.
+mined. The best run is stored in the browser so later descents can beat it.
+The hotbar shows the current hammer and a line for the selected slot.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, it takes double damage and it cannot retaliate. That window is where the
@@ -111,8 +109,19 @@ A few decisions worth knowing about:
   from one step higher (just over a full block), which is what lets you walk
   the shrine stairs without jumping.
 
+## Later
+
+If this slice grows, do these next and in this order. Each is its own project.
+
+1. **Continue / seed** — persist seed, position, inventory, hammer and altar
+   state. Terrain is deterministic; block edits need a dirty-chunk log.
+2. **Shallow water** — a non-solid block and short swim, filling valleys below
+   sea level. No full flood fill on the first cut.
+3. **A second content hook** — another shrine, a Warden variant, or a visible
+   seed plus difficulty. A whole biome or a second boss comes last.
+
 ## Not included
 
-Multiplayer, crafting, saving to disk, and biome variety are all out of scope
-for this build. The entity system and chunk streaming were written with room for
-them.
+Multiplayer, a crafting table, saving edited chunks to disk, and biome variety
+are out of scope for this build. Fly (`F`) and the frame overlay (`F3`) still
+exist for development; they are not listed as player controls.

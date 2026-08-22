@@ -147,7 +147,12 @@ export class BlockInteraction {
 
   get holdingConsumable(): boolean {
     const block = this.player.inventory.selectedSlot.block;
-    return block !== null && (isConsumable(block) || isUpgradeOre(block));
+    return block !== null && isConsumable(block);
+  }
+
+  get holdingUpgradeOre(): boolean {
+    const block = this.player.inventory.selectedSlot.block;
+    return block !== null && isUpgradeOre(block);
   }
 
   get holdingTorchFuel(): boolean {

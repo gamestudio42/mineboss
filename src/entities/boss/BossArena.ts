@@ -153,6 +153,8 @@ export class BossArena {
         return 'Right click the runic altar';
       case 'fight':
         return 'Stagger it, then strike — eat to recover';
+      case 'done':
+        return 'The depths are yours — New game for another descent';
       default:
         return null;
     }

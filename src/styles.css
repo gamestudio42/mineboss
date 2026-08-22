@@ -84,6 +84,10 @@ body {
   --ch: #ffb15a;
 }
 
+#crosshair.smith {
+  --ch: #c4b5fd;
+}
+
 #bottom-bar {
   position: absolute;
   left: 50%;
@@ -125,6 +129,29 @@ body {
 
 .heart.empty {
   background: rgba(255, 255, 255, 0.22);
+}
+
+#loadout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 32px;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
+}
+
+#hammer-label {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+#slot-hint {
+  font-size: 12px;
+  opacity: 0.72;
+  max-width: 420px;
 }
 
 #hotbar {
