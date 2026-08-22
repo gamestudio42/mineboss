@@ -59,6 +59,7 @@ export class Hud {
   private readonly objectiveRoot = requireElement('objective');
   private readonly hammerRoot = requireElement('hammer-label');
   private readonly slotHintRoot = requireElement('slot-hint');
+  private readonly seedRoot = requireElement('seed-label');
   private readonly crosshair = requireElement('crosshair');
   private readonly flash = requireElement('damage-flash');
   private readonly hotbar: Hotbar;
@@ -132,6 +133,11 @@ export class Hud {
     if (mode === this.crosshairMode) return;
     this.crosshairMode = mode;
     for (const name of CROSSHAIR_MODES) this.crosshair.classList.toggle(name, name === mode);
+  }
+
+  setSeed(seed: number): void {
+    const label = `Seed ${seed}`;
+    if (this.seedRoot.textContent !== label) this.seedRoot.textContent = label;
   }
 
   setObjective(text: string | null): void {

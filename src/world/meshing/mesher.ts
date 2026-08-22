@@ -239,6 +239,52 @@ function emitBox(
   return vertexCount;
 }
 
+/** Water only draws faces that touch air or another non-water block. */
+function emitWater(
+  volume: Uint8Array,
+  positions: number[],
+  normals: number[],
+  uvs: number[],
+  colors: number[],
+  indices: number[],
+  vertexCount: number,
+  x: number,
+  y: number,
+  z: number,
+): number {
+  const { u0, u1, v0, v1 } = tileUv(Tile.Water);
+
+  for (const face of FACES) {
+    const [nx, ny, nz] = face.normal;
+    const neighbor = volume[volumeIndex(x + nx, y + ny, z + nz)];
+    if (neighbor === Block.Water || OPAQUE[neighbor] === 1) continue;
+
+    const [ux, uy, uz] = face.u;
+    const [vx, vy, vz] = face.v;
+    const drop = ny > 0 ? 0.12 : 0;
+
+    for (const [su, sv] of CORNERS) {
+      positions.push(
+        x + 0.5 + (nx + ux * su + vx * sv) * 0.5,
+        y + 0.5 + (ny + uy * su + vy * sv) * 0.5 - drop,
+        z + 0.5 + (nz + uz * su + vz * sv) * 0.5,
+      );
+      normals.push(nx, ny, nz);
+      const texU = (su + 1) / 2;
+      const texV = (sv + 1) / 2;
+      uvs.push(u0 + texU * (u1 - u0), v0 + texV * (v1 - v0));
+      const brightness = face.shade * 0.92;
+      colors.push(brightness, brightness, brightness);
+    }
+
+    const base = vertexCount;
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    vertexCount += 4;
+  }
+
+  return vertexCount;
+}
+
 /**
  * Turns a padded voxel volume into renderable geometry.
  *
@@ -262,6 +308,10 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
         if (block === Block.Air) continue;
         if (block === Block.Torch) {
           vertexCount = emitTorch(positions, normals, uvs, colors, emissiveIndices, vertexCount, x, y, z);
+          continue;
+        }
+        if (block === Block.Water) {
+          vertexCount = emitWater(volume, positions, normals, uvs, colors, litIndices, vertexCount, x, y, z);
           continue;
         }
         if (OPAQUE[block] !== 1) continue;

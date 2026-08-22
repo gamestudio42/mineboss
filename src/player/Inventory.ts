@@ -69,4 +69,15 @@ export class Inventory {
       slot.count = 0;
     }
   }
+
+  load(slots: Array<{ block: Block | null; count: number }>, selected: number): void {
+    this.clear();
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
+      const source = slots[i];
+      if (!source || source.block === null || source.count <= 0) continue;
+      this.slots[i].block = source.block;
+      this.slots[i].count = Math.min(STACK_SIZE, source.count);
+    }
+    this.select(selected);
+  }
 }

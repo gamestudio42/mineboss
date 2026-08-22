@@ -26,6 +26,7 @@ export enum Block {
   Glowstone = 19,
   Mushroom = 20,
   Torch = 21,
+  Water = 22,
 }
 
 export enum Tile {
@@ -54,6 +55,7 @@ export enum Tile {
   Mushroom = 22,
   Torch = 23,
   TorchFlame = 24,
+  Water = 25,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -171,6 +173,12 @@ export const BLOCKS: readonly BlockDef[] = [
     solid: false,
     glow: 0.95,
   }),
+  def(Block.Water, 'Water', [Tile.Water, Tile.Water, Tile.Water], {
+    hardness: Infinity,
+    opaque: false,
+    solid: false,
+    drop: null,
+  }),
 ];
 
 const BLOCK_COUNT = BLOCKS.length;
@@ -230,4 +238,8 @@ export const TORCHES_PER_COAL = 4;
 
 export function isTorchFuel(id: number): boolean {
   return id === Block.CoalOre;
+}
+
+export function isWater(id: number): boolean {
+  return id === Block.Water;
 }

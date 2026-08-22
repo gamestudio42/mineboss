@@ -23,6 +23,7 @@ import { World } from '../world/World.ts';
 import { Input } from './Input.ts';
 import { Loop } from './Loop.ts';
 import { formatRunLine, recordRun, type RunRecord } from './Records.ts';
+import { loadSave, saveRun, type SavedRun } from './Save.ts';
 import { loadSettings, type StoredSettings } from './Settings.ts';
 import { ALTAR, ENTRANCE } from '../world/arena.ts';
 import { clamp, wrapAngle } from './math.ts';
@@ -37,6 +38,8 @@ const UNDERGROUND_Y = 42;
 const SPAWN_X = 10;
 const SPAWN_Z = 10;
 const STEP_DISTANCE = 2.4;
+const DEFAULT_SEED = 1337;
+const AUTOSAVE_INTERVAL = 12;
 
 /** Wires every subsystem together and drives the top-level game state. */
 export class Game {
@@ -82,6 +85,9 @@ export class Game {
   private hintedTorch = false;
   private deaths = 0;
   private blocksMined = 0;
+  private seed = DEFAULT_SEED;
+  private saveTimer = 0;
+  private saveSoon = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -119,7 +125,7 @@ export class Game {
       vertexColors: true,
     });
 
-    this.world = new World(new TerrainGenerator(1337));
+    this.world = new World(new TerrainGenerator(this.seed));
     this.chunks = new ChunkManager(this.world, this.scene, [terrainMaterial, emissiveMaterial]);
     this.particles = new ParticleSystem(this.scene);
     this.torchLights = new TorchLights(this.scene);
@@ -206,10 +212,16 @@ export class Game {
       this.pendingDeath = true;
     };
 
+    this.world.onEdit = () => {
+      this.saveSoon = true;
+    };
+
     window.addEventListener('resize', this.resize);
     this.resize();
 
-    this.prepareWorld();
+    const save = loadSave();
+    if (save) this.applySave(save);
+    else this.prepareWorld();
     this.showMenu();
   }
 
@@ -232,6 +244,22 @@ export class Game {
   private showMenu(): void {
     this.state = 'menu';
     this.hud.setVisible(false);
+    const save = loadSave();
+    if (save) {
+      this.overlay.show(
+        {
+          title: 'MINEBOSS',
+          text: `Seed ${save.seed}. A descent is waiting.\nFollow the shrine, or continue where you left off.`,
+          button: 'Continue',
+          secondary: 'New game',
+          showSettings: true,
+        },
+        () => this.startPlaying(),
+        () => this.newGame(),
+      );
+      return;
+    }
+
     this.overlay.show(
       {
         title: 'MINEBOSS',
@@ -249,10 +277,12 @@ export class Game {
     this.hud.setVisible(true);
     this.state = 'playing';
     this.input.requestLock();
+    this.persistSave();
   }
 
   private pause(): void {
     if (this.state !== 'playing') return;
+    this.persistSave();
     this.state = 'paused';
     this.overlay.show(
       {
@@ -276,6 +306,7 @@ export class Game {
     this.input.releaseLock();
     this.hud.bossBar.hide();
     this.arena.reset(this.context);
+    this.persistSave({ atSpawn: true });
 
     this.overlay.show(
       {
@@ -308,6 +339,7 @@ export class Game {
     this.sfx.play('victory');
     this.input.releaseLock();
     this.hud.bossBar.hide();
+    this.persistSave();
 
     this.overlay.show(
       {
@@ -334,6 +366,8 @@ export class Game {
     this.elapsed = 0;
     this.trauma = 0;
     this.stepDistance = 0;
+    this.saveTimer = 0;
+    this.saveSoon = false;
     this.deaths = 0;
     this.blocksMined = 0;
     this.hintedConsumable = false;
@@ -347,7 +381,8 @@ export class Game {
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();
-    this.world.clear();
+    this.seed = (Math.random() * 0x7fffffff) | 0;
+    this.world.reseed(this.seed);
 
     this.player.swing = 0;
     this.hud.bossBar.hide();
@@ -418,6 +453,7 @@ export class Game {
     this.viewModel.setTier(this.player.hammerTier);
     this.viewModel.update(dt, this.player.swing, SWING_DURATION, walkSpeed);
     this.updateHud(dt);
+    this.updateSave(dt);
 
     if (this.pendingDeath) {
       this.die();
@@ -436,6 +472,7 @@ export class Game {
 
   private updateHud(dt: number): void {
     this.hud.update(dt, this.player.inventory, this.player.health.current, this.player.hammerTier);
+    this.hud.setSeed(this.seed);
 
     const boss = this.arena.boss;
     if (boss && !boss.removed) {
@@ -504,6 +541,7 @@ export class Game {
       `entities ${this.entities.entities.length}`,
       `boss     ${boss ? `${boss.stateName} p${boss.phase + 1}` : 'dormant'}`,
       `hammer   ${HAMMER[this.player.hammerTier].name}`,
+      `seed     ${this.seed}`,
       `ground   ${this.player.body.onGround ? 'yes' : 'no'}${this.player.flying ? ' (flying)' : ''}`,
     ];
   }
@@ -551,6 +589,98 @@ export class Game {
 
     const fighting = this.arena.active ? 1 : 0;
     this.sfx.setAmbience(t * (1 - fighting * 0.35), (1 - t) * (1 - fighting * 0.2), fighting);
+  }
+
+  private updateSave(dt: number): void {
+    this.saveTimer += dt;
+    if (this.saveSoon || this.saveTimer >= AUTOSAVE_INTERVAL) {
+      this.saveSoon = false;
+      this.saveTimer = 0;
+      this.persistSave();
+    }
+  }
+
+  private persistSave(options: { atSpawn?: boolean } = {}): void {
+    if (this.player.dead && !options.atSpawn) return;
+    saveRun(this.snapshotRun(options.atSpawn === true));
+  }
+
+  private snapshotRun(atSpawn: boolean): SavedRun {
+    const position = atSpawn ? this.player.spawn : this.player.position;
+    return {
+      version: 1,
+      seed: this.seed,
+      elapsed: this.elapsed,
+      deaths: this.deaths,
+      blocksMined: this.blocksMined,
+      hintedConsumable: this.hintedConsumable,
+      hintedUpgrade: this.hintedUpgrade,
+      hintedTorch: this.hintedTorch,
+      player: {
+        x: position.x,
+        y: position.y,
+        z: position.z,
+        yaw: this.player.yaw,
+        pitch: atSpawn ? 0 : this.player.pitch,
+        spawnX: this.player.spawn.x,
+        spawnY: this.player.spawn.y,
+        spawnZ: this.player.spawn.z,
+        health: atSpawn ? this.player.health.max : this.player.health.current,
+        hammer: this.player.hammerTier,
+        selected: this.player.inventory.selected,
+        slots: this.player.inventory.slots.map((slot) => ({
+          block: slot.block,
+          count: slot.count,
+        })),
+      },
+      arena: {
+        defeated: this.arena.defeated,
+        discovered: this.arena.discovered,
+      },
+      edits: this.world.exportEdits(),
+    };
+  }
+
+  private applySave(save: SavedRun): void {
+    const onEdit = this.world.onEdit;
+    this.world.onEdit = null;
+
+    this.seed = save.seed;
+    this.elapsed = save.elapsed;
+    this.deaths = save.deaths;
+    this.blocksMined = save.blocksMined;
+    this.hintedConsumable = save.hintedConsumable;
+    this.hintedUpgrade = save.hintedUpgrade;
+    this.hintedTorch = save.hintedTorch;
+
+    this.entities.clear();
+    this.arena.beginNewRun();
+    this.arena.defeated = save.arena.defeated;
+    this.arena.discovered = save.arena.discovered;
+    this.particles.clear();
+    this.torchLights.clear();
+    this.chunks.reset();
+    this.world.reseed(save.seed);
+    this.world.importEdits(save.edits);
+
+    this.player.inventory.load(save.player.slots, save.player.selected);
+    this.player.hammerTier = save.player.hammer;
+    this.viewModel.setTier(save.player.hammer);
+    this.player.setSpawn(save.player.spawnX, save.player.spawnY, save.player.spawnZ);
+    this.player.position.set(save.player.x, save.player.y, save.player.z);
+    this.player.velocity.set(0, 0, 0);
+    this.player.body.fallPeak = save.player.y;
+    this.player.body.onGround = false;
+    this.player.health.setCurrent(Math.max(1, save.player.health));
+    this.player.yaw = save.player.yaw;
+    this.player.pitch = save.player.pitch;
+    this.player.flying = false;
+    this.player.swing = 0;
+
+    this.chunks.preload(save.player.x, save.player.z, 2);
+    if (!this.arena.defeated) this.arena.rebuildAltar(this.world);
+    this.controller.update(0.0001, this.input);
+    this.world.onEdit = onEdit;
   }
 
   private currentRun(): RunRecord {

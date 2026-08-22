@@ -8,6 +8,7 @@ import type { World } from '../../world/World.ts';
 import {
   ALTAR,
   ARENA,
+  CACHE,
   ENTRANCE,
   ENTRANCE_SPAWN,
   distanceToArenaCenter,
@@ -137,7 +138,11 @@ export class BossArena {
   /** Point the compass at the shrine until the player is inside, then the altar. */
   guideTarget(position: THREE.Vector3): GuideTarget | null {
     const stage = this.guideStage(position);
-    if (stage === 'fight' || stage === 'done') return null;
+    if (stage === 'fight') return null;
+    if (stage === 'done') {
+      if (Math.hypot(position.x - CACHE.x, position.z - CACHE.z) < 6) return null;
+      return { x: CACHE.x + 0.5, y: position.y, z: CACHE.z + 0.5 };
+    }
     if (stage === 'altar') return { x: ALTAR.x + 0.5, y: ALTAR.y, z: ALTAR.z + 0.5 };
     if (stage === 'stairs') return { x: ENTRANCE.x + 0.5, y: ARENA.floorY + 1, z: ENTRANCE.z + 0.5 };
     return { x: ENTRANCE.x + 0.5, y: position.y, z: ENTRANCE.z + 0.5 };
@@ -154,7 +159,9 @@ export class BossArena {
       case 'fight':
         return 'Stagger it, then strike — eat to recover';
       case 'done':
-        return 'The depths are yours — New game for another descent';
+        return Math.hypot(position.x - CACHE.x, position.z - CACHE.z) < 6
+          ? 'The depths are yours — New game for another descent'
+          : 'A cairn waits east — or New game for another descent';
       default:
         return null;
     }

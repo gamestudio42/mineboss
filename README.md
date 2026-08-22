@@ -27,12 +27,12 @@ Requires Node 20+ and a WebGL2 capable browser.
 | Input | Action |
 | --- | --- |
 | `W` `A` `S` `D` | Move |
-| `Space` | Jump |
-| `Shift` | Sprint |
+| `Space` | Jump; rise while swimming |
+| `Shift` | Sprint; sink while swimming |
 | Left click | Mine a block, or attack when aiming at an enemy |
 | Right click | Place, eat, smith iron/gold into the hammer, craft torches from coal, or activate the altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
-| `Esc` | Pause (volume, look sensitivity, new game) |
+| `Esc` | Pause (volume, look sensitivity, continue save, new game) |
 
 ## Finding the fight
 
@@ -62,7 +62,15 @@ you to the starting hammer and a fresh hotbar.
 
 A short recap after victory lists the run time, deaths, hammer and blocks
 mined. The best run is stored in the browser so later descents can beat it.
-The hotbar shows the current hammer and a line for the selected slot.
+The hotbar shows the current hammer and a line for the selected slot. The
+seed sits in the top-left of the HUD.
+
+Pause writes a **Continue** save: seed, position, inventory, hammer, altar
+state and a log of edited blocks. The title screen offers Continue when a
+descent is waiting. New game rolls a new seed.
+
+Valleys below sea level hold shallow water you can swim through. After the
+Warden falls, the compass points east to a glowstone cairn.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, it takes double damage and it cannot retaliate. That window is where the
@@ -109,19 +117,8 @@ A few decisions worth knowing about:
   from one step higher (just over a full block), which is what lets you walk
   the shrine stairs without jumping.
 
-## Later
-
-If this slice grows, do these next and in this order. Each is its own project.
-
-1. **Continue / seed** — persist seed, position, inventory, hammer and altar
-   state. Terrain is deterministic; block edits need a dirty-chunk log.
-2. **Shallow water** — a non-solid block and short swim, filling valleys below
-   sea level. No full flood fill on the first cut.
-3. **A second content hook** — another shrine, a Warden variant, or a visible
-   seed plus difficulty. A whole biome or a second boss comes last.
-
 ## Not included
 
-Multiplayer, a crafting table, saving edited chunks to disk, and biome variety
-are out of scope for this build. Fly (`F`) and the frame overlay (`F3`) still
-exist for development; they are not listed as player controls.
+Multiplayer, a crafting table, and biome variety are out of scope for this
+build. Fly (`F`) and the frame overlay (`F3`) still exist for development;
+they are not listed as player controls.

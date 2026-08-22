@@ -51,4 +51,9 @@ export class Health {
     this.current = this.max;
     this.invulnerability = 0;
   }
+
+  setCurrent(value: number): void {
+    this.current = Math.max(0, Math.min(this.max, value));
+    this.invulnerability = 0;
+  }
 }

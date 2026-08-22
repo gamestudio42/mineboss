@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Input } from '../core/Input.ts';
 import { BASE_LOOK_SENSITIVITY } from '../core/Settings.ts';
 import { clamp, damp } from '../core/math.ts';
-import { getBlockDef } from '../world/blocks.ts';
+import { getBlockDef, isWater } from '../world/blocks.ts';
 import type { World } from '../world/World.ts';
 import type { Player } from './Player.ts';
 
@@ -17,6 +17,9 @@ const AIR_ACCELERATION = 9;
 const GRAVITY = 28;
 const JUMP_VELOCITY = 9;
 const TERMINAL_VELOCITY = 60;
+const SWIM_SPEED = 3.2;
+const SWIM_LIFT = 5.4;
+const SWIM_GRAVITY = 6;
 
 /** Blocks of free fall that are absorbed before damage starts. */
 const SAFE_FALL = 4;
@@ -69,17 +72,23 @@ export class PlayerController {
     const wishZ = this.forward.z * forwardAxis + this.right.z * strafeAxis;
     const wishLength = Math.hypot(wishX, wishZ);
 
-    const speed = player.flying ? FLY_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
+    const swimming = !player.flying && this.bodyInWater();
+    const speed = player.flying ? FLY_SPEED : swimming ? SWIM_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
     const targetX = wishLength > 0 ? (wishX / wishLength) * speed : 0;
     const targetZ = wishLength > 0 ? (wishZ / wishLength) * speed : 0;
 
-    const acceleration = player.flying || player.body.onGround ? GROUND_ACCELERATION : AIR_ACCELERATION;
+    const acceleration =
+      player.flying || swimming || player.body.onGround ? GROUND_ACCELERATION : AIR_ACCELERATION;
     player.velocity.x = damp(player.velocity.x, targetX, acceleration / speed, dt);
     player.velocity.z = damp(player.velocity.z, targetZ, acceleration / speed, dt);
 
     if (player.flying) {
       const lift = (input.isDown('Space') ? 1 : 0) - (input.isDown('ControlLeft') ? 1 : 0);
       player.velocity.y = damp(player.velocity.y, lift * FLY_SPEED, 12, dt);
+    } else if (swimming) {
+      const lift = (input.isDown('Space') ? 1 : 0) - (input.isDown('ShiftLeft') || input.isDown('ControlLeft') ? 1 : 0);
+      player.velocity.y = damp(player.velocity.y, lift * SWIM_LIFT - 1.2, 8, dt);
+      player.velocity.y = Math.max(player.velocity.y - SWIM_GRAVITY * dt * 0.15, -6);
     } else {
       player.velocity.y = Math.max(player.velocity.y - GRAVITY * dt, -TERMINAL_VELOCITY);
       if (input.isDown('Space') && player.body.onGround) {
@@ -93,12 +102,21 @@ export class PlayerController {
 
     player.body.move(this.world, dt);
 
-    if (wasAirborne && player.body.onGround && !player.flying) {
+    if (swimming) player.body.fallPeak = player.position.y;
+    else if (wasAirborne && player.body.onGround && !player.flying) {
       this.applyFallDamage(peakBefore - player.position.y);
     }
 
     this.applyContactDamage(dt);
     this.updateCamera(dt, wishLength > 0);
+  }
+
+  private bodyInWater(): boolean {
+    let found = false;
+    this.player.body.forEachOverlappingBlock(this.world, (id) => {
+      if (isWater(id)) found = true;
+    });
+    return found;
   }
 
   private applyFallDamage(distance: number): void {

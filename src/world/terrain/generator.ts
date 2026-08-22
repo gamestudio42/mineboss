@@ -5,14 +5,16 @@ import {
   ARENA,
   ARENA_STAND_Y,
   ENTRANCE,
+  CACHE,
   chunkTouchesArena,
+  chunkTouchesCache,
   chunkTouchesEntrance,
   distanceToArenaCenter,
 } from '../arena.ts';
 import { Block } from '../blocks.ts';
 import { CHUNK_SIZE, Chunk, WORLD_HEIGHT } from '../Chunk.ts';
 
-const SEA_LEVEL = 60;
+export const SEA_LEVEL = 60;
 const LAVA_LEVEL = 8;
 const DIRT_DEPTH = 4;
 
@@ -51,6 +53,7 @@ export class TerrainGenerator {
     if (chunkTouchesArena(chunk.cx, chunk.cz) || chunkTouchesEntrance(chunk.cx, chunk.cz)) {
       this.carveEntrance(chunk, baseX, baseZ);
     }
+    if (chunkTouchesCache(chunk.cx, chunk.cz)) this.buildCache(chunk, baseX, baseZ);
 
     chunk.generated = true;
   }
@@ -86,6 +89,10 @@ export class TerrainGenerator {
 
       if (id === Block.Stone) id = this.oreAt(wx, y, wz);
       chunk.set(x, y, z, id);
+    }
+
+    for (let y = height + 1; y < SEA_LEVEL; y++) {
+      if (chunk.get(x, y, z) === Block.Air) chunk.set(x, y, z, Block.Water);
     }
   }
 
@@ -149,7 +156,9 @@ export class TerrainGenerator {
         for (let y = LAVA_LEVEL + 2; y <= top; y++) {
           if (chunk.get(x, y, z) !== Block.Air) continue;
           const floor = chunk.get(x, y - 1, z);
-          if (floor === Block.Air || floor === Block.Lava || floor === Block.Mushroom) continue;
+          if (floor === Block.Air || floor === Block.Lava || floor === Block.Water || floor === Block.Mushroom) {
+            continue;
+          }
           if (hash2(wx * 13 + y, wz * 19 + y, this.seed ^ 0x81) >= 0.014) continue;
           chunk.set(x, y, z, Block.Mushroom);
         }
@@ -402,6 +411,27 @@ export class TerrainGenerator {
     chunk.set(x, ARENA.floorY + 1, z, Block.Obsidian);
     if (dx <= 1 && dz <= 1) chunk.set(x, ARENA.floorY + 2, z, Block.RunicStone);
     if (dx === 0 && dz === 0) chunk.set(x, ARENA.floorY + 3, z, Block.CrystalOre);
+  }
+
+  /** A small glowstone cairn with food, so victory still has a walk. */
+  private buildCache(chunk: Chunk, baseX: number, baseZ: number): void {
+    const ground = this.surfaceHeight(CACHE.x, CACHE.z);
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const wx = CACHE.x + dx;
+        const wz = CACHE.z + dz;
+        const ring = Math.max(Math.abs(dx), Math.abs(dz));
+        this.setWorld(chunk, baseX, baseZ, wx, ground, wz, Block.Obsidian);
+        if (ring === 2) this.setWorld(chunk, baseX, baseZ, wx, ground + 1, wz, Block.Cobblestone);
+        if (ring === 0) {
+          this.setWorld(chunk, baseX, baseZ, wx, ground + 1, wz, Block.Glowstone);
+          this.setWorld(chunk, baseX, baseZ, wx, ground + 2, wz, Block.CrystalOre);
+        }
+        if (ring === 1 && (dx + dz) % 2 === 0) {
+          this.setWorld(chunk, baseX, baseZ, wx, ground + 1, wz, Block.Mushroom);
+        }
+      }
+    }
   }
 
   private fbm(noise: NoiseFunction2D, x: number, y: number, octaves: number): number {

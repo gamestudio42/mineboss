@@ -180,7 +180,8 @@ export class BlockInteraction {
     const x = hit.x + hit.nx;
     const y = hit.y + hit.ny;
     const z = hit.z + hit.nz;
-    if (this.world.getBlock(x, y, z) !== Block.Air) return;
+    const dest = this.world.getBlock(x, y, z);
+    if (dest !== Block.Air && dest !== Block.Water) return;
     if (this.intersectsPlayer(x, y, z)) return;
 
     const block = this.player.inventory.selectedSlot.block;

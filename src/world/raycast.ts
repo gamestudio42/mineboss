@@ -18,7 +18,7 @@ export interface VoxelHit {
 
 /**
  * Amanatides & Woo grid traversal: walks the voxels a ray crosses in order and
- * stops at the first non-air block.
+ * stops at the first non-air, non-water block.
  */
 export function raycastVoxels(
   world: World,
@@ -49,7 +49,7 @@ export function raycastVoxels(
 
   while (distance <= maxDistance) {
     const block = world.getBlock(x, y, z);
-    if (block !== Block.Air) {
+    if (block !== Block.Air && block !== Block.Water) {
       return { x, y, z, nx, ny, nz, block, distance };
     }
 

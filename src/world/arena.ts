@@ -34,6 +34,15 @@ export const ENTRANCE = {
   shaft: 2,
 } as const;
 
+/**
+ * Surface cache east of spawn: a small glowstone cairn the compass points to
+ * after the Warden falls, so victory still has a place to walk.
+ */
+export const CACHE = {
+  x: 72,
+  z: 48,
+} as const;
+
 /** Safe respawn just inside the doorway, on the arena floor. */
 export const ENTRANCE_SPAWN = {
   x: ENTRANCE.x + 0.5,
@@ -76,4 +85,12 @@ export function chunkTouchesEntrance(cx: number, cz: number): boolean {
   const boxMaxZ = ARENA.centerZ - (ARENA.radius - 5);
 
   return minX <= boxMaxX && maxX >= boxMinX && minZ <= boxMaxZ && maxZ >= boxMinZ;
+}
+
+export function chunkTouchesCache(cx: number, cz: number): boolean {
+  const minX = cx * CHUNK_SIZE;
+  const maxX = minX + CHUNK_SIZE - 1;
+  const minZ = cz * CHUNK_SIZE;
+  const maxZ = minZ + CHUNK_SIZE - 1;
+  return minX <= CACHE.x + 4 && maxX >= CACHE.x - 4 && minZ <= CACHE.z + 4 && maxZ >= CACHE.z - 4;
 }
