@@ -38,10 +38,11 @@ Requires Node 20+ and a WebGL2 capable browser.
 ## Finding the fight
 
 Pale **birch** stands among the darker oaks. A ruined cobble camp sits west
-of spawn — ore, a spare bedroll and a torch, if you walk the other way.
+of spawn — ore, a spare bedroll and a torch. The compass points there first,
+then swings north to the shrine once you walk into the camp.
 
-A runic shrine of obsidian and glowstone stands north of spawn. A compass on
-the HUD points to it. Descend the spiral stairs — they open into the arena
+A runic shrine of obsidian and glowstone stands north of spawn. After the
+ruin, a compass on the HUD points to it. Descend the spiral stairs — they open into the arena
 through the north wall, so you never have to mine the shell or fall 40 blocks.
 
 A **bedroll** comes in the starting pack. Place it and right click it to set

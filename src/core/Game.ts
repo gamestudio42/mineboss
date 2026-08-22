@@ -275,7 +275,7 @@ export class Game {
       this.overlay.show(
         {
           title: 'MINEBOSS',
-          text: `Seed ${save.seed}. A descent is waiting.\nFollow the shrine, or continue where you left off.`,
+          text: `Seed ${save.seed}. A descent is waiting.\nA ruin sits west. The shrine stands north.`,
           button: 'Continue',
           secondary: 'New game',
           showSettings: true,
@@ -289,7 +289,7 @@ export class Game {
     this.overlay.show(
       {
         title: 'MINEBOSS',
-        text: 'Follow the shrine, descend the stairs and wake what sleeps beneath.',
+        text: 'A ruin sits west. The shrine stands north. Descend the stairs and wake what sleeps beneath.',
         button: 'Click to play',
         showSettings: true,
       },
@@ -303,7 +303,9 @@ export class Game {
     this.hud.setVisible(true);
     this.state = 'playing';
     this.input.requestLock();
-    if (!this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
+    if (!this.arena.ruinFound) {
+      this.hud.showHint('A ruin sits west — or follow the shrine north', 4.2);
+    } else if (!this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
       this.hintedBed = true;
       this.hud.showHint('Place the bedroll, then right click it to set spawn', 3.8);
     }
@@ -469,6 +471,7 @@ export class Game {
     this.entities.update(this.context);
     this.arena.update();
     this.arena.tryDiscover(this.player);
+    this.tryDiscoverRuin();
     this.tryClaimCache();
 
     this.player.health.update(dt);
@@ -694,6 +697,12 @@ export class Game {
     this.wasInWater = inWater;
   }
 
+  private tryDiscoverRuin(): void {
+    if (!this.arena.tryDiscoverRuin(this.player.position)) return;
+    this.hud.showHint('Iron, coal and a spare bedroll — then the shrine north', 4);
+    this.saveSoon = true;
+  }
+
   private tryClaimCache(): void {
     if (!this.arena.tryClaim(this.player.position)) return;
 
@@ -771,6 +780,7 @@ export class Game {
         defeated: this.arena.defeated,
         discovered: this.arena.discovered,
         cacheClaimed: this.arena.cacheClaimed,
+        ruinFound: this.arena.ruinFound,
       },
       edits: this.world.exportEdits(),
     };
@@ -794,6 +804,7 @@ export class Game {
     this.arena.defeated = save.arena.defeated;
     this.arena.discovered = save.arena.discovered;
     this.arena.cacheClaimed = save.arena.cacheClaimed === true;
+    this.arena.ruinFound = save.arena.ruinFound === true;
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();

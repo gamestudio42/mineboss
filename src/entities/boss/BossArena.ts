@@ -11,6 +11,7 @@ import {
   CACHE,
   ENTRANCE,
   ENTRANCE_SPAWN,
+  RUIN,
   distanceToArenaCenter,
   isInsideArena,
 } from '../../world/arena.ts';
@@ -39,6 +40,8 @@ export class BossArena {
   discovered = false;
   /** True after the east cairn has handed over its cache. */
   cacheClaimed = false;
+  /** True after the player walks into the west camp. */
+  ruinFound = false;
 
   constructor(
     private readonly entities: EntityManager,
@@ -94,6 +97,7 @@ export class BossArena {
     this.defeated = false;
     this.discovered = false;
     this.cacheClaimed = false;
+    this.ruinFound = false;
     this.boss = null;
   }
 
@@ -150,13 +154,16 @@ export class BossArena {
     }
     if (stage === 'altar') return { x: ALTAR.x + 0.5, y: ALTAR.y, z: ALTAR.z + 0.5 };
     if (stage === 'stairs') return { x: ENTRANCE.x + 0.5, y: ARENA.floorY + 1, z: ENTRANCE.z + 0.5 };
+    if (!this.ruinFound) return { x: RUIN.x + 0.5, y: position.y, z: RUIN.z + 0.5 };
     return { x: ENTRANCE.x + 0.5, y: position.y, z: ENTRANCE.z + 0.5 };
   }
 
   objectiveText(position: THREE.Vector3): string | null {
     switch (this.guideStage(position)) {
       case 'surface':
-        return 'Follow the shrine — or the compass';
+        return this.ruinFound
+          ? 'Follow the shrine — or the compass'
+          : 'A ruin sits west — or follow the shrine north';
       case 'stairs':
         return 'Descend the stairs into the dark';
       case 'altar':
@@ -171,6 +178,14 @@ export class BossArena {
       default:
         return null;
     }
+  }
+
+  /** Marks the west camp the first time the player walks into it. */
+  tryDiscoverRuin(position: THREE.Vector3): boolean {
+    if (this.ruinFound) return false;
+    if (Math.hypot(position.x - RUIN.x, position.z - RUIN.z) > 6) return false;
+    this.ruinFound = true;
+    return true;
   }
 
   /** Hands over the east cache once after victory. */

@@ -48,6 +48,7 @@ export interface SavedRun {
     defeated: boolean;
     discovered: boolean;
     cacheClaimed?: boolean;
+    ruinFound?: boolean;
   };
   edits: SavedEdit[];
 }
