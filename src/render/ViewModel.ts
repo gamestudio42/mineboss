@@ -10,9 +10,9 @@ const METAL: Record<HammerTier, { light: number; mid: number; dark: number; rune
 };
 
 /** Anchored low-right so the head sits in the right third and the crosshair stays clear. */
-const REST_POSITION = new THREE.Vector3(0.42, -0.38, -0.64);
-const REST_ROTATION = new THREE.Euler(-0.107, 0.216, 0.817);
-const REST_SCALE = 0.54;
+const REST_POSITION = new THREE.Vector3(0.46, -0.5, -0.88);
+const REST_ROTATION = new THREE.Euler(0.14, 0.34, 0.2);
+const REST_SCALE = 0.62;
 
 /** Extra rotation at the bottom of the strike, relative to rest. */
 const SWING_PITCH = 0.42;
@@ -101,51 +101,27 @@ export class ViewModel {
     }
   }
 
-  /**
-   * Voxel sledge with a heavy beveled head: red wood, leather wraps, black
-   * ferrule and a runic plate so it reads as a weapon rather than a grey brick.
-   */
+  /** Minecraft-style mallet: a square metal head on a straight wooden haft. */
   private buildHammer(): void {
-    const wood = 0x8a3a28;
-    const woodDark = 0x5a2418;
-    const leather = 0x4a2618;
-    const rubber = 0x1a181c;
-    const steel = 0xc4c8ce;
-    const steelMid = 0x8e949c;
-    const steelDark = 0x5c6168;
-    const rune = 0xb48cf0;
+    const wood = 0x9b6a34;
+    const woodDark = 0x6b451f;
+    const steel = 0xb9c0c8;
+    const steelMid = 0x8b929a;
+    const steelDark = 0x5a6068;
 
-    this.add(0.056, 0.86, 0.056, wood, 0, 0, 0);
-    this.add(0.062, 0.2, 0.062, woodDark, 0, 0.18, 0);
+    this.add(0.08, 0.86, 0.08, wood, 0, -0.16, 0);
+    this.add(0.086, 0.04, 0.086, woodDark, 0, 0.02, 0);
+    this.add(0.086, 0.04, 0.086, woodDark, 0, -0.34, 0);
 
-    for (const y of [-0.26, -0.1, 0.06]) {
-      this.add(0.074, 0.07, 0.074, leather, 0, y, 0);
-      this.add(0.08, 0.012, 0.08, steelDark, 0, y + 0.042, 0, 'dark');
-    }
-
-    this.add(0.082, 0.036, 0.082, steelMid, 0, -0.42, 0, 'mid');
-    this.add(0.07, 0.028, 0.07, rubber, 0, -0.448, 0);
-    this.add(0.018, 0.07, 0.04, leather, 0, -0.5, 0.03);
-    this.add(0.018, 0.07, 0.04, leather, 0, -0.5, -0.03);
-    this.add(0.018, 0.018, 0.08, leather, 0, -0.54, 0);
-
-    this.add(0.088, 0.11, 0.088, rubber, 0, 0.34, 0);
-    this.add(0.078, 0.032, 0.078, steelDark, 0, 0.41, 0, 'dark');
-
-    const hy = 0.54;
-    this.add(0.34, 0.2, 0.22, steelMid, 0, hy, 0, 'mid');
-    this.add(0.28, 0.03, 0.16, steel, 0, hy + 0.11, 0, 'light');
-    this.add(0.28, 0.03, 0.16, steelDark, 0, hy - 0.11, 0, 'dark');
-
-    this.add(0.22, 0.14, 0.045, steel, 0, hy, 0.13, 'light');
-    this.add(0.22, 0.14, 0.045, steel, 0, hy, -0.13, 'light');
-    this.add(0.16, 0.1, 0.018, steelDark, 0, hy, 0.158, 'dark');
-    this.add(0.16, 0.1, 0.018, steelDark, 0, hy, -0.158, 'dark');
-
-    this.add(0.028, 0.13, 0.14, steelDark, 0.182, hy, 0, 'dark');
-    this.add(0.028, 0.13, 0.14, steelDark, -0.182, hy, 0, 'dark');
-    this.add(0.012, 0.08, 0.018, rune, 0.196, hy, 0, 'rune');
-    this.add(0.012, 0.018, 0.07, rune, 0.196, hy, 0, 'rune');
+    // Head: one solid block with lighter striking ends and a darker rim, so it
+    // reads as chunky pixel art instead of a bevelled prop.
+    const hy = 0.32;
+    this.add(0.3, 0.2, 0.2, steelMid, 0, hy, 0, 'mid');
+    this.add(0.026, 0.18, 0.18, steel, 0.163, hy, 0, 'light');
+    this.add(0.026, 0.18, 0.18, steelDark, -0.163, hy, 0, 'dark');
+    this.add(0.31, 0.03, 0.21, steel, 0, hy + 0.1, 0, 'light');
+    this.add(0.31, 0.03, 0.21, steelDark, 0, hy - 0.1, 0, 'dark');
+    this.add(0.018, 0.205, 0.205, steelDark, 0.075, hy, 0, 'dark');
   }
 
   /** `swing` counts down from `swingDuration` to zero after each hit. */
