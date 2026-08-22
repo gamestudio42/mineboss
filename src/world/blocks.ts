@@ -28,6 +28,8 @@ export enum Block {
   Torch = 21,
   Water = 22,
   Bed = 23,
+  BirchLog = 24,
+  BirchLeaves = 25,
 }
 
 export enum Tile {
@@ -59,6 +61,9 @@ export enum Tile {
   Water = 25,
   Bed = 26,
   BedEnd = 27,
+  BirchLogSide = 28,
+  BirchLogTop = 29,
+  BirchLeaves = 30,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -130,6 +135,13 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.Log, 'Log', [Tile.LogTop, Tile.LogSide, Tile.LogTop], { hardness: 0.55 }),
   def(Block.Leaves, 'Leaves', [Tile.Leaves, Tile.Leaves, Tile.Leaves], {
     hardness: 0.12,
+    drop: null,
+  }),
+  def(Block.BirchLog, 'Birch Log', [Tile.BirchLogTop, Tile.BirchLogSide, Tile.BirchLogTop], {
+    hardness: 0.5,
+  }),
+  def(Block.BirchLeaves, 'Birch Leaves', [Tile.BirchLeaves, Tile.BirchLeaves, Tile.BirchLeaves], {
+    hardness: 0.1,
     drop: null,
   }),
   def(Block.Planks, 'Planks', [Tile.Planks, Tile.Planks, Tile.Planks], { hardness: 0.4 }),
@@ -232,7 +244,9 @@ export const PLACEABLE_BLOCKS: readonly Block[] = [
   Block.Sand,
   Block.Planks,
   Block.Log,
+  Block.BirchLog,
   Block.Leaves,
+  Block.BirchLeaves,
   Block.Glowstone,
   Block.Obsidian,
   Block.DarkBrick,

@@ -43,6 +43,15 @@ export const CACHE = {
   z: 48,
 } as const;
 
+/**
+ * Surface camp west of spawn: a ruined cobble hut with a starter cache, so
+ * walking the other way from the shrine still finds something.
+ */
+export const RUIN = {
+  x: -52,
+  z: 28,
+} as const;
+
 /** Safe respawn just inside the doorway, on the arena floor. */
 export const ENTRANCE_SPAWN = {
   x: ENTRANCE.x + 0.5,
@@ -85,6 +94,14 @@ export function chunkTouchesEntrance(cx: number, cz: number): boolean {
   const boxMaxZ = ARENA.centerZ - (ARENA.radius - 5);
 
   return minX <= boxMaxX && maxX >= boxMinX && minZ <= boxMaxZ && maxZ >= boxMinZ;
+}
+
+export function chunkTouchesRuin(cx: number, cz: number): boolean {
+  const minX = cx * CHUNK_SIZE;
+  const maxX = minX + CHUNK_SIZE - 1;
+  const minZ = cz * CHUNK_SIZE;
+  const maxZ = minZ + CHUNK_SIZE - 1;
+  return minX <= RUIN.x + 5 && maxX >= RUIN.x - 5 && minZ <= RUIN.z + 5 && maxZ >= RUIN.z - 5;
 }
 
 export function chunkTouchesCache(cx: number, cz: number): boolean {

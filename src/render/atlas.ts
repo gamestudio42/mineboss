@@ -93,6 +93,36 @@ const logSide: Painter = (set, rng) => {
   }
 };
 
+const birchLogSide: Painter = (set, rng) => {
+  const bark: RGB = [214, 208, 190];
+  const stripe: RGB = [52, 46, 40];
+  for (let x = 0; x < S; x++) {
+    const dark = x === 3 || x === 10;
+    for (let y = 0; y < S; y++) set(x, y, jitter(dark ? stripe : bark, rng, dark ? 10 : 16));
+  }
+};
+
+const birchLogTop: Painter = (set, rng) => {
+  const light: RGB = [226, 220, 200];
+  const ring: RGB = [168, 152, 118];
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const d = Math.hypot(x - 7.5, y - 7.5);
+      set(x, y, jitter(d < 3.2 ? ring : light, rng, 12));
+    }
+  }
+};
+
+const birchLeaves: Painter = (set, rng) => {
+  const base: RGB = [118, 168, 86];
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const clump = (Math.sin(x * 1.1) + Math.cos(y * 1.4)) * 12;
+      set(x, y, jitter(shade(base, clump), rng, 36));
+    }
+  }
+};
+
 const leaves: Painter = (set, rng) => {
   const base: RGB = [58, 110, 48];
   for (let y = 0; y < S; y++) {
@@ -213,6 +243,9 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.Water]: combine(fill([38, 108, 186], 14), speckles([120, 198, 236], 7, 2.6, 28)),
   [Tile.Bed]: bed,
   [Tile.BedEnd]: bedEnd,
+  [Tile.BirchLogSide]: birchLogSide,
+  [Tile.BirchLogTop]: birchLogTop,
+  [Tile.BirchLeaves]: birchLeaves,
 };
 
 export interface BlockAtlas {

@@ -6,9 +6,11 @@ import {
   ARENA_STAND_Y,
   ENTRANCE,
   CACHE,
+  RUIN,
   chunkTouchesArena,
   chunkTouchesCache,
   chunkTouchesEntrance,
+  chunkTouchesRuin,
   distanceToArenaCenter,
 } from '../arena.ts';
 import { Block } from '../blocks.ts';
@@ -54,6 +56,7 @@ export class TerrainGenerator {
       this.carveEntrance(chunk, baseX, baseZ);
     }
     if (chunkTouchesCache(chunk.cx, chunk.cz)) this.buildCache(chunk, baseX, baseZ);
+    if (chunkTouchesRuin(chunk.cx, chunk.cz)) this.buildRuin(chunk, baseX, baseZ);
 
     chunk.generated = true;
   }
@@ -131,6 +134,7 @@ export class TerrainGenerator {
         if (roll < 0.988) continue;
         if (distanceToArenaCenter(wx, wz) < ARENA.radius + ARENA.wall) continue;
         if (Math.hypot(wx - ENTRANCE.x, wz - ENTRANCE.z) < 10) continue;
+        if (Math.hypot(wx - RUIN.x, wz - RUIN.z) < 8) continue;
 
         const ground = this.surfaceHeight(wx, wz);
         if (ground < SEA_LEVEL + 1 || ground > WORLD_HEIGHT - 20) continue;
@@ -175,20 +179,23 @@ export class TerrainGenerator {
     ground: number,
     roll: number,
   ): void {
-    const trunk = 4 + Math.floor(roll * 1000) % 3;
+    const birch = roll > 0.995;
+    const log = birch ? Block.BirchLog : Block.Log;
+    const leaves = birch ? Block.BirchLeaves : Block.Leaves;
+    const trunk = (birch ? 6 : 4) + Math.floor(roll * 1000) % 3;
     const top = ground + trunk;
 
     for (let dy = 1; dy <= trunk; dy++) {
-      this.setWorld(chunk, baseX, baseZ, wx, ground + dy, wz, Block.Log);
+      this.setWorld(chunk, baseX, baseZ, wx, ground + dy, wz, log);
     }
 
     for (let dy = -2; dy <= 1; dy++) {
-      const radius = dy >= 1 ? 1 : 2;
+      const radius = birch ? (dy >= 0 ? 1 : 2) : dy >= 1 ? 1 : 2;
       for (let dz = -radius; dz <= radius; dz++) {
         for (let dx = -radius; dx <= radius; dx++) {
           if (dx === 0 && dz === 0 && dy <= 0) continue;
           if (Math.abs(dx) === radius && Math.abs(dz) === radius && radius > 1) continue;
-          this.setWorld(chunk, baseX, baseZ, wx + dx, top + dy, wz + dz, Block.Leaves);
+          this.setWorld(chunk, baseX, baseZ, wx + dx, top + dy, wz + dz, leaves);
         }
       }
     }
@@ -208,7 +215,9 @@ export class TerrainGenerator {
     const z = wz - baseZ;
     if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) return;
     if (wy < 0 || wy >= WORLD_HEIGHT) return;
-    if (id === Block.Leaves && chunk.get(x, wy, z) !== Block.Air) return;
+    if ((id === Block.Leaves || id === Block.BirchLeaves) && chunk.get(x, wy, z) !== Block.Air) {
+      return;
+    }
     chunk.set(x, wy, z, id);
   }
 
@@ -411,6 +420,33 @@ export class TerrainGenerator {
     chunk.set(x, ARENA.floorY + 1, z, Block.Obsidian);
     if (dx <= 1 && dz <= 1) chunk.set(x, ARENA.floorY + 2, z, Block.RunicStone);
     if (dx === 0 && dz === 0) chunk.set(x, ARENA.floorY + 3, z, Block.CrystalOre);
+  }
+
+  /** Collapsed cobble hut west of spawn, with a little ore and a spare bedroll. */
+  private buildRuin(chunk: Chunk, baseX: number, baseZ: number): void {
+    const ground = Math.max(this.surfaceHeight(RUIN.x, RUIN.z), SEA_LEVEL);
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const wx = RUIN.x + dx;
+        const wz = RUIN.z + dz;
+        const ring = Math.max(Math.abs(dx), Math.abs(dz));
+        this.setWorld(chunk, baseX, baseZ, wx, ground, wz, ring === 0 ? Block.Planks : Block.Cobblestone);
+
+        const doorway = dx === 2 && Math.abs(dz) <= 1;
+        if (ring === 2 && !doorway) {
+          this.setWorld(chunk, baseX, baseZ, wx, ground + 1, wz, Block.Cobblestone);
+          if ((dx + dz) % 2 !== 0) {
+            this.setWorld(chunk, baseX, baseZ, wx, ground + 2, wz, Block.Cobblestone);
+          }
+        }
+      }
+    }
+
+    this.setWorld(chunk, baseX, baseZ, RUIN.x, ground + 1, RUIN.z, Block.Bed);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x - 1, ground + 1, RUIN.z, Block.IronOre);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x, ground + 1, RUIN.z - 1, Block.CoalOre);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x + 1, ground + 1, RUIN.z, Block.Mushroom);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x, ground + 2, RUIN.z + 1, Block.Torch);
   }
 
   /** A small glowstone cairn with food, so victory still has a walk. */
