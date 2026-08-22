@@ -89,6 +89,7 @@ export class Game {
   private hintedUpgrade = false;
   private hintedTorch = false;
   private hintedBed = false;
+  private hintedPlates = false;
   private deaths = 0;
   private blocksMined = 0;
   private seed = DEFAULT_SEED;
@@ -232,6 +233,14 @@ export class Game {
       this.hud.flashDamage(amount / 6);
       this.sfx.play('hurt');
       this.shake(Math.min(0.4, amount / 24));
+    };
+    this.player.onPlateAbsorb = () => {
+      this.viewModel.flashPlates();
+      this.hud.flashPlates();
+      this.sfx.play('plate');
+      if (this.hintedPlates) return;
+      this.hintedPlates = true;
+      this.hud.showHint('The plates take the blow', 3.2);
     };
     this.player.health.onDeath = () => {
       this.pendingDeath = true;
@@ -407,6 +416,7 @@ export class Game {
     this.hintedUpgrade = false;
     this.hintedTorch = false;
     this.hintedBed = false;
+    this.hintedPlates = false;
     this.player.hammerTier = HammerTier.Wood;
     this.player.plates = PlateTier.None;
     this.viewModel.setTier(HammerTier.Wood);
@@ -758,6 +768,7 @@ export class Game {
       hintedUpgrade: this.hintedUpgrade,
       hintedTorch: this.hintedTorch,
       hintedBed: this.hintedBed,
+      hintedPlates: this.hintedPlates,
       player: {
         x: position.x,
         y: position.y,
@@ -798,6 +809,7 @@ export class Game {
     this.hintedUpgrade = save.hintedUpgrade;
     this.hintedTorch = save.hintedTorch;
     this.hintedBed = save.hintedBed === true;
+    this.hintedPlates = save.hintedPlates === true;
 
     this.entities.clear();
     this.arena.beginNewRun();

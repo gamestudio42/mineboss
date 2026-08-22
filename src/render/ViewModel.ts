@@ -128,9 +128,11 @@ export class ViewModel {
   private readonly metal = new Map<THREE.Mesh, 'light' | 'mid' | 'dark' | 'rune'>();
   private readonly vestMetal = new Map<THREE.Mesh, 'light' | 'mid' | 'dark'>();
   private swayPhase = 0;
+  private plateFlash = 0;
   private tier = HammerTier.Wood;
   private plates = PlateTier.None;
   private heldBlock: number | null = null;
+  private vestFlash: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> | null = null;
 
   constructor(camera: THREE.PerspectiveCamera, atlas: BlockAtlas) {
     this.buildHammer();
@@ -258,6 +260,28 @@ export class ViewModel {
     add(0.16, 0.1, 0.12, steelDark, -0.2, 0.16, 0, 'dark');
     add(0.16, 0.1, 0.12, steelDark, 0.2, 0.16, 0, 'dark');
     add(0.08, 0.2, 0.03, steel, 0, 0.02, 0.08, 'light');
+
+    this.vestFlash = new THREE.Mesh(
+      new THREE.BoxGeometry(0.46, 0.32, 0.18),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+        fog: false,
+      }),
+    );
+    this.vestFlash.renderOrder = 11;
+    this.vestRoot.add(this.vestFlash);
+  }
+
+  /** Brief glare when the vest cuts a combat hit. */
+  flashPlates(): void {
+    if (this.plates === PlateTier.None) return;
+    this.plateFlash = 0.24;
+    if (this.vestFlash) {
+      this.vestFlash.material.color.setHex(this.plates === PlateTier.Gold ? 0xffe08a : 0xe8eef6);
+    }
   }
 
   /** `swing` counts down from `swingDuration` to zero after each hit. */
@@ -285,10 +309,14 @@ export class ViewModel {
     );
     this.heldRoot.rotation.x = HELD_ROTATION.x + arc * 0.35;
 
+    const flash = this.plateFlash > 0 ? this.plateFlash / 0.24 : 0;
+    if (this.plateFlash > 0) this.plateFlash = Math.max(0, this.plateFlash - dt);
+    if (this.vestFlash) this.vestFlash.material.opacity = flash * 0.65;
+    this.vestRoot.scale.setScalar(1 + flash * 0.14);
     this.vestRoot.position.set(
       VEST_POSITION.x + Math.cos(this.swayPhase) * 0.008 * sway,
-      VEST_POSITION.y + Math.abs(Math.sin(this.swayPhase)) * 0.01 * sway,
-      VEST_POSITION.z,
+      VEST_POSITION.y + Math.abs(Math.sin(this.swayPhase)) * 0.01 * sway + flash * 0.03,
+      VEST_POSITION.z + flash * 0.05,
     );
   }
 }

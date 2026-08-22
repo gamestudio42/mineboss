@@ -139,15 +139,23 @@ export class Hud {
   }
 
   flashDamage(intensity = 1): void {
-    this.flash.classList.remove('heal');
+    this.flash.classList.remove('heal', 'plate');
     this.flash.style.opacity = String(Math.min(0.9, 0.35 + intensity * 0.2));
     this.flashTimer = 0.35;
   }
 
   flashHeal(): void {
+    this.flash.classList.remove('plate');
     this.flash.classList.add('heal');
     this.flash.style.opacity = '0.55';
     this.flashTimer = 0.35;
+  }
+
+  flashPlates(): void {
+    this.flash.classList.remove('heal');
+    this.flash.classList.add('plate');
+    this.flash.style.opacity = '0.5';
+    this.flashTimer = 0.28;
   }
 
   showHint(text: string, seconds = 4): void {

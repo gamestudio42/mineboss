@@ -9,6 +9,7 @@ export type SfxName =
   | 'summon'
   | 'explode'
   | 'stagger'
+  | 'plate'
   | 'victory'
   | 'death'
   | 'eat'
@@ -112,7 +113,14 @@ export class Sfx {
         this.tone(now, 'sine', 140, 40, 0.5, 0.5);
         break;
       case 'stagger':
+        this.tone(now, 'sine', 90, 38, 0.5, 0.48);
         this.tone(now, 'triangle', 520, 180, 0.5, 0.3);
+        this.noise(now, 0.28, 0.42, 1400, 180);
+        break;
+      case 'plate':
+        this.tone(now, 'square', 680, 220, 0.12, 0.22);
+        this.tone(now, 'triangle', 420, 180, 0.18, 0.18);
+        this.noise(now, 0.08, 0.2, 3200, 800);
         break;
       case 'victory':
         this.tone(now, 'triangle', 392, 392, 0.35, 0.32);

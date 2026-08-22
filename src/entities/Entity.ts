@@ -61,6 +61,9 @@ export abstract class Entity {
 
   abstract update(context: EntityContext): void;
 
+  /** Brief hit reaction; the Warden flashes its stone. */
+  hitFlash(): void {}
+
   /** Called after `update` so subclasses do not have to sync transforms. */
   syncTransform(): void {
     this.object3D.position.copy(this.position);

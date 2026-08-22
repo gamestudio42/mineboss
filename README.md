@@ -68,8 +68,9 @@ Right click three iron ore to bind an iron hammer — it breaks blocks much
 faster. Four more iron, after the hammer is already iron, bind **iron plates**
 that cut the Warden's hits. Three gold ore makes a gold hammer that hits far
 harder; four more gold bind **gold plates**, a stronger vest. The breastplate
-sits at the bottom of the first-person view. Hammer, plates and inventory
-stay through death. New game returns you to the starting hammer and a fresh
+sits at the bottom of the first-person view and flashes when it takes a blow;
+the first time, the HUD spells it out. Hammer, plates and inventory stay
+through death. New game returns you to the starting hammer and a fresh
 hotbar. The victory recap lists the vest you wore.
 
 The selected block sits in your off-hand. `Q` tosses one copy onto the ground
@@ -90,9 +91,9 @@ points east to a glowstone cairn; walking up to it grants a cache and
 moves your respawn there.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
-up, it takes double damage and it cannot retaliate. That window is where the
-fight is won. Its shockwaves only hit grounded targets, so jumping over the
-crest avoids them.
+up, a burst leaves its chest, it takes double damage and it cannot retaliate.
+That window is where the fight is won. Its shockwaves only hit grounded
+targets, so jumping over the crest avoids them.
 
 | Phase | Trigger | New behaviour |
 | --- | --- | --- |

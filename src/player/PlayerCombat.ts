@@ -56,13 +56,15 @@ export class PlayerCombat {
     if (!hitEntity(this.aimed, damage, this.origin, KNOCKBACK, this.particles)) return;
 
     this.sfx.play('hit');
+    this.aimed.hitFlash();
     this.aimed.getCenter(this.impact);
+    const staggered = this.aimed.damageMultiplier > 1;
     this.particles.burst(this.impact, {
-      count: critical ? 14 : 8,
-      color: critical ? 0xffe08a : 0xff6a4a,
-      speed: 3.4,
-      spread: 0.6,
-      life: 0.45,
+      count: staggered ? 20 : critical ? 14 : 8,
+      color: staggered ? 0xe9d5ff : critical ? 0xffe08a : 0xff6a4a,
+      speed: staggered ? 5.2 : 3.4,
+      spread: staggered ? 0.95 : 0.6,
+      life: 0.5,
     });
   }
 }

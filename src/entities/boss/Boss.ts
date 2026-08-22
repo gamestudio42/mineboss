@@ -187,6 +187,37 @@ export class Boss extends Entity {
     return target.set(this.position.x, this.position.y + 3.4, this.position.z);
   }
 
+  override hitFlash(): void {
+    this.model.flash();
+  }
+
+  /** Heavy attacks land here; the open cores are the damage window. */
+  openStaggerWindow(): void {
+    this.damageMultiplier = 2;
+    this.model.setCrouch(1);
+    this.model.flash(0.32, 0xe9d5ff);
+    this.context.sfx.play('stagger');
+    this.onShake?.(0.55);
+    this.getChestPosition(this.target);
+    this.context.particles.burst(this.target, {
+      count: 28,
+      color: 0xe9d5ff,
+      speed: 5.8,
+      spread: 1.2,
+      life: 0.9,
+      gravity: -5,
+      upwardBias: 1,
+    });
+    this.context.particles.burst(this.target, {
+      count: 14,
+      color: PHASES[this.phase].color,
+      speed: 4.2,
+      spread: 0.8,
+      life: 0.7,
+      gravity: -3,
+    });
+  }
+
   spawnShockwave(damage: number, maxRadius: number, speed: number): void {
     const wave = new Shockwave({
       maxRadius,
@@ -586,19 +617,17 @@ const STATES: Record<BossStateName, BossState> = {
 
   stagger: {
     enter(boss) {
-      boss.damageMultiplier = 2;
-      boss.model.setCrouch(1);
-      boss.context.sfx.play('stagger');
+      boss.openStaggerWindow();
     },
     update(boss, dt, time) {
       boss.stopMoving(dt);
 
-      if (Math.random() < dt * 6) {
+      if (Math.random() < dt * 8) {
         boss.context.particles.burst(boss.getChestPosition(new THREE.Vector3()), {
-          count: 2,
-          color: 0xc4b5fd,
-          speed: 1.6,
-          life: 0.7,
+          count: 5,
+          color: 0xe9d5ff,
+          speed: 2.4,
+          life: 0.75,
           gravity: -4,
         });
       }

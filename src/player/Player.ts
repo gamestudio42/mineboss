@@ -28,6 +28,8 @@ export class Player {
   hammerTier = HammerTier.Wood;
   /** Vest forged from leftover ore; cuts boss and minion hits. */
   plates = PlateTier.None;
+  /** Fires when plates actually cut incoming combat damage. */
+  onPlateAbsorb: ((reduced: number) => void) | null = null;
 
   get mineSpeed(): number {
     return HAMMER[this.hammerTier].mineSpeed;

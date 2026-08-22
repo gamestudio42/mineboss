@@ -42,6 +42,7 @@ export class BossModel {
   private armRaise = 0;
   private crouch = 0;
   private flashTimer = 0;
+  private flashColor = 0x772222;
 
   constructor() {
     this.torso = new THREE.Group();
@@ -149,8 +150,9 @@ export class BossModel {
     for (const core of this.cores) core.scale.setScalar(scale);
   }
 
-  flash(): void {
-    this.flashTimer = 0.14;
+  flash(seconds = 0.14, hex = 0x772222): void {
+    this.flashTimer = seconds;
+    this.flashColor = hex;
   }
 
   update(dt: number, walkSpeed: number, elapsed: number): void {
@@ -182,7 +184,7 @@ export class BossModel {
     if (this.flashTimer > 0) {
       this.flashTimer = Math.max(0, this.flashTimer - dt);
       if (this.flashTimer > 0) {
-        for (const part of this.bodyParts) part.material.emissive.setHex(0x772222);
+        for (const part of this.bodyParts) part.material.emissive.setHex(this.flashColor);
       } else {
         this.applyBaseEmissive();
       }

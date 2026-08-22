@@ -393,6 +393,10 @@ body {
   background: radial-gradient(ellipse at center, transparent 40%, rgba(40, 190, 90, 0.55) 100%);
 }
 
+#damage-flash.plate {
+  background: radial-gradient(ellipse at center, transparent 38%, rgba(210, 220, 235, 0.62) 100%);
+}
+
 /* ------------------------------------------------------- Overlay menu */
 
 #overlay {
