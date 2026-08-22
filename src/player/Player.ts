@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 import { Health } from '../combat/Health.ts';
 import { VoxelBody } from '../physics/VoxelBody.ts';
-import { HAMMER, HammerTier } from './Hammer.ts';
+import { HAMMER, HammerTier, PLATE_REDUCTION } from './Hammer.ts';
 import { Inventory } from './Inventory.ts';
 
 export const PLAYER_WIDTH = 0.6;
@@ -26,6 +26,8 @@ export class Player {
   /** Seconds left of the swing animation, drives the held-item bob. */
   swing = 0;
   hammerTier = HammerTier.Wood;
+  /** True after smithing iron plates; cuts boss and minion hits. */
+  plated = false;
 
   get mineSpeed(): number {
     return HAMMER[this.hammerTier].mineSpeed;
@@ -33,6 +35,10 @@ export class Player {
 
   get meleeDamage(): number {
     return HAMMER[this.hammerTier].damage;
+  }
+
+  get armor(): number {
+    return this.plated ? PLATE_REDUCTION : 0;
   }
 
   get position(): THREE.Vector3 {

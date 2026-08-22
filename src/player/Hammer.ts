@@ -21,6 +21,9 @@ export const HAMMER: Record<HammerTier, HammerStats> = {
 };
 
 export const UPGRADE_COST = 3;
+/** Extra iron, after the hammer, binds plates that cut incoming melee. */
+export const PLATE_COST = 4;
+export const PLATE_REDUCTION = 0.28;
 
 export function upgradeFrom(block: Block): HammerTier | null {
   if (block === Block.IronOre) return HammerTier.Iron;

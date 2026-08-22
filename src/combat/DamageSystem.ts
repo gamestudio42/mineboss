@@ -55,7 +55,7 @@ export function hitPlayer(
   from: THREE.Vector3 | null,
   knockback: number,
 ): boolean {
-  if (!player.health.damage(amount)) return false;
+  if (!player.health.damage(amount * (1 - player.armor))) return false;
   if (from && knockback > 0) applyKnockback(player.body, from, knockback);
   return true;
 }

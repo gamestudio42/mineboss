@@ -15,7 +15,14 @@ import {
 } from '../world/blocks.ts';
 import { raycastVoxels, type VoxelHit } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
-import { HAMMER, HammerTier, UPGRADE_COST, isUpgradeOre, upgradeFrom } from './Hammer.ts';
+import {
+  HAMMER,
+  HammerTier,
+  PLATE_COST,
+  UPGRADE_COST,
+  isUpgradeOre,
+  upgradeFrom,
+} from './Hammer.ts';
 import { PLAYER_HEIGHT, PLAYER_REACH, PLAYER_WIDTH, type Player } from './Player.ts';
 
 const PLACE_COOLDOWN = 0.18;
@@ -233,6 +240,7 @@ export class BlockInteraction {
     const stats = HAMMER[next];
 
     if (this.player.hammerTier >= next) {
+      if (next === HammerTier.Iron) return this.trySmithPlates();
       this.onHammerFeedback?.(
         this.player.hammerTier === next
           ? `Already ${stats.name.toLowerCase()}`
@@ -261,6 +269,70 @@ export class BlockInteraction {
     });
     this.onHammerFeedback?.(`${stats.name}: mines faster and hits harder`);
     return true;
+  }
+
+  /** Four iron, after the hammer is already iron or better, bind a vest. */
+  private trySmithPlates(): boolean {
+    this.placeCooldown = EAT_COOLDOWN;
+    if (this.player.plated) {
+      this.onHammerFeedback?.('Already wearing iron plates');
+      return true;
+    }
+
+    const slot = this.player.inventory.selectedSlot;
+    if (slot.count < PLATE_COST) {
+      this.onHammerFeedback?.(`Need ${PLATE_COST} Iron Ore`);
+      return true;
+    }
+
+    this.player.inventory.takeSelected(PLATE_COST);
+    this.player.plated = true;
+    this.player.startSwing();
+    this.sfx.play('eat');
+    this.player.getEyePosition(this.origin);
+    this.particles.burst(this.origin, {
+      count: 12,
+      color: 0xc8d0d8,
+      speed: 1.8,
+      spread: 0.45,
+      life: 0.4,
+      gravity: 6,
+    });
+    this.onHammerFeedback?.('Iron plates: the Warden hits softer');
+    return true;
+  }
+
+  /** Drops one selected block into the air just ahead of the player. */
+  tossSelected(): boolean {
+    const slot = this.player.inventory.selectedSlot;
+    if (slot.block === null || slot.count <= 0) return false;
+
+    this.player.getForward(this.direction);
+    this.direction.y = 0;
+    if (this.direction.lengthSq() < 1e-6) this.direction.set(0, 0, -1);
+    this.direction.normalize();
+
+    const origin = this.player.position;
+    const x = Math.floor(origin.x + this.direction.x * 1.45);
+    const z = Math.floor(origin.z + this.direction.z * 1.45);
+    const baseY = Math.floor(origin.y + 0.2);
+
+    for (const dy of [0, 1, -1]) {
+      const y = baseY + dy;
+      const dest = this.world.getBlock(x, y, z);
+      if (dest !== Block.Air && dest !== Block.Water) continue;
+      if (this.intersectsPlayer(x, y, z)) continue;
+
+      const block = this.player.inventory.takeSelected(1);
+      if (block === null) return false;
+      this.world.setBlock(x, y, z, block);
+      this.player.startSwing();
+      this.sfx.play('place');
+      return true;
+    }
+
+    this.onHammerFeedback?.('No room to toss');
+    return false;
   }
 
   /** One coal becomes four placeable lights. */

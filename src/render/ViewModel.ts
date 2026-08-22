@@ -2,6 +2,13 @@ import * as THREE from 'three';
 
 import { lerp } from '../core/math.ts';
 import { HammerTier } from '../player/Hammer.ts';
+import type { BlockAtlas } from './atlas.ts';
+import {
+  ATLAS_TILES_PER_ROW,
+  TILE_BOTTOM,
+  TILE_SIDE,
+  TILE_TOP,
+} from '../world/blocks.ts';
 
 const METAL: Record<HammerTier, { light: number; mid: number; dark: number; rune: number }> = {
   [HammerTier.Wood]: { light: 0xc4c8ce, mid: 0x8e949c, dark: 0x5c6168, rune: 0xb48cf0 },
@@ -18,6 +25,49 @@ const REST_SCALE = 0.62;
 const SWING_PITCH = 0.42;
 const SWING_YAW = -0.08;
 const SWING_ROLL = 0.18;
+
+const HELD_POSITION = new THREE.Vector3(-0.42, -0.38, -0.74);
+const HELD_ROTATION = new THREE.Euler(0.18, 0.55, 0.08);
+const UV_INSET = 0.5 / 16;
+
+function tileUv(tile: number): { u0: number; u1: number; v0: number; v1: number } {
+  const tx = tile % ATLAS_TILES_PER_ROW;
+  const ty = Math.floor(tile / ATLAS_TILES_PER_ROW);
+  return {
+    u0: (tx + UV_INSET) / ATLAS_TILES_PER_ROW,
+    u1: (tx + 1 - UV_INSET) / ATLAS_TILES_PER_ROW,
+    v0: 1 - (ty + 1 - UV_INSET) / ATLAS_TILES_PER_ROW,
+    v1: 1 - (ty + UV_INSET) / ATLAS_TILES_PER_ROW,
+  };
+}
+
+/** BoxGeometry faces are +x, -x, +y, -y, +z, -z; four verts each. */
+function paintBlockUvs(geometry: THREE.BufferGeometry, block: number): void {
+  const tiles = [
+    TILE_SIDE[block],
+    TILE_SIDE[block],
+    TILE_TOP[block],
+    TILE_BOTTOM[block],
+    TILE_SIDE[block],
+    TILE_SIDE[block],
+  ];
+  const uv = geometry.getAttribute('uv');
+  const corners = [
+    [0, 1],
+    [1, 1],
+    [0, 0],
+    [1, 0],
+  ] as const;
+
+  for (let face = 0; face < 6; face++) {
+    const { u0, u1, v0, v1 } = tileUv(tiles[face]);
+    for (let i = 0; i < 4; i++) {
+      const index = face * 4 + i;
+      uv.setXY(index, u0 + corners[i][0] * (u1 - u0), v0 + corners[i][1] * (v1 - v0));
+    }
+  }
+  uv.needsUpdate = true;
+}
 
 /**
  * BoxGeometry stores four vertices per face. Darken the sides and bottom so an
@@ -60,19 +110,45 @@ function part(
   return mesh;
 }
 
-/** First person hammer attached to the camera. */
+/** First person hammer attached to the camera, plus the selected block. */
 export class ViewModel {
   private readonly root = new THREE.Group();
+  private readonly heldRoot = new THREE.Group();
+  private readonly heldMesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
   private readonly metal = new Map<THREE.Mesh, 'light' | 'mid' | 'dark' | 'rune'>();
   private swayPhase = 0;
   private tier = HammerTier.Wood;
+  private heldBlock: number | null = null;
 
-  constructor(camera: THREE.PerspectiveCamera) {
+  constructor(camera: THREE.PerspectiveCamera, atlas: BlockAtlas) {
     this.buildHammer();
     this.root.position.copy(REST_POSITION);
     this.root.rotation.copy(REST_ROTATION);
     this.root.scale.setScalar(REST_SCALE);
     camera.add(this.root);
+
+    const geometry = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+    this.heldMesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        map: atlas.texture,
+        depthTest: false,
+        fog: false,
+      }),
+    );
+    this.heldMesh.renderOrder = 10;
+    this.heldRoot.add(this.heldMesh);
+    this.heldRoot.position.copy(HELD_POSITION);
+    this.heldRoot.rotation.copy(HELD_ROTATION);
+    this.heldRoot.visible = false;
+    camera.add(this.heldRoot);
+  }
+
+  setHeld(block: number | null): void {
+    if (block === this.heldBlock) return;
+    this.heldBlock = block;
+    this.heldRoot.visible = block !== null;
+    if (block !== null) paintBlockUvs(this.heldMesh.geometry, block);
   }
 
   private add(
@@ -141,5 +217,12 @@ export class ViewModel {
     this.root.rotation.x = lerp(REST_ROTATION.x, REST_ROTATION.x + SWING_PITCH, arc);
     this.root.rotation.y = lerp(REST_ROTATION.y, REST_ROTATION.y + SWING_YAW, arc);
     this.root.rotation.z = lerp(REST_ROTATION.z, REST_ROTATION.z + SWING_ROLL, arc);
+
+    this.heldRoot.position.set(
+      HELD_POSITION.x - Math.cos(this.swayPhase) * 0.016 * sway + arc * 0.03,
+      HELD_POSITION.y + Math.abs(Math.sin(this.swayPhase)) * 0.014 * sway - arc * 0.05,
+      HELD_POSITION.z - arc * 0.04,
+    );
+    this.heldRoot.rotation.x = HELD_ROTATION.x + arc * 0.35;
   }
 }

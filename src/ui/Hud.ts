@@ -1,4 +1,4 @@
-import { HAMMER, HammerTier, UPGRADE_COST, upgradeFrom } from '../player/Hammer.ts';
+import { HAMMER, HammerTier, PLATE_COST, UPGRADE_COST, upgradeFrom } from '../player/Hammer.ts';
 import type { Inventory } from '../player/Inventory.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import {
@@ -31,7 +31,7 @@ function requireElement(id: string): HTMLElement {
   return element;
 }
 
-function slotHint(block: number | null, count: number, tier: HammerTier): string {
+function slotHint(block: number | null, count: number, tier: HammerTier, plated: boolean): string {
   if (block === null || count <= 0) return '';
 
   const name = getBlockDef(block).name;
@@ -40,11 +40,16 @@ function slotHint(block: number | null, count: number, tier: HammerTier): string
 
   const next = upgradeFrom(block);
   if (next !== null) {
+    if (next === HammerTier.Iron && tier >= HammerTier.Iron) {
+      return plated
+        ? `${name} — already plated`
+        : `${name} — ${PLATE_COST} to smith iron plates`;
+    }
     if (tier >= next) return `${name} — already ${HAMMER[tier].name.toLowerCase()}`;
     return `${name} — ${UPGRADE_COST} to smith ${HAMMER[next].name}`;
   }
 
-  return `${name} — right click to place`;
+  return `${name} — right click to place · Q to toss`;
 }
 
 /** All in-game HUD widgets: hearts, hotbar, hint line, boss bar and debug. */
@@ -68,6 +73,7 @@ export class Hud {
 
   private lastHealth = -1;
   private lastHammer = -1;
+  private lastPlated = false;
   private lastHint = '';
   private flashTimer = 0;
   private hintTimer = 0;
@@ -91,10 +97,16 @@ export class Hud {
     this.root.classList.toggle('hidden', !visible);
   }
 
-  update(dt: number, inventory: Inventory, health: number, hammerTier: HammerTier): void {
+  update(
+    dt: number,
+    inventory: Inventory,
+    health: number,
+    hammerTier: HammerTier,
+    plated: boolean,
+  ): void {
     this.hotbar.update(inventory);
     this.updateHealth(health);
-    this.updateLoadout(inventory, hammerTier);
+    this.updateLoadout(inventory, hammerTier, plated);
 
     if (this.flashTimer > 0) {
       this.flashTimer = Math.max(0, this.flashTimer - dt);
@@ -154,14 +166,17 @@ export class Hud {
     this.objectiveRoot.classList.add('show');
   }
 
-  private updateLoadout(inventory: Inventory, hammerTier: HammerTier): void {
-    if (hammerTier !== this.lastHammer) {
+  private updateLoadout(inventory: Inventory, hammerTier: HammerTier, plated: boolean): void {
+    if (hammerTier !== this.lastHammer || plated !== this.lastPlated) {
       this.lastHammer = hammerTier;
-      this.hammerRoot.textContent = HAMMER[hammerTier].name;
+      this.lastPlated = plated;
+      this.hammerRoot.textContent = plated
+        ? `${HAMMER[hammerTier].name} · plates`
+        : HAMMER[hammerTier].name;
     }
 
     const slot = inventory.selectedSlot;
-    const hint = slotHint(slot.block, slot.count, hammerTier);
+    const hint = slotHint(slot.block, slot.count, hammerTier, plated);
     if (hint === this.lastHint) return;
     this.lastHint = hint;
     this.slotHintRoot.textContent = hint;

@@ -37,6 +37,7 @@ export interface SavedRun {
     spawnZ: number;
     health: number;
     hammer: HammerTier;
+    plated?: boolean;
     selected: number;
     slots: SavedSlot[];
   };

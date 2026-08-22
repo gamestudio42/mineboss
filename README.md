@@ -32,6 +32,7 @@ Requires Node 20+ and a WebGL2 capable browser.
 | Left click | Mine a block, or attack when aiming at an enemy |
 | Right click | Place, eat, smith iron/gold into the hammer, craft torches from coal, or activate the altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
+| `Q` | Toss the selected block in front of you |
 | `Esc` | Pause (volume, look sensitivity, continue save, new game) |
 
 ## Finding the fight
@@ -56,9 +57,13 @@ miner's lamp only follows you, so a trail of torches is what keeps a cave
 readable when you turn around.
 
 Right click three iron ore to bind an iron hammer — it breaks blocks much
-faster. Three gold ore makes a gold hammer that hits the Warden far harder.
-The hammer upgrade and your inventory stay through death. New game returns
+faster. Four more iron, after the hammer is already iron, bind **iron plates**
+that cut the Warden's hits. Three gold ore makes a gold hammer that hits far
+harder. Hammer, plates and inventory stay through death. New game returns
 you to the starting hammer and a fresh hotbar.
+
+The selected block sits in your off-hand. `Q` tosses one copy onto the ground
+ahead, which is how you clear a full hotbar.
 
 A short recap after victory lists the run time, deaths, hammer and blocks
 mined. The best run is stored in the browser so later descents can beat it.
