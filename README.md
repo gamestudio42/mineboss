@@ -30,7 +30,7 @@ Requires Node 20+ and a WebGL2 capable browser.
 | `Space` | Jump; rise while swimming |
 | `Shift` | Sprint; sink while swimming |
 | Left click | Mine a block, or attack when aiming at an enemy |
-| Right click | Place, eat, smith iron/gold into the hammer, craft torches from coal, or activate the altar |
+| Right click | Place, eat, smith, craft torches or a bedroll, rest on a bedroll, or activate the altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
 | `Q` | Toss the selected block in front of you |
 | `Esc` | Pause (volume, look sensitivity, continue save, new game) |
@@ -40,6 +40,10 @@ Requires Node 20+ and a WebGL2 capable browser.
 A runic shrine of obsidian and glowstone stands north of spawn. A compass on
 the HUD points to it. Descend the spiral stairs — they open into the arena
 through the north wall, so you never have to mine the shell or fall 40 blocks.
+
+A **bedroll** comes in the starting pack. Place it and right click it to set
+your spawn before you find the stairs. Four planks, while looking at air,
+craft another.
 
 The first time you enter the chamber, your respawn moves to the doorway. Right
 click the runic altar in the centre to wake **The Deep Warden**. If you die

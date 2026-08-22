@@ -88,6 +88,7 @@ export class Game {
   private hintedConsumable = false;
   private hintedUpgrade = false;
   private hintedTorch = false;
+  private hintedBed = false;
   private deaths = 0;
   private blocksMined = 0;
   private seed = DEFAULT_SEED;
@@ -218,6 +219,15 @@ export class Game {
       this.hintedTorch = true;
       this.hud.showHint(`Right click ${name} to craft four torches`, 3.5);
     };
+    this.interaction.onBedFound = () => {
+      if (this.hintedBed) return;
+      this.hintedBed = true;
+      this.hud.showHint('Place the bedroll, then right click it to set spawn', 3.8);
+    };
+    this.interaction.onSpawnSet = () => {
+      this.hud.showHint('You will wake here', 2.6);
+      this.saveSoon = true;
+    };
     this.player.health.onDamage = (amount) => {
       this.hud.flashDamage(amount / 6);
       this.sfx.play('hurt');
@@ -251,6 +261,7 @@ export class Game {
     this.player.inventory.select(0);
     this.player.inventory.add(Block.Cobblestone, 32);
     this.player.inventory.add(Block.Planks, 16);
+    this.player.inventory.add(Block.Bed, 1);
     this.player.inventory.add(Block.Mushroom, 4);
     this.player.inventory.add(Block.CoalOre, 8);
     this.controller.update(0.0001, this.input);
@@ -292,6 +303,10 @@ export class Game {
     this.hud.setVisible(true);
     this.state = 'playing';
     this.input.requestLock();
+    if (!this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
+      this.hintedBed = true;
+      this.hud.showHint('Place the bedroll, then right click it to set spawn', 3.8);
+    }
     this.persistSave();
   }
 
@@ -389,6 +404,7 @@ export class Game {
     this.hintedConsumable = false;
     this.hintedUpgrade = false;
     this.hintedTorch = false;
+    this.hintedBed = false;
     this.player.hammerTier = HammerTier.Wood;
     this.player.plates = PlateTier.None;
     this.viewModel.setTier(HammerTier.Wood);
@@ -529,7 +545,9 @@ export class Game {
     else if (this.interaction.aimingAltar) this.hud.setCrosshair('altar');
     else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
     else if (this.interaction.holdingUpgradeOre) this.hud.setCrosshair('smith');
+    else if (this.interaction.aimingBed) this.hud.setCrosshair('rest');
     else if (this.interaction.holdingTorchFuel) this.hud.setCrosshair('craft');
+    else if (this.interaction.holdingBedMaterial && !this.interaction.target) this.hud.setCrosshair('craft');
     else if (this.interaction.target) this.hud.setCrosshair('block');
     else this.hud.setCrosshair('idle');
   }
@@ -730,6 +748,7 @@ export class Game {
       hintedConsumable: this.hintedConsumable,
       hintedUpgrade: this.hintedUpgrade,
       hintedTorch: this.hintedTorch,
+      hintedBed: this.hintedBed,
       player: {
         x: position.x,
         y: position.y,
@@ -768,6 +787,7 @@ export class Game {
     this.hintedConsumable = save.hintedConsumable;
     this.hintedUpgrade = save.hintedUpgrade;
     this.hintedTorch = save.hintedTorch;
+    this.hintedBed = save.hintedBed === true;
 
     this.entities.clear();
     this.arena.beginNewRun();

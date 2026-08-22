@@ -7,9 +7,12 @@ import type { ParticleSystem } from '../render/Particles.ts';
 import { ALTAR } from '../world/arena.ts';
 import {
   Block,
+  PLANKS_PER_BED,
   TILE_SIDE,
   TORCHES_PER_COAL,
   getBlockDef,
+  isBed,
+  isBedMaterial,
   isConsumable,
   isTorchFuel,
 } from '../world/blocks.ts';
@@ -48,6 +51,8 @@ export class BlockInteraction {
   onConsumableFound: ((name: string) => void) | null = null;
   onUpgradeFound: ((name: string) => void) | null = null;
   onTorchFuelFound: ((name: string) => void) | null = null;
+  onBedFound: ((name: string) => void) | null = null;
+  onSpawnSet: (() => void) | null = null;
   onHammerFeedback: ((text: string) => void) | null = null;
 
   private readonly origin = new THREE.Vector3();
@@ -146,6 +151,7 @@ export class BlockInteraction {
       if (drop.heal > 0) this.onConsumableFound?.(drop.name);
       if (isUpgradeOre(def.drop)) this.onUpgradeFound?.(drop.name);
       if (isTorchFuel(def.drop)) this.onTorchFuelFound?.(drop.name);
+      if (isBed(def.drop)) this.onBedFound?.(drop.name);
     }
     this.sfx.play('break');
     return true;
@@ -170,6 +176,15 @@ export class BlockInteraction {
     return block !== null && isTorchFuel(block);
   }
 
+  get holdingBedMaterial(): boolean {
+    const block = this.player.inventory.selectedSlot.block;
+    return block !== null && isBedMaterial(block);
+  }
+
+  get aimingBed(): boolean {
+    return this.target !== null && isBed(this.target.block);
+  }
+
   /**
    * Right click wakes the altar, eats, upgrades the hammer, crafts torches or
    * places a block. Eating and crafting work while looking at air.
@@ -182,9 +197,15 @@ export class BlockInteraction {
       return;
     }
 
+    if (hit && isBed(hit.block)) {
+      this.restAt(hit);
+      return;
+    }
+
     if (this.tryConsume()) return;
     if (this.tryUpgrade()) return;
     if (this.tryCraftTorches()) return;
+    if (this.tryCraftBed(hit)) return;
     if (!hit) return;
 
     const x = hit.x + hit.nx;
@@ -337,6 +358,50 @@ export class BlockInteraction {
 
     this.onHammerFeedback?.('No room to toss');
     return false;
+  }
+
+  /** Four planks become a bedroll, but only while looking at air so planks still place. */
+  private tryCraftBed(hit: VoxelHit | null): boolean {
+    if (hit) return false;
+    const slot = this.player.inventory.selectedSlot;
+    if (this.player.dead || slot.block === null || !isBedMaterial(slot.block)) return false;
+
+    this.placeCooldown = EAT_COOLDOWN;
+    if (slot.count < PLANKS_PER_BED) {
+      this.onHammerFeedback?.(`Need ${PLANKS_PER_BED} Planks`);
+      return true;
+    }
+
+    this.player.inventory.takeSelected(PLANKS_PER_BED);
+    const leftover = this.player.inventory.add(Block.Bed, 1);
+    if (leftover === 1) {
+      this.player.inventory.add(Block.Planks, PLANKS_PER_BED);
+      this.onHammerFeedback?.('Hotbar is full');
+      return true;
+    }
+
+    this.player.startSwing();
+    this.sfx.play('place');
+    this.onBedFound?.('Bedroll');
+    this.onHammerFeedback?.('Crafted a bedroll — place it, then right click to rest');
+    return true;
+  }
+
+  private restAt(hit: VoxelHit): void {
+    this.placeCooldown = EAT_COOLDOWN;
+    const x = hit.x + 0.5;
+    const y = hit.y + 1;
+    const z = hit.z + 0.5;
+    const spawn = this.player.spawn;
+    if (Math.hypot(spawn.x - x, spawn.y - y, spawn.z - z) < 0.2) {
+      this.onHammerFeedback?.('You already rest here');
+      return;
+    }
+
+    this.player.setSpawn(x, y, z);
+    this.player.startSwing();
+    this.sfx.play('eat');
+    this.onSpawnSet?.();
   }
 
   /** One coal becomes four placeable lights. */

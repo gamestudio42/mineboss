@@ -113,6 +113,28 @@ const planks: Painter = (set, rng) => {
   }
 };
 
+const bed: Painter = (set, rng) => {
+  const cloth: RGB = [168, 62, 58];
+  const stitch: RGB = [214, 196, 168];
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const seam = y % 5 === 0 || x === 0 || x === S - 1;
+      set(x, y, jitter(seam ? stitch : cloth, rng, seam ? 10 : 18));
+    }
+  }
+};
+
+const bedEnd: Painter = (set, rng) => {
+  const cloth: RGB = [168, 62, 58];
+  const pillow: RGB = [232, 220, 198];
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const onPillow = y < 6;
+      set(x, y, jitter(onPillow ? pillow : cloth, rng, 16));
+    }
+  }
+};
+
 const lava: Painter = (set, rng) => {
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
@@ -189,6 +211,8 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.Torch]: torchStick,
   [Tile.TorchFlame]: combine(fill([236, 132, 36], 20), speckles([255, 226, 96], 5, 2.2, 28)),
   [Tile.Water]: combine(fill([38, 108, 186], 14), speckles([120, 198, 236], 7, 2.6, 28)),
+  [Tile.Bed]: bed,
+  [Tile.BedEnd]: bedEnd,
 };
 
 export interface BlockAtlas {

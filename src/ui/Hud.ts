@@ -11,8 +11,11 @@ import {
 import type { Inventory } from '../player/Inventory.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import {
+  PLANKS_PER_BED,
   TORCHES_PER_COAL,
   getBlockDef,
+  isBed,
+  isBedMaterial,
   isConsumable,
   isTorchFuel,
 } from '../world/blocks.ts';
@@ -23,7 +26,7 @@ import { Hotbar } from './Hotbar.ts';
 
 const HEARTS = 10;
 
-export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal' | 'craft' | 'smith';
+export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal' | 'craft' | 'smith' | 'rest';
 const CROSSHAIR_MODES: CrosshairMode[] = [
   'idle',
   'block',
@@ -32,6 +35,7 @@ const CROSSHAIR_MODES: CrosshairMode[] = [
   'heal',
   'craft',
   'smith',
+  'rest',
 ];
 
 function requireElement(id: string): HTMLElement {
@@ -46,6 +50,10 @@ function slotHint(block: number | null, count: number, tier: HammerTier, plates:
   const name = getBlockDef(block).name;
   if (isConsumable(block)) return `${name} — right click to eat`;
   if (isTorchFuel(block)) return `${name} — right click: ${TORCHES_PER_COAL} torches`;
+  if (isBed(block)) return `${name} — place, then right click to rest`;
+  if (isBedMaterial(block)) {
+    return `${name} — place, or look at air: ${PLANKS_PER_BED} for a bedroll`;
+  }
 
   const next = upgradeFrom(block);
   if (next !== null) {

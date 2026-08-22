@@ -27,6 +27,7 @@ export enum Block {
   Mushroom = 20,
   Torch = 21,
   Water = 22,
+  Bed = 23,
 }
 
 export enum Tile {
@@ -56,6 +57,8 @@ export enum Tile {
   Torch = 23,
   TorchFlame = 24,
   Water = 25,
+  Bed = 26,
+  BedEnd = 27,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -179,6 +182,9 @@ export const BLOCKS: readonly BlockDef[] = [
     solid: false,
     drop: null,
   }),
+  def(Block.Bed, 'Bedroll', [Tile.Bed, Tile.BedEnd, Tile.Bed], {
+    hardness: 0.12,
+  }),
 ];
 
 const BLOCK_COUNT = BLOCKS.length;
@@ -231,6 +237,7 @@ export const PLACEABLE_BLOCKS: readonly Block[] = [
   Block.Obsidian,
   Block.DarkBrick,
   Block.Torch,
+  Block.Bed,
 ];
 
 /** Right-click one coal ore to bind four torches. */
@@ -242,4 +249,15 @@ export function isTorchFuel(id: number): boolean {
 
 export function isWater(id: number): boolean {
   return id === Block.Water;
+}
+
+/** Right-click four planks while looking at air to bind a bedroll. */
+export const PLANKS_PER_BED = 4;
+
+export function isBedMaterial(id: number): boolean {
+  return id === Block.Planks;
+}
+
+export function isBed(id: number): boolean {
+  return id === Block.Bed;
 }

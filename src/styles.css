@@ -88,6 +88,10 @@ body {
   --ch: #c4b5fd;
 }
 
+#crosshair.rest {
+  --ch: #f5d0a8;
+}
+
 #bottom-bar {
   position: absolute;
   left: 50%;
