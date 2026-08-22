@@ -25,6 +25,7 @@ export enum Block {
   DarkBrick = 18,
   Glowstone = 19,
   Mushroom = 20,
+  Torch = 21,
 }
 
 export enum Tile {
@@ -51,6 +52,8 @@ export enum Tile {
   DarkBrick = 20,
   Glowstone = 21,
   Mushroom = 22,
+  Torch = 23,
+  TorchFlame = 24,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -162,6 +165,12 @@ export const BLOCKS: readonly BlockDef[] = [
     solid: false,
     heal: 4,
   }),
+  def(Block.Torch, 'Torch', [Tile.TorchFlame, Tile.Torch, Tile.Torch], {
+    hardness: 0.08,
+    opaque: false,
+    solid: false,
+    glow: 0.95,
+  }),
 ];
 
 const BLOCK_COUNT = BLOCKS.length;
@@ -169,6 +178,8 @@ const BLOCK_COUNT = BLOCKS.length;
 /** Flat lookup tables; the mesher touches these millions of times per session. */
 export const OPAQUE = new Uint8Array(BLOCK_COUNT);
 export const SOLID = new Uint8Array(BLOCK_COUNT);
+/** Non-air blocks that still need a mesh (torches are thin and not opaque). */
+export const MESHABLE = new Uint8Array(BLOCK_COUNT);
 export const GLOW = new Float32Array(BLOCK_COUNT);
 export const TILE_TOP = new Uint8Array(BLOCK_COUNT);
 export const TILE_SIDE = new Uint8Array(BLOCK_COUNT);
@@ -177,6 +188,7 @@ export const TILE_BOTTOM = new Uint8Array(BLOCK_COUNT);
 for (const block of BLOCKS) {
   OPAQUE[block.id] = block.opaque ? 1 : 0;
   SOLID[block.id] = block.solid ? 1 : 0;
+  MESHABLE[block.id] = block.id !== Block.Air ? 1 : 0;
   GLOW[block.id] = block.glow;
   TILE_TOP[block.id] = block.tiles[0];
   TILE_SIDE[block.id] = block.tiles[1];
@@ -210,4 +222,12 @@ export const PLACEABLE_BLOCKS: readonly Block[] = [
   Block.Glowstone,
   Block.Obsidian,
   Block.DarkBrick,
+  Block.Torch,
 ];
+
+/** Right-click one coal ore to bind four torches. */
+export const TORCHES_PER_COAL = 4;
+
+export function isTorchFuel(id: number): boolean {
+  return id === Block.CoalOre;
+}

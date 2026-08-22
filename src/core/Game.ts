@@ -12,6 +12,7 @@ import { PlayerController } from '../player/PlayerController.ts';
 import { createBlockAtlas } from '../render/atlas.ts';
 import { createTerrainMaterial } from '../render/materials.ts';
 import { ParticleSystem } from '../render/Particles.ts';
+import { TorchLights } from '../render/TorchLights.ts';
 import { ViewModel } from '../render/ViewModel.ts';
 import { Hud } from '../ui/Hud.ts';
 import { Overlay } from '../ui/Overlay.ts';
@@ -59,6 +60,7 @@ export class Game {
   private readonly world: World;
   private readonly chunks: ChunkManager;
   private readonly particles: ParticleSystem;
+  private readonly torchLights: TorchLights;
   private readonly entities: EntityManager;
   private readonly player = new Player();
   private readonly controller: PlayerController;
@@ -76,6 +78,7 @@ export class Game {
   private pendingDeath = false;
   private hintedConsumable = false;
   private hintedUpgrade = false;
+  private hintedTorch = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -116,6 +119,7 @@ export class Game {
     this.world = new World(new TerrainGenerator(1337));
     this.chunks = new ChunkManager(this.world, this.scene, [terrainMaterial, emissiveMaterial]);
     this.particles = new ParticleSystem(this.scene);
+    this.torchLights = new TorchLights(this.scene);
     this.entities = new EntityManager(this.scene);
 
     this.controller = new PlayerController(this.player, this.world, this.camera);
@@ -185,6 +189,11 @@ export class Game {
       this.hud.showHint(`Right click ${UPGRADE_COST} ${name} to strengthen the hammer`, 3.5);
     };
     this.interaction.onHammerFeedback = (text) => this.hud.showHint(text, 2.4);
+    this.interaction.onTorchFuelFound = (name) => {
+      if (this.hintedTorch) return;
+      this.hintedTorch = true;
+      this.hud.showHint(`Right click ${name} to craft four torches`, 3.5);
+    };
     this.player.health.onDamage = (amount) => {
       this.hud.flashDamage(amount / 6);
       this.sfx.play('hurt');
@@ -213,6 +222,7 @@ export class Game {
     this.player.inventory.add(Block.Cobblestone, 32);
     this.player.inventory.add(Block.Planks, 16);
     this.player.inventory.add(Block.Mushroom, 4);
+    this.player.inventory.add(Block.CoalOre, 8);
     this.controller.update(0.0001, this.input);
   }
 
@@ -320,12 +330,14 @@ export class Game {
     this.stepDistance = 0;
     this.hintedConsumable = false;
     this.hintedUpgrade = false;
+    this.hintedTorch = false;
     this.player.hammerTier = HammerTier.Wood;
     this.viewModel.setTier(HammerTier.Wood);
 
     this.entities.clear();
     this.arena.beginNewRun();
     this.particles.clear();
+    this.torchLights.clear();
     this.chunks.reset();
     this.world.clear();
 
@@ -381,6 +393,12 @@ export class Game {
     this.player.health.update(dt);
     this.chunks.update(this.player.position.x, this.player.position.z);
     this.particles.update(dt);
+    this.torchLights.update(
+      this.world,
+      this.player.position.x,
+      this.player.position.y + 1.2,
+      this.player.position.z,
+    );
 
     this.applyShake(dt);
     this.updateFootsteps(dt);
@@ -434,6 +452,7 @@ export class Game {
     if (this.combat.aimed) this.hud.setCrosshair('attack');
     else if (this.interaction.aimingAltar) this.hud.setCrosshair('altar');
     else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
+    else if (this.interaction.holdingTorchFuel) this.hud.setCrosshair('craft');
     else if (this.interaction.target) this.hud.setCrosshair('block');
     else this.hud.setCrosshair('idle');
   }

@@ -80,6 +80,10 @@ body {
   --ch: #7dff9a;
 }
 
+#crosshair.craft {
+  --ch: #ffb15a;
+}
+
 #bottom-bar {
   position: absolute;
   left: 50%;

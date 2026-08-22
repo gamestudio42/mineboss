@@ -19,6 +19,8 @@ export interface DirtySection {
 /** Sparse voxel world made of generated chunk columns. */
 export class World {
   readonly chunks = new Map<string, Chunk>();
+  /** World positions of placed torches, used to drive a small light pool. */
+  readonly torches = new Map<string, { x: number; y: number; z: number }>();
   private readonly dirty = new Map<string, DirtySection>();
 
   constructor(readonly generator: TerrainGenerator) {}
@@ -41,12 +43,20 @@ export class World {
 
   unloadChunk(cx: number, cz: number): void {
     this.chunks.delete(chunkKey(cx, cz));
+    const minX = cx * CHUNK_SIZE;
+    const minZ = cz * CHUNK_SIZE;
+    for (const [key, torch] of this.torches) {
+      if (torch.x >= minX && torch.x < minX + CHUNK_SIZE && torch.z >= minZ && torch.z < minZ + CHUNK_SIZE) {
+        this.torches.delete(key);
+      }
+    }
   }
 
   /** Drops every column so the next ensure regenerates virgin terrain. */
   clear(): void {
     this.chunks.clear();
     this.dirty.clear();
+    this.torches.clear();
   }
 
   /** Bedrock below the world, air above it, air inside ungenerated chunks. */
@@ -72,8 +82,10 @@ export class World {
 
     const x = wx - cx * CHUNK_SIZE;
     const z = wz - cz * CHUNK_SIZE;
+    const previous = chunk.get(x, wy, z);
     if (!chunk.set(x, wy, z, id)) return false;
 
+    this.trackTorch(wx, wy, wz, previous, id);
     this.markDirtyAround(cx, cz, x, wy, z);
     return true;
   }
@@ -92,6 +104,12 @@ export class World {
     const sections = [...this.dirty.values()];
     this.dirty.clear();
     return sections;
+  }
+
+  private trackTorch(wx: number, wy: number, wz: number, previous: number, next: number): void {
+    const key = `${wx},${wy},${wz}`;
+    if (previous === Block.Torch) this.torches.delete(key);
+    if (next === Block.Torch) this.torches.set(key, { x: wx, y: wy, z: wz });
   }
 
   markDirty(cx: number, cz: number, sy: number): void {

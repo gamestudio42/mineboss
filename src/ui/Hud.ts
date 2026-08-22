@@ -7,8 +7,8 @@ import { Hotbar } from './Hotbar.ts';
 
 const HEARTS = 10;
 
-export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal';
-const CROSSHAIR_MODES: CrosshairMode[] = ['idle', 'block', 'attack', 'altar', 'heal'];
+export type CrosshairMode = 'idle' | 'block' | 'attack' | 'altar' | 'heal' | 'craft';
+const CROSSHAIR_MODES: CrosshairMode[] = ['idle', 'block', 'attack', 'altar', 'heal', 'craft'];
 
 function requireElement(id: string): HTMLElement {
   const element = document.getElementById(id);

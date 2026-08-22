@@ -142,6 +142,26 @@ function runic(glyph: 'top' | 'side'): Painter {
   };
 }
 
+/** Side-on torch: a thin oak stick under a bright flame, used as the hotbar icon. */
+const torchStick: Painter = (set, rng) => {
+  const empty: RGB = [18, 16, 14];
+  const wood: RGB = [132, 90, 46];
+  const woodDark: RGB = [86, 56, 28];
+  const flame: RGB = [244, 148, 42];
+  const flameHot: RGB = [255, 228, 110];
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const cx = Math.abs(x - 7.5);
+      const onStick = y >= 6 && cx < 1.6;
+      const onFlame = y < 7 && cx < 2.8 - y * 0.18;
+      if (onFlame) set(x, y, jitter(y < 3 ? flameHot : flame, rng, 28));
+      else if (onStick) set(x, y, jitter(cx < 0.7 ? wood : woodDark, rng, 16));
+      else set(x, y, empty);
+    }
+  }
+};
+
 const PAINTERS: Record<Tile, Painter> = {
   [Tile.Stone]: fill([128, 128, 132], 22),
   [Tile.Dirt]: fill([134, 96, 67], 28),
@@ -166,6 +186,8 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.DarkBrick]: bricks([58, 56, 66], [38, 36, 46]),
   [Tile.Glowstone]: combine(fill([228, 190, 96], 20), speckles([255, 240, 176], 7, 2.2, 24)),
   [Tile.Mushroom]: combine(fill([168, 42, 38], 18), speckles([236, 226, 210], 6, 1.8, 14)),
+  [Tile.Torch]: torchStick,
+  [Tile.TorchFlame]: combine(fill([236, 132, 36], 20), speckles([255, 226, 96], 5, 2.2, 28)),
 };
 
 export interface BlockAtlas {

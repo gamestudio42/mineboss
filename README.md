@@ -30,7 +30,7 @@ Requires Node 20+ and a WebGL2 capable browser.
 | `Space` | Jump |
 | `Shift` | Sprint |
 | Left click | Mine a block, or attack when aiming at an enemy |
-| Right click | Place, eat, smith iron/gold into the hammer, or activate the altar |
+| Right click | Place, eat, smith iron/gold into the hammer, craft torches from coal, or activate the altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
 | `F` | Toggle fly mode (debug) |
 | `Ctrl` | Descend while flying |
@@ -53,6 +53,10 @@ Mushrooms grow on cave floors and restore two hearts. Crystal ore restores
 four. Select the stack and right click — it works while looking at air or the
 Warden, so you can eat in the middle of the fight. You cannot eat at full
 health, and food is never placed as a block.
+
+Right click coal ore to bind four torches. Place them to light a tunnel — the
+miner's lamp only follows you, so a trail of torches is what keeps a cave
+readable when you turn around.
 
 Right click three iron ore to bind an iron hammer — it breaks blocks much
 faster. Three gold ore makes a gold hammer that hits the Warden far harder.

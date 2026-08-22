@@ -5,7 +5,14 @@ import type { Input } from '../core/Input.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
 import { ALTAR } from '../world/arena.ts';
-import { Block, TILE_SIDE, getBlockDef, isConsumable } from '../world/blocks.ts';
+import {
+  Block,
+  TILE_SIDE,
+  TORCHES_PER_COAL,
+  getBlockDef,
+  isConsumable,
+  isTorchFuel,
+} from '../world/blocks.ts';
 import { raycastVoxels, type VoxelHit } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
 import { HAMMER, HammerTier, UPGRADE_COST, isUpgradeOre, upgradeFrom } from './Hammer.ts';
@@ -30,6 +37,7 @@ export class BlockInteraction {
   onConsumed: ((healed: number) => void) | null = null;
   onConsumableFound: ((name: string) => void) | null = null;
   onUpgradeFound: ((name: string) => void) | null = null;
+  onTorchFuelFound: ((name: string) => void) | null = null;
   onHammerFeedback: ((text: string) => void) | null = null;
 
   private readonly origin = new THREE.Vector3();
@@ -127,6 +135,7 @@ export class BlockInteraction {
       const drop = getBlockDef(def.drop);
       if (drop.heal > 0) this.onConsumableFound?.(drop.name);
       if (isUpgradeOre(def.drop)) this.onUpgradeFound?.(drop.name);
+      if (isTorchFuel(def.drop)) this.onTorchFuelFound?.(drop.name);
     }
     this.sfx.play('break');
     return true;
@@ -141,9 +150,14 @@ export class BlockInteraction {
     return block !== null && (isConsumable(block) || isUpgradeOre(block));
   }
 
+  get holdingTorchFuel(): boolean {
+    const block = this.player.inventory.selectedSlot.block;
+    return block !== null && isTorchFuel(block);
+  }
+
   /**
-   * Right click wakes the altar, eats a selected consumable, or places a block.
-   * Eating works while looking at air or an enemy so it is usable mid-fight.
+   * Right click wakes the altar, eats, upgrades the hammer, crafts torches or
+   * places a block. Eating and crafting work while looking at air.
    */
   private useItem(hit: VoxelHit | null): void {
     if (hit && this.isAltarBlock(hit)) {
@@ -155,6 +169,7 @@ export class BlockInteraction {
 
     if (this.tryConsume()) return;
     if (this.tryUpgrade()) return;
+    if (this.tryCraftTorches()) return;
     if (!hit) return;
 
     const x = hit.x + hit.nx;
@@ -164,7 +179,7 @@ export class BlockInteraction {
     if (this.intersectsPlayer(x, y, z)) return;
 
     const block = this.player.inventory.selectedSlot.block;
-    if (block === null || isConsumable(block) || isUpgradeOre(block)) return;
+    if (block === null || isConsumable(block) || isUpgradeOre(block) || isTorchFuel(block)) return;
 
     this.placeCooldown = PLACE_COOLDOWN;
     this.player.inventory.takeSelected();
@@ -239,6 +254,36 @@ export class BlockInteraction {
       gravity: 6,
     });
     this.onHammerFeedback?.(`${stats.name}: mines faster and hits harder`);
+    return true;
+  }
+
+  /** One coal becomes four placeable lights. */
+  private tryCraftTorches(): boolean {
+    const slot = this.player.inventory.selectedSlot;
+    if (this.player.dead || slot.block === null || !isTorchFuel(slot.block)) return false;
+
+    this.placeCooldown = EAT_COOLDOWN;
+    this.player.inventory.takeSelected(1);
+    const leftover = this.player.inventory.add(Block.Torch, TORCHES_PER_COAL);
+    if (leftover === TORCHES_PER_COAL) {
+      this.player.inventory.add(Block.CoalOre, 1);
+      this.onHammerFeedback?.('Hotbar is full');
+      return true;
+    }
+
+    this.player.startSwing();
+    this.sfx.play('place');
+    this.player.getEyePosition(this.origin);
+    this.particles.burst(this.origin, {
+      count: 10,
+      color: 0xffb15a,
+      speed: 1.8,
+      spread: 0.45,
+      life: 0.4,
+      gravity: 6,
+    });
+    const made = TORCHES_PER_COAL - leftover;
+    this.onHammerFeedback?.(made === TORCHES_PER_COAL ? `Crafted ${made} torches` : `Crafted ${made} torches — hotbar is full`);
     return true;
   }
 

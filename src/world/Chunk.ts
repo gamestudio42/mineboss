@@ -1,4 +1,4 @@
-import { Block, OPAQUE } from './blocks.ts';
+import { Block, MESHABLE } from './blocks.ts';
 
 export const CHUNK_SIZE = 16;
 export const WORLD_HEIGHT = 128;
@@ -54,7 +54,7 @@ export class Chunk {
     this.voxels[index] = id;
 
     const section = y >> 4;
-    this.sectionFill[section] += (OPAQUE[id] ?? 0) - (OPAQUE[previous] ?? 0);
+    this.sectionFill[section] += (MESHABLE[id] ?? 0) - (MESHABLE[previous] ?? 0);
 
     const column = z * CHUNK_SIZE + x;
     if (id !== Block.Air) {

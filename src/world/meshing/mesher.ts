@@ -6,6 +6,7 @@ import {
   TILE_BOTTOM,
   TILE_SIDE,
   TILE_TOP,
+  Tile,
 } from '../blocks.ts';
 import { SECTION_HEIGHT } from '../Chunk.ts';
 
@@ -81,6 +82,163 @@ function vertexAO(side1: number, side2: number, corner: number): number {
   return 3 - (side1 + side2 + corner);
 }
 
+function tileUv(tile: number): { u0: number; u1: number; v0: number; v1: number } {
+  const tx = tile % ATLAS_TILES_PER_ROW;
+  const ty = Math.floor(tile / ATLAS_TILES_PER_ROW);
+  return {
+    u0: (tx + UV_INSET) / ATLAS_TILES_PER_ROW,
+    u1: (tx + 1 - UV_INSET) / ATLAS_TILES_PER_ROW,
+    v0: 1 - (ty + 1 - UV_INSET) / ATLAS_TILES_PER_ROW,
+    v1: 1 - (ty + UV_INSET) / ATLAS_TILES_PER_ROW,
+  };
+}
+
+/** Thin upright stick plus a glowing head, so a torch is not a full cube. */
+function emitTorch(
+  positions: number[],
+  normals: number[],
+  uvs: number[],
+  colors: number[],
+  indices: number[],
+  vertexCount: number,
+  x: number,
+  y: number,
+  z: number,
+): number {
+  const cx = x + 0.5;
+  const cz = z + 0.5;
+  vertexCount = emitBox(
+    positions,
+    normals,
+    uvs,
+    colors,
+    indices,
+    vertexCount,
+    cx - 0.06,
+    y,
+    cz - 0.06,
+    cx + 0.06,
+    y + 0.62,
+    cz + 0.06,
+    Tile.Torch,
+    0.72,
+  );
+  return emitBox(
+    positions,
+    normals,
+    uvs,
+    colors,
+    indices,
+    vertexCount,
+    cx - 0.1,
+    y + 0.54,
+    cz - 0.1,
+    cx + 0.1,
+    y + 0.86,
+    cz + 0.1,
+    Tile.TorchFlame,
+    1.15,
+  );
+}
+
+function emitBox(
+  positions: number[],
+  normals: number[],
+  uvs: number[],
+  colors: number[],
+  indices: number[],
+  vertexCount: number,
+  x0: number,
+  y0: number,
+  z0: number,
+  x1: number,
+  y1: number,
+  z1: number,
+  tile: number,
+  brightness: number,
+): number {
+  const { u0, u1, v0, v1 } = tileUv(tile);
+  const faces: Array<{ n: Vec3; corners: Array<Vec3> }> = [
+    {
+      n: [1, 0, 0],
+      corners: [
+        [x1, y0, z0],
+        [x1, y0, z1],
+        [x1, y1, z1],
+        [x1, y1, z0],
+      ],
+    },
+    {
+      n: [-1, 0, 0],
+      corners: [
+        [x0, y0, z1],
+        [x0, y0, z0],
+        [x0, y1, z0],
+        [x0, y1, z1],
+      ],
+    },
+    {
+      n: [0, 1, 0],
+      corners: [
+        [x0, y1, z0],
+        [x1, y1, z0],
+        [x1, y1, z1],
+        [x0, y1, z1],
+      ],
+    },
+    {
+      n: [0, -1, 0],
+      corners: [
+        [x0, y0, z1],
+        [x1, y0, z1],
+        [x1, y0, z0],
+        [x0, y0, z0],
+      ],
+    },
+    {
+      n: [0, 0, 1],
+      corners: [
+        [x0, y0, z1],
+        [x0, y1, z1],
+        [x1, y1, z1],
+        [x1, y0, z1],
+      ],
+    },
+    {
+      n: [0, 0, -1],
+      corners: [
+        [x1, y0, z0],
+        [x1, y1, z0],
+        [x0, y1, z0],
+        [x0, y0, z0],
+      ],
+    },
+  ];
+
+  const uvCorners = [
+    [u0, v0],
+    [u1, v0],
+    [u1, v1],
+    [u0, v1],
+  ] as const;
+
+  for (const face of faces) {
+    const shade = brightness * (0.55 + 0.45 * Math.max(0, face.n[1] * 0.5 + 0.5));
+    const base = vertexCount;
+    for (let i = 0; i < 4; i++) {
+      const [px, py, pz] = face.corners[i];
+      positions.push(px, py, pz);
+      normals.push(face.n[0], face.n[1], face.n[2]);
+      uvs.push(uvCorners[i][0], uvCorners[i][1]);
+      colors.push(shade, shade, shade);
+    }
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    vertexCount += 4;
+  }
+
+  return vertexCount;
+}
+
 /**
  * Turns a padded voxel volume into renderable geometry.
  *
@@ -101,7 +259,12 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
     for (let z = 0; z < SECTION_HEIGHT; z++) {
       for (let x = 0; x < SECTION_HEIGHT; x++) {
         const block = volume[volumeIndex(x, y, z)];
-        if (block === Block.Air || OPAQUE[block] !== 1) continue;
+        if (block === Block.Air) continue;
+        if (block === Block.Torch) {
+          vertexCount = emitTorch(positions, normals, uvs, colors, emissiveIndices, vertexCount, x, y, z);
+          continue;
+        }
+        if (OPAQUE[block] !== 1) continue;
 
         const glow = GLOW[block];
         const emissive = glow >= EMISSIVE_THRESHOLD;
