@@ -90,6 +90,7 @@ export class Game {
   private hintedTorch = false;
   private hintedBed = false;
   private hintedPlates = false;
+  private hintedStagger = false;
   private deaths = 0;
   private blocksMined = 0;
   private seed = DEFAULT_SEED;
@@ -166,6 +167,11 @@ export class Game {
       },
       onVictory: () => this.win(),
       onShake: (intensity) => this.shake(intensity),
+      onStagger: () => {
+        if (this.hintedStagger) return;
+        this.hintedStagger = true;
+        this.hud.showHint('Strike now — the cores are open', 3.4);
+      },
     });
 
     this.context = {
@@ -417,6 +423,7 @@ export class Game {
     this.hintedTorch = false;
     this.hintedBed = false;
     this.hintedPlates = false;
+    this.hintedStagger = false;
     this.player.hammerTier = HammerTier.Wood;
     this.player.plates = PlateTier.None;
     this.viewModel.setTier(HammerTier.Wood);
@@ -769,6 +776,7 @@ export class Game {
       hintedTorch: this.hintedTorch,
       hintedBed: this.hintedBed,
       hintedPlates: this.hintedPlates,
+      hintedStagger: this.hintedStagger,
       player: {
         x: position.x,
         y: position.y,
@@ -810,6 +818,7 @@ export class Game {
     this.hintedTorch = save.hintedTorch;
     this.hintedBed = save.hintedBed === true;
     this.hintedPlates = save.hintedPlates === true;
+    this.hintedStagger = save.hintedStagger === true;
 
     this.entities.clear();
     this.arena.beginNewRun();

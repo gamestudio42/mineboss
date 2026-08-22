@@ -28,6 +28,7 @@ export interface SavedRun {
   hintedTorch: boolean;
   hintedBed?: boolean;
   hintedPlates?: boolean;
+  hintedStagger?: boolean;
   player: {
     x: number;
     y: number;

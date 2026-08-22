@@ -42,6 +42,7 @@ export class Boss extends Entity {
   onPhaseChange: ((phase: number, label: string) => void) | null = null;
   onDefeated: (() => void) | null = null;
   onShake: ((intensity: number) => void) | null = null;
+  onStagger: (() => void) | null = null;
 
   /** Set at the top of every update so state handlers can reach the world. */
   context!: EntityContext;
@@ -216,6 +217,7 @@ export class Boss extends Entity {
       life: 0.7,
       gravity: -3,
     });
+    this.onStagger?.();
   }
 
   spawnShockwave(damage: number, maxRadius: number, speed: number): void {

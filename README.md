@@ -92,8 +92,8 @@ moves your respawn there.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, a burst leaves its chest, it takes double damage and it cannot retaliate.
-That window is where the fight is won. Its shockwaves only hit grounded
-targets, so jumping over the crest avoids them.
+The first window spells it out on the HUD. That is where the fight is won. Its
+shockwaves only hit grounded targets, so jumping over the crest avoids them.
 
 | Phase | Trigger | New behaviour |
 | --- | --- | --- |

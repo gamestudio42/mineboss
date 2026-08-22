@@ -22,6 +22,7 @@ export interface ArenaCallbacks {
   onPhase: (phase: number, label: string) => void;
   onVictory: () => void;
   onShake: (intensity: number) => void;
+  onStagger: () => void;
 }
 
 export type GuideStage = 'surface' | 'stairs' | 'altar' | 'fight' | 'done';
@@ -66,6 +67,7 @@ export class BossArena {
     const boss = new Boss();
     boss.onPhaseChange = (phase, label) => this.callbacks.onPhase(phase, label);
     boss.onShake = (intensity) => this.callbacks.onShake(intensity);
+    boss.onStagger = () => this.callbacks.onStagger();
     boss.onDefeated = () => {
       this.defeated = true;
       this.callbacks.onVictory();
