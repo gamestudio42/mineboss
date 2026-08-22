@@ -37,6 +37,8 @@ export class BossArena {
   defeated = false;
   /** Set the first time the player walks into the arena; used as a respawn. */
   discovered = false;
+  /** True after the east cairn has handed over its cache. */
+  cacheClaimed = false;
 
   constructor(
     private readonly entities: EntityManager,
@@ -91,6 +93,7 @@ export class BossArena {
   beginNewRun(): void {
     this.defeated = false;
     this.discovered = false;
+    this.cacheClaimed = false;
     this.boss = null;
   }
 
@@ -140,7 +143,9 @@ export class BossArena {
     const stage = this.guideStage(position);
     if (stage === 'fight') return null;
     if (stage === 'done') {
-      if (Math.hypot(position.x - CACHE.x, position.z - CACHE.z) < 6) return null;
+      if (this.cacheClaimed || Math.hypot(position.x - CACHE.x, position.z - CACHE.z) < 6) {
+        return null;
+      }
       return { x: CACHE.x + 0.5, y: position.y, z: CACHE.z + 0.5 };
     }
     if (stage === 'altar') return { x: ALTAR.x + 0.5, y: ALTAR.y, z: ALTAR.z + 0.5 };
@@ -159,12 +164,21 @@ export class BossArena {
       case 'fight':
         return 'Stagger it, then strike — eat to recover';
       case 'done':
+        if (this.cacheClaimed) return 'The depths are yours — New game for another descent';
         return Math.hypot(position.x - CACHE.x, position.z - CACHE.z) < 6
-          ? 'The depths are yours — New game for another descent'
+          ? 'The cairn offers a cache — walk closer'
           : 'A cairn waits east — or New game for another descent';
       default:
         return null;
     }
+  }
+
+  /** Hands over the east cache once after victory. */
+  tryClaim(position: THREE.Vector3): boolean {
+    if (this.cacheClaimed || !this.defeated) return false;
+    if (Math.hypot(position.x - CACHE.x, position.z - CACHE.z) > 4.5) return false;
+    this.cacheClaimed = true;
+    return true;
   }
 
   /** Human readable direction to the current guide target. */

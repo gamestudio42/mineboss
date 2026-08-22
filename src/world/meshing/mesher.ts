@@ -63,6 +63,12 @@ export interface SectionMesh {
   indices: Uint32Array;
   /** Index count of the lit group; the remainder is the unlit emissive group. */
   litIndexCount: number;
+  /** Water lives on its own mesh so transparency cannot sort the solid terrain. */
+  waterPositions: Float32Array;
+  waterNormals: Float32Array;
+  waterUvs: Float32Array;
+  waterColors: Float32Array;
+  waterIndices: Uint32Array;
 }
 
 /** Freshly allocated every time: the buffers are transferred out of the worker. */
@@ -74,6 +80,11 @@ export function emptyMesh(): SectionMesh {
     colors: new Float32Array(0),
     indices: new Uint32Array(0),
     litIndexCount: 0,
+    waterPositions: new Float32Array(0),
+    waterNormals: new Float32Array(0),
+    waterUvs: new Float32Array(0),
+    waterColors: new Float32Array(0),
+    waterIndices: new Uint32Array(0),
   };
 }
 
@@ -298,8 +309,14 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
   const colors: number[] = [];
   const litIndices: number[] = [];
   const emissiveIndices: number[] = [];
+  const waterPositions: number[] = [];
+  const waterNormals: number[] = [];
+  const waterUvs: number[] = [];
+  const waterColors: number[] = [];
+  const waterIndices: number[] = [];
 
   let vertexCount = 0;
+  let waterVertexCount = 0;
 
   for (let y = 0; y < SECTION_HEIGHT; y++) {
     for (let z = 0; z < SECTION_HEIGHT; z++) {
@@ -311,7 +328,18 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
           continue;
         }
         if (block === Block.Water) {
-          vertexCount = emitWater(volume, positions, normals, uvs, colors, litIndices, vertexCount, x, y, z);
+          waterVertexCount = emitWater(
+            volume,
+            waterPositions,
+            waterNormals,
+            waterUvs,
+            waterColors,
+            waterIndices,
+            waterVertexCount,
+            x,
+            y,
+            z,
+          );
           continue;
         }
         if (OPAQUE[block] !== 1) continue;
@@ -387,7 +415,7 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
     }
   }
 
-  if (vertexCount === 0) return emptyMesh();
+  if (vertexCount === 0 && waterVertexCount === 0) return emptyMesh();
 
   const indices = new Uint32Array(litIndices.length + emissiveIndices.length);
   indices.set(litIndices, 0);
@@ -400,5 +428,10 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
     colors: new Float32Array(colors),
     indices,
     litIndexCount: litIndices.length,
+    waterPositions: new Float32Array(waterPositions),
+    waterNormals: new Float32Array(waterNormals),
+    waterUvs: new Float32Array(waterUvs),
+    waterColors: new Float32Array(waterColors),
+    waterIndices: new Uint32Array(waterIndices),
   };
 }

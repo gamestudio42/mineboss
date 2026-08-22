@@ -69,8 +69,10 @@ Pause writes a **Continue** save: seed, position, inventory, hammer, altar
 state and a log of edited blocks. The title screen offers Continue when a
 descent is waiting. New game rolls a new seed.
 
-Valleys below sea level hold shallow water you can swim through. After the
-Warden falls, the compass points east to a glowstone cairn.
+Valleys below sea level hold shallow water you can swim through. Diving
+tints the view and muffles the air. After the Warden falls, the compass
+points east to a glowstone cairn; walking up to it grants a cache and
+moves your respawn there.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, it takes double damage and it cannot retaliate. That window is where the

@@ -10,13 +10,13 @@ import { Player, SWING_DURATION } from '../player/Player.ts';
 import { PlayerCombat } from '../player/PlayerCombat.ts';
 import { PlayerController } from '../player/PlayerController.ts';
 import { createBlockAtlas } from '../render/atlas.ts';
-import { createTerrainMaterial } from '../render/materials.ts';
+import { createTerrainMaterial, createWaterMaterial } from '../render/materials.ts';
 import { ParticleSystem } from '../render/Particles.ts';
 import { TorchLights } from '../render/TorchLights.ts';
 import { ViewModel } from '../render/ViewModel.ts';
 import { Hud } from '../ui/Hud.ts';
 import { Overlay } from '../ui/Overlay.ts';
-import { Block } from '../world/blocks.ts';
+import { Block, isWater } from '../world/blocks.ts';
 import { ChunkManager } from '../world/ChunkManager.ts';
 import { TerrainGenerator } from '../world/terrain/generator.ts';
 import { World } from '../world/World.ts';
@@ -26,12 +26,15 @@ import { formatRunLine, recordRun, type RunRecord } from './Records.ts';
 import { loadSave, saveRun, type SavedRun } from './Save.ts';
 import { loadSettings, type StoredSettings } from './Settings.ts';
 import { ALTAR, ENTRANCE } from '../world/arena.ts';
-import { clamp, wrapAngle } from './math.ts';
+import { clamp, damp, wrapAngle } from './math.ts';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
 
 const SKY_COLOR = 0x8fb8e0;
 const CAVE_COLOR = 0x090b11;
+const WATER_COLOR = 0x1a4a7a;
+const BASE_FOV = 76;
+const SPRINT_FOV = 84;
 /** Below this height the atmosphere is fully underground. */
 const UNDERGROUND_Y = 42;
 
@@ -57,7 +60,9 @@ export class Game {
   private readonly fog: THREE.Fog;
   private readonly skyColor = new THREE.Color(SKY_COLOR);
   private readonly caveColor = new THREE.Color(CAVE_COLOR);
+  private readonly waterColor = new THREE.Color(WATER_COLOR);
   private readonly blendedColor = new THREE.Color();
+  private readonly eyeScratch = new THREE.Vector3();
 
   private readonly sfx = new Sfx();
   private readonly atlas = createBlockAtlas();
@@ -88,6 +93,7 @@ export class Game {
   private seed = DEFAULT_SEED;
   private saveTimer = 0;
   private saveSoon = false;
+  private wasInWater = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -99,7 +105,7 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(76, 1, 0.1, 400);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.1, 400);
     this.camera.rotation.order = 'YXZ';
     // The camera carries the first person view model, so it must be in the graph.
     this.scene.add(this.camera);
@@ -124,9 +130,10 @@ export class Game {
       map: this.atlas.texture,
       vertexColors: true,
     });
+    const waterMaterial = createWaterMaterial(this.atlas);
 
     this.world = new World(new TerrainGenerator(this.seed));
-    this.chunks = new ChunkManager(this.world, this.scene, [terrainMaterial, emissiveMaterial]);
+    this.chunks = new ChunkManager(this.world, this.scene, [terrainMaterial, emissiveMaterial], waterMaterial);
     this.particles = new ParticleSystem(this.scene);
     this.torchLights = new TorchLights(this.scene);
     this.entities = new EntityManager(this.scene);
@@ -368,6 +375,7 @@ export class Game {
     this.stepDistance = 0;
     this.saveTimer = 0;
     this.saveSoon = false;
+    this.wasInWater = false;
     this.deaths = 0;
     this.blocksMined = 0;
     this.hintedConsumable = false;
@@ -411,7 +419,7 @@ export class Game {
   private tick(dt: number): void {
     if (this.state === 'playing') this.updateWorld(dt);
 
-    this.updateAtmosphere();
+    this.updateAtmosphere(dt);
     this.renderer.render(this.scene, this.camera);
     this.input.endFrame();
   }
@@ -433,6 +441,7 @@ export class Game {
     this.entities.update(this.context);
     this.arena.update();
     this.arena.tryDiscover(this.player);
+    this.tryClaimCache();
 
     this.player.health.update(dt);
     this.chunks.update(this.player.position.x, this.player.position.z);
@@ -547,14 +556,22 @@ export class Game {
   }
 
   private updateFootsteps(dt: number): void {
-    if (!this.player.body.onGround || this.player.flying) return;
+    if (this.player.flying) return;
 
-    const speed = Math.hypot(this.player.velocity.x, this.player.velocity.z);
+    const swimming = this.player.swimming;
+    if (!swimming && !this.player.body.onGround) return;
+
+    const speed = Math.hypot(
+      this.player.velocity.x,
+      swimming ? this.player.velocity.y : 0,
+      this.player.velocity.z,
+    );
     this.stepDistance += speed * dt;
-    if (this.stepDistance < STEP_DISTANCE) return;
+    const stride = swimming ? STEP_DISTANCE * 1.15 : STEP_DISTANCE;
+    if (this.stepDistance < stride) return;
 
     this.stepDistance = 0;
-    this.sfx.play('step');
+    this.sfx.play(swimming ? 'splash' : 'step');
   }
 
   private shake(intensity: number): void {
@@ -573,22 +590,98 @@ export class Game {
   }
 
   /** Blends light and fog toward pitch black as the camera descends. */
-  private updateAtmosphere(): void {
+  private updateAtmosphere(dt: number): void {
     const t = clamp((this.camera.position.y - UNDERGROUND_Y) / 26, 0, 1);
     this.blendedColor.copy(this.caveColor).lerp(this.skyColor, t);
 
+    const submerged = this.eyeInWater();
+    if (submerged) this.blendedColor.copy(this.waterColor);
+
     this.fog.color.copy(this.blendedColor);
     (this.scene.background as THREE.Color).copy(this.blendedColor);
-    this.fog.near = 4 + t * 46;
-    this.fog.far = 46 + t * 72;
-    this.sunLight.intensity = 0.1 + t * 0.95;
-    this.skyLight.intensity = 0.42 + t * 0.73;
+    this.fog.near = submerged ? 1.4 : 4 + t * 46;
+    this.fog.far = submerged ? 16 : 46 + t * 72;
+    this.sunLight.intensity = submerged ? 0.18 : 0.1 + t * 0.95;
+    this.skyLight.intensity = submerged ? 0.28 : 0.42 + t * 0.73;
 
     this.lamp.position.copy(this.camera.position);
-    this.lamp.intensity = 34 * (1 - t);
+    this.lamp.intensity = submerged ? 22 : 34 * (1 - t);
+    this.lamp.color.setHex(submerged ? 0x7ec8ff : 0xffd7a3);
 
     const fighting = this.arena.active ? 1 : 0;
-    this.sfx.setAmbience(t * (1 - fighting * 0.35), (1 - t) * (1 - fighting * 0.2), fighting);
+    const drown = submerged ? 0.35 : 1;
+    this.sfx.setAmbience(
+      t * (1 - fighting * 0.35) * drown,
+      (1 - t) * (1 - fighting * 0.2) * drown,
+      fighting,
+    );
+    this.hud.setUnderwater(submerged);
+
+    const sprinting = this.state === 'playing' && this.player.sprinting && !this.player.swimming && !this.player.flying;
+    const targetFov = sprinting ? SPRINT_FOV : BASE_FOV;
+    if (Math.abs(this.camera.fov - targetFov) > 0.05) {
+      this.camera.fov = damp(this.camera.fov, targetFov, 10, dt);
+      this.camera.updateProjectionMatrix();
+    }
+
+    this.updateWaterEntry();
+  }
+
+  private eyeInWater(): boolean {
+    this.player.getEyePosition(this.eyeScratch);
+    return isWater(
+      this.world.getBlock(
+        Math.floor(this.eyeScratch.x),
+        Math.floor(this.eyeScratch.y),
+        Math.floor(this.eyeScratch.z),
+      ),
+    );
+  }
+
+  private updateWaterEntry(): void {
+    const inWater = this.player.swimming || this.eyeInWater();
+    if (inWater && !this.wasInWater) {
+      this.sfx.play('splash');
+      this.particles.burst(this.camera.position, {
+        count: 14,
+        color: 0x7eb6e8,
+        speed: 2.2,
+        spread: 0.45,
+        life: 0.45,
+        gravity: 8,
+        upwardBias: 0.2,
+      });
+    }
+    this.wasInWater = inWater;
+  }
+
+  private tryClaimCache(): void {
+    if (!this.arena.tryClaim(this.player.position)) return;
+
+    this.player.setSpawn(this.player.position.x, this.player.position.y, this.player.position.z);
+    const leftovers =
+      this.player.inventory.add(Block.Mushroom, 6) +
+      this.player.inventory.add(Block.CrystalOre, 2) +
+      this.player.inventory.add(Block.Torch, 8) +
+      this.player.inventory.add(Block.GoldOre, 3);
+
+    this.sfx.play('summon');
+    this.player.getEyePosition(this.eyeScratch);
+    this.particles.burst(this.eyeScratch, {
+      count: 18,
+      color: 0xffe08a,
+      speed: 2.4,
+      spread: 0.55,
+      life: 0.55,
+      gravity: 6,
+    });
+    this.hud.showHint(
+      leftovers > 0
+        ? 'The cairn yields a cache — hotbar is full. You will respawn here.'
+        : 'The cairn yields a cache. You will respawn here.',
+      4.5,
+    );
+    this.saveSoon = true;
   }
 
   private updateSave(dt: number): void {
@@ -636,6 +729,7 @@ export class Game {
       arena: {
         defeated: this.arena.defeated,
         discovered: this.arena.discovered,
+        cacheClaimed: this.arena.cacheClaimed,
       },
       edits: this.world.exportEdits(),
     };
@@ -657,6 +751,7 @@ export class Game {
     this.arena.beginNewRun();
     this.arena.defeated = save.arena.defeated;
     this.arena.discovered = save.arena.discovered;
+    this.arena.cacheClaimed = save.arena.cacheClaimed === true;
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();

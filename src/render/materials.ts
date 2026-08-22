@@ -12,3 +12,15 @@ export function createTerrainMaterial(atlas: BlockAtlas): THREE.MeshLambertMater
     vertexColors: true,
   });
 }
+
+/** Own pass so lakes stay see-through without sorting the solid terrain. */
+export function createWaterMaterial(atlas: BlockAtlas): THREE.MeshLambertMaterial {
+  return new THREE.MeshLambertMaterial({
+    map: atlas.texture,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}

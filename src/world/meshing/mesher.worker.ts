@@ -15,6 +15,11 @@ export interface MeshResponse {
   colors: Float32Array;
   indices: Uint32Array;
   litIndexCount: number;
+  waterPositions: Float32Array;
+  waterNormals: Float32Array;
+  waterUvs: Float32Array;
+  waterColors: Float32Array;
+  waterIndices: Uint32Array;
   /** Returned so the caller can recycle the scratch volume buffer. */
   volume: Uint8Array;
 }
@@ -32,6 +37,11 @@ self.onmessage = (event: MessageEvent<MeshRequest>) => {
     colors: mesh.colors,
     indices: mesh.indices,
     litIndexCount: mesh.litIndexCount,
+    waterPositions: mesh.waterPositions,
+    waterNormals: mesh.waterNormals,
+    waterUvs: mesh.waterUvs,
+    waterColors: mesh.waterColors,
+    waterIndices: mesh.waterIndices,
     volume,
   };
 
@@ -41,6 +51,11 @@ self.onmessage = (event: MessageEvent<MeshRequest>) => {
     mesh.uvs.buffer,
     mesh.colors.buffer,
     mesh.indices.buffer,
+    mesh.waterPositions.buffer,
+    mesh.waterNormals.buffer,
+    mesh.waterUvs.buffer,
+    mesh.waterColors.buffer,
+    mesh.waterIndices.buffer,
     volume.buffer,
   ]);
 };

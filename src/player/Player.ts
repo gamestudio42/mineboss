@@ -22,6 +22,7 @@ export class Player {
   pitch = 0;
   flying = false;
   sprinting = false;
+  swimming = false;
   /** Seconds left of the swing animation, drives the held-item bob. */
   swing = 0;
   hammerTier = HammerTier.Wood;
@@ -74,6 +75,7 @@ export class Player {
     this.body.onGround = false;
     this.health.reset();
     this.flying = false;
+    this.swimming = false;
     this.pitch = 0;
   }
 }

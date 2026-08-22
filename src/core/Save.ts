@@ -43,6 +43,7 @@ export interface SavedRun {
   arena: {
     defeated: boolean;
     discovered: boolean;
+    cacheClaimed?: boolean;
   };
   edits: SavedEdit[];
 }

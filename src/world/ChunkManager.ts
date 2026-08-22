@@ -27,6 +27,7 @@ export class ChunkManager {
   private readonly workers: Worker[] = [];
   private readonly workerLoad: number[] = [];
   private readonly meshes = new Map<string, THREE.Mesh>();
+  private readonly waterMeshes = new Map<string, THREE.Mesh>();
   private readonly pending = new Map<string, PendingJob>();
   private readonly queue: string[] = [];
   private readonly queued = new Set<string>();
@@ -44,6 +45,7 @@ export class ChunkManager {
     private readonly world: World,
     private readonly scene: THREE.Scene,
     private readonly materials: [THREE.Material, THREE.Material],
+    private readonly waterMaterial: THREE.Material,
   ) {
     const poolSize = Math.max(1, Math.min(4, (navigator.hardwareConcurrency ?? 4) - 1));
     for (let i = 0; i < poolSize; i++) {
@@ -127,20 +129,14 @@ export class ChunkManager {
     this.lastChunkX = Number.NaN;
     this.lastChunkZ = Number.NaN;
 
-    for (const mesh of this.meshes.values()) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-    }
-    this.meshes.clear();
+    this.clearMeshMap(this.meshes);
+    this.clearMeshMap(this.waterMeshes);
   }
 
   dispose(): void {
     for (const worker of this.workers) worker.terminate();
-    for (const mesh of this.meshes.values()) {
-      this.scene.remove(mesh);
-      mesh.geometry.dispose();
-    }
-    this.meshes.clear();
+    this.clearMeshMap(this.meshes);
+    this.clearMeshMap(this.waterMeshes);
   }
 
   private generateAround(cx: number, cz: number): void {
@@ -284,41 +280,81 @@ export class ChunkManager {
   }
 
   private applyMesh(response: MeshResponse, cx: number, cz: number, sy: number): void {
-    const existing = this.meshes.get(response.key);
-
-    if (response.indices.length === 0) {
-      if (existing) {
-        this.scene.remove(existing);
-        existing.geometry.dispose();
-        this.meshes.delete(response.key);
-      }
+    if (response.indices.length === 0 && response.waterIndices.length === 0) {
+      this.removeMesh(this.meshes, response.key);
+      this.removeMesh(this.waterMeshes, response.key);
       return;
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(response.positions, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(response.normals, 3));
-    geometry.setAttribute('uv', new THREE.BufferAttribute(response.uvs, 2));
-    geometry.setAttribute('color', new THREE.BufferAttribute(response.colors, 3));
-    geometry.setIndex(new THREE.BufferAttribute(response.indices, 1));
+    if (response.indices.length > 0) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(response.positions, 3));
+      geometry.setAttribute('normal', new THREE.BufferAttribute(response.normals, 3));
+      geometry.setAttribute('uv', new THREE.BufferAttribute(response.uvs, 2));
+      geometry.setAttribute('color', new THREE.BufferAttribute(response.colors, 3));
+      geometry.setIndex(new THREE.BufferAttribute(response.indices, 1));
 
-    const emissiveCount = response.indices.length - response.litIndexCount;
-    if (response.litIndexCount > 0) geometry.addGroup(0, response.litIndexCount, 0);
-    if (emissiveCount > 0) geometry.addGroup(response.litIndexCount, emissiveCount, 1);
-    geometry.computeBoundingSphere();
+      const emissiveCount = response.indices.length - response.litIndexCount;
+      if (response.litIndexCount > 0) geometry.addGroup(0, response.litIndexCount, 0);
+      if (emissiveCount > 0) geometry.addGroup(response.litIndexCount, emissiveCount, 1);
+      geometry.computeBoundingSphere();
+      this.upsertMesh(this.meshes, response.key, geometry, this.materials, cx, cz, sy);
+    } else {
+      this.removeMesh(this.meshes, response.key);
+    }
 
+    if (response.waterIndices.length > 0) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(response.waterPositions, 3));
+      geometry.setAttribute('normal', new THREE.BufferAttribute(response.waterNormals, 3));
+      geometry.setAttribute('uv', new THREE.BufferAttribute(response.waterUvs, 2));
+      geometry.setAttribute('color', new THREE.BufferAttribute(response.waterColors, 3));
+      geometry.setIndex(new THREE.BufferAttribute(response.waterIndices, 1));
+      geometry.computeBoundingSphere();
+      this.upsertMesh(this.waterMeshes, response.key, geometry, this.waterMaterial, cx, cz, sy);
+    } else {
+      this.removeMesh(this.waterMeshes, response.key);
+    }
+  }
+
+  private upsertMesh(
+    map: Map<string, THREE.Mesh>,
+    key: string,
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material | THREE.Material[],
+    cx: number,
+    cz: number,
+    sy: number,
+  ): void {
+    const existing = map.get(key);
     if (existing) {
       existing.geometry.dispose();
       existing.geometry = geometry;
       return;
     }
 
-    const mesh = new THREE.Mesh(geometry, this.materials);
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(cx * CHUNK_SIZE, sy * SECTION_HEIGHT, cz * CHUNK_SIZE);
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     this.scene.add(mesh);
-    this.meshes.set(response.key, mesh);
+    map.set(key, mesh);
+  }
+
+  private removeMesh(map: Map<string, THREE.Mesh>, key: string): void {
+    const mesh = map.get(key);
+    if (!mesh) return;
+    this.scene.remove(mesh);
+    mesh.geometry.dispose();
+    map.delete(key);
+  }
+
+  private clearMeshMap(map: Map<string, THREE.Mesh>): void {
+    for (const mesh of map.values()) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    map.clear();
   }
 
   private unloadFar(cx: number, cz: number): void {
@@ -329,12 +365,8 @@ export class ChunkManager {
 
       for (let sy = 0; sy < SECTION_COUNT; sy++) {
         const key = sectionKey(chunk.cx, chunk.cz, sy);
-        const mesh = this.meshes.get(key);
-        if (mesh) {
-          this.scene.remove(mesh);
-          mesh.geometry.dispose();
-          this.meshes.delete(key);
-        }
+        this.removeMesh(this.meshes, key);
+        this.removeMesh(this.waterMeshes, key);
       }
 
       this.meshedChunks.delete(chunkKey(chunk.cx, chunk.cz));

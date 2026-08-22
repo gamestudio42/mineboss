@@ -11,7 +11,8 @@ export type SfxName =
   | 'stagger'
   | 'victory'
   | 'death'
-  | 'eat';
+  | 'eat'
+  | 'splash';
 
 /**
  * Tiny synthesised sound bank. Everything is generated with oscillators and
@@ -124,6 +125,10 @@ export class Sfx {
       case 'eat':
         this.noise(now, 0.12, 0.18, 1400, 500);
         this.tone(now, 'triangle', 220, 340, 0.16, 0.22);
+        break;
+      case 'splash':
+        this.noise(now, 0.26, 0.32, 1600, 280);
+        this.tone(now, 'sine', 210, 80, 0.18, 0.14);
         break;
     }
   }

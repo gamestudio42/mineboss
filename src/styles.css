@@ -308,6 +308,19 @@ body {
   opacity: 0.9;
 }
 
+#water-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(18, 72, 122, 0.22), rgba(8, 36, 68, 0.48));
+  opacity: 0;
+  transition: opacity 0.18s linear;
+}
+
+#water-veil.show {
+  opacity: 1;
+}
+
 #seed-label {
   position: absolute;
   left: 16px;

@@ -188,7 +188,7 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.Mushroom]: combine(fill([168, 42, 38], 18), speckles([236, 226, 210], 6, 1.8, 14)),
   [Tile.Torch]: torchStick,
   [Tile.TorchFlame]: combine(fill([236, 132, 36], 20), speckles([255, 226, 96], 5, 2.2, 28)),
-  [Tile.Water]: combine(fill([46, 98, 168], 18), speckles([92, 168, 214], 6, 2.4, 22)),
+  [Tile.Water]: combine(fill([38, 108, 186], 14), speckles([120, 198, 236], 7, 2.6, 28)),
 };
 
 export interface BlockAtlas {

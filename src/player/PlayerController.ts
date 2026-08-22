@@ -73,6 +73,7 @@ export class PlayerController {
     const wishLength = Math.hypot(wishX, wishZ);
 
     const swimming = !player.flying && this.bodyInWater();
+    player.swimming = swimming;
     const speed = player.flying ? FLY_SPEED : swimming ? SWIM_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
     const targetX = wishLength > 0 ? (wishX / wishLength) * speed : 0;
     const targetZ = wishLength > 0 ? (wishZ / wishLength) * speed : 0;
