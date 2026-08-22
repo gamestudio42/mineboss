@@ -46,8 +46,8 @@ through the north wall, so you never have to mine the shell or fall 40 blocks.
 The first time you enter the chamber, your respawn moves to the doorway. Right
 click the runic altar in the centre to wake **The Deep Warden**. If you die
 during the fight the Warden sleeps again; walk back to the altar and activate
-it once more. Pause, death and victory all offer **New game**, which
-regenerates the world and returns you to the surface spawn.
+it once more. Your pack stays with you. Pause, death and victory all offer
+**New game**, which regenerates the world and returns you to the surface spawn.
 
 Mushrooms grow on cave floors and restore two hearts. Crystal ore restores
 four. Select the stack and right click — it works while looking at air or the
@@ -60,7 +60,11 @@ readable when you turn around.
 
 Right click three iron ore to bind an iron hammer — it breaks blocks much
 faster. Three gold ore makes a gold hammer that hits the Warden far harder.
-The upgrade stays through death; New game returns you to the starting hammer.
+The hammer upgrade and your inventory stay through death. New game returns
+you to the starting hammer and a fresh hotbar.
+
+A short recap after victory lists the run time, deaths, hammer and blocks
+mined, so one descent can be compared with the next.
 
 Every heavy attack the Warden throws ends in a **stagger**: its back cores open
 up, it takes double damage and it cannot retaliate. That window is where the
@@ -85,7 +89,7 @@ src/
   entities/  Entity system and the boss encounter
   render/    Procedural texture atlas, particles, first person view model
   ui/        HUD, hotbar, boss bar, overlays
-  audio/     Synthesised sound effects
+  audio/     Synthesised sound effects and looping cave / surface / boss beds
 ```
 
 A few decisions worth knowing about:

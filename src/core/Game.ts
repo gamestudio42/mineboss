@@ -79,6 +79,8 @@ export class Game {
   private hintedConsumable = false;
   private hintedUpgrade = false;
   private hintedTorch = false;
+  private deaths = 0;
+  private blocksMined = 0;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -267,6 +269,7 @@ export class Game {
   private die(): void {
     if (this.state === 'dead') return;
     this.pendingDeath = false;
+    this.deaths += 1;
     this.state = 'dead';
     this.sfx.play('death');
     this.input.releaseLock();
@@ -277,8 +280,8 @@ export class Game {
       {
         title: 'YOU DIED',
         text: this.arena.defeated
-          ? 'You fall. The depths remain quiet.'
-          : 'The Warden returns to its slumber. Respawn at the stairs and right click the altar to wake it again.',
+          ? 'You fall. The depths remain quiet. Your pack stays with you.'
+          : 'The Warden returns to its slumber. You keep your items — respawn at the stairs and right click the altar to wake it again.',
         button: 'Respawn',
         secondary: 'New game',
         showControls: false,
@@ -307,7 +310,7 @@ export class Game {
     this.overlay.show(
       {
         title: 'VICTORY',
-        text: 'The Deep Warden collapses into rubble. The depths are yours.',
+        text: this.victoryText(),
         button: 'Keep exploring',
         secondary: 'New game',
         showControls: false,
@@ -328,6 +331,8 @@ export class Game {
     this.elapsed = 0;
     this.trauma = 0;
     this.stepDistance = 0;
+    this.deaths = 0;
+    this.blocksMined = 0;
     this.hintedConsumable = false;
     this.hintedUpgrade = false;
     this.hintedTorch = false;
@@ -382,7 +387,8 @@ export class Game {
     this.controller.look(this.input);
     this.controller.update(dt, this.input);
     this.combat.update(dt, this.input);
-    this.interaction.update(dt, this.input, this.combat.aimed !== null);
+    const interaction = this.interaction.update(dt, this.input, this.combat.aimed !== null);
+    if (interaction.brokeBlock) this.blocksMined += 1;
 
     this.context.dt = dt;
     this.context.elapsed = this.elapsed;
@@ -538,6 +544,23 @@ export class Game {
 
     this.lamp.position.copy(this.camera.position);
     this.lamp.intensity = 34 * (1 - t);
+
+    const fighting = this.arena.active ? 1 : 0;
+    this.sfx.setAmbience(t * (1 - fighting * 0.35), (1 - t) * (1 - fighting * 0.2), fighting);
+  }
+
+  private victoryText(): string {
+    const minutes = Math.floor(this.elapsed / 60);
+    const seconds = Math.floor(this.elapsed % 60)
+      .toString()
+      .padStart(2, '0');
+    const deathLabel = this.deaths === 1 ? '1 death' : `${this.deaths} deaths`;
+    const blockLabel = this.blocksMined === 1 ? '1 block mined' : `${this.blocksMined} blocks mined`;
+    return [
+      'The Deep Warden collapses into rubble. The depths are yours.',
+      '',
+      `${minutes}:${seconds} · ${deathLabel} · ${HAMMER[this.player.hammerTier].name} · ${blockLabel}`,
+    ].join('\n');
   }
 
   private readonly resize = (): void => {

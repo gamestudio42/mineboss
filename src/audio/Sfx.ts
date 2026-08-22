@@ -21,6 +21,11 @@ export class Sfx {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private ambient: {
+    surface: GainNode;
+    cave: GainNode;
+    boss: GainNode;
+  } | null = null;
 
   muted = false;
   /** Linear master level, 0–1. The previous hardcoded gain was 0.45. */
@@ -38,6 +43,7 @@ export class Sfx {
       this.master.connect(this.context.destination);
       this.noiseBuffer = this.createNoiseBuffer(this.context);
       this.applyGain();
+      this.startAmbient(this.context, this.master);
     }
 
     if (this.context.state === 'suspended') void this.context.resume();
@@ -55,6 +61,17 @@ export class Sfx {
 
   private applyGain(): void {
     if (this.master) this.master.gain.value = this.muted ? 0 : this.volume;
+  }
+
+  /**
+   * Crossfades looping beds. `surface` / `cave` / `boss` are 0–1 weights;
+   * they sit under the one-shot bank so a slam still cuts through.
+   */
+  setAmbience(surface: number, cave: number, boss: number): void {
+    if (!this.ambient) return;
+    this.ambient.surface.gain.value = Math.max(0, surface) * 0.045;
+    this.ambient.cave.gain.value = Math.max(0, cave) * 0.07;
+    this.ambient.boss.gain.value = Math.max(0, boss) * 0.09;
   }
 
   play(name: SfxName): void {
@@ -168,9 +185,74 @@ export class Sfx {
   }
 
   private createNoiseBuffer(context: AudioContext): AudioBuffer {
-    const buffer = context.createBuffer(1, context.sampleRate, context.sampleRate);
+    const buffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     return buffer;
+  }
+
+  private startAmbient(context: AudioContext, master: GainNode): void {
+    if (this.ambient || !this.noiseBuffer) return;
+
+    const surface = context.createGain();
+    const cave = context.createGain();
+    const boss = context.createGain();
+    surface.gain.value = 0;
+    cave.gain.value = 0;
+    boss.gain.value = 0;
+    surface.connect(master);
+    cave.connect(master);
+    boss.connect(master);
+
+    this.loopNoise(context, surface, 900, 280);
+    this.loopTone(context, surface, 'triangle', 196, 0.18);
+    this.loopTone(context, cave, 'sine', 48, 0.55);
+    this.loopTone(context, cave, 'sine', 72, 0.28);
+    this.loopNoise(context, cave, 220, 70);
+    this.loopTone(context, boss, 'sawtooth', 36, 0.45);
+    this.loopTone(context, boss, 'triangle', 55, 0.35);
+    this.loopTone(context, boss, 'sine', 82, 0.2);
+
+    this.ambient = { surface, cave, boss };
+  }
+
+  private loopNoise(context: AudioContext, dest: GainNode, from: number, to: number): void {
+    if (!this.noiseBuffer) return;
+    const source = context.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    source.loop = true;
+
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = from;
+    filter.Q.value = 0.7;
+
+    const lfo = context.createOscillator();
+    const lfoGain = context.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.07;
+    lfoGain.gain.value = Math.abs(from - to) * 0.5;
+    lfo.connect(lfoGain).connect(filter.frequency);
+    filter.frequency.value = (from + to) * 0.5;
+
+    source.connect(filter).connect(dest);
+    source.start();
+    lfo.start();
+  }
+
+  private loopTone(
+    context: AudioContext,
+    dest: GainNode,
+    type: OscillatorType,
+    frequency: number,
+    gain: number,
+  ): void {
+    const oscillator = context.createOscillator();
+    const envelope = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    envelope.gain.value = gain;
+    oscillator.connect(envelope).connect(dest);
+    oscillator.start();
   }
 }
