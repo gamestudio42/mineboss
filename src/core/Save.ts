@@ -1,4 +1,4 @@
-import { HammerTier } from '../player/Hammer.ts';
+import { HammerTier, PlateTier, isPlateTier } from '../player/Hammer.ts';
 import { HOTBAR_SLOTS } from '../player/Inventory.ts';
 import { BLOCKS } from '../world/blocks.ts';
 
@@ -37,6 +37,8 @@ export interface SavedRun {
     spawnZ: number;
     health: number;
     hammer: HammerTier;
+    plates?: PlateTier;
+    /** Legacy boolean from the first iron-only vest. */
     plated?: boolean;
     selected: number;
     slots: SavedSlot[];
@@ -67,6 +69,7 @@ export function loadSave(): SavedRun | null {
     if (typeof parsed.seed !== 'number' || typeof parsed.elapsed !== 'number') return null;
     if (!parsed.player || !parsed.arena || !Array.isArray(parsed.edits)) return null;
     if (!isHammer(parsed.player.hammer)) return null;
+    if (parsed.player.plates !== undefined && !isPlateTier(parsed.player.plates)) return null;
     if (!Array.isArray(parsed.player.slots) || parsed.player.slots.length !== HOTBAR_SLOTS) return null;
     for (const slot of parsed.player.slots) {
       if (typeof slot.count !== 'number' || !isBlockId(slot.block ?? null)) return null;

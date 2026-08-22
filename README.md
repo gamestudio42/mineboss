@@ -59,8 +59,10 @@ readable when you turn around.
 Right click three iron ore to bind an iron hammer — it breaks blocks much
 faster. Four more iron, after the hammer is already iron, bind **iron plates**
 that cut the Warden's hits. Three gold ore makes a gold hammer that hits far
-harder. Hammer, plates and inventory stay through death. New game returns
-you to the starting hammer and a fresh hotbar.
+harder; four more gold bind **gold plates**, a stronger vest. The breastplate
+sits at the bottom of the first-person view. Hammer, plates and inventory
+stay through death. New game returns you to the starting hammer and a fresh
+hotbar. The victory recap lists the vest you wore.
 
 The selected block sits in your off-hand. `Q` tosses one copy onto the ground
 ahead, which is how you clear a full hotbar.

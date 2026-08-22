@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 import { lerp } from '../core/math.ts';
-import { HammerTier } from '../player/Hammer.ts';
+import { HammerTier, PlateTier } from '../player/Hammer.ts';
 import type { BlockAtlas } from './atlas.ts';
 import {
   ATLAS_TILES_PER_ROW,
@@ -28,6 +28,15 @@ const SWING_ROLL = 0.18;
 
 const HELD_POSITION = new THREE.Vector3(-0.42, -0.38, -0.74);
 const HELD_ROTATION = new THREE.Euler(0.18, 0.55, 0.08);
+
+/** Sits at the bottom of the view so looking down shows the vest. */
+const VEST_POSITION = new THREE.Vector3(0, -0.58, -0.4);
+const VEST_ROTATION = new THREE.Euler(0.35, 0, 0);
+
+const PLATE_METAL: Record<PlateTier.Iron | PlateTier.Gold, { light: number; mid: number; dark: number }> = {
+  [PlateTier.Iron]: { light: 0xdce3ec, mid: 0x9aa4b0, dark: 0x3e4852 },
+  [PlateTier.Gold]: { light: 0xffe08a, mid: 0xd4a84a, dark: 0x8a6a20 },
+};
 const UV_INSET = 0.5 / 16;
 
 function tileUv(tile: number): { u0: number; u1: number; v0: number; v1: number } {
@@ -114,10 +123,13 @@ function part(
 export class ViewModel {
   private readonly root = new THREE.Group();
   private readonly heldRoot = new THREE.Group();
+  private readonly vestRoot = new THREE.Group();
   private readonly heldMesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
   private readonly metal = new Map<THREE.Mesh, 'light' | 'mid' | 'dark' | 'rune'>();
+  private readonly vestMetal = new Map<THREE.Mesh, 'light' | 'mid' | 'dark'>();
   private swayPhase = 0;
   private tier = HammerTier.Wood;
+  private plates = PlateTier.None;
   private heldBlock: number | null = null;
 
   constructor(camera: THREE.PerspectiveCamera, atlas: BlockAtlas) {
@@ -142,6 +154,12 @@ export class ViewModel {
     this.heldRoot.rotation.copy(HELD_ROTATION);
     this.heldRoot.visible = false;
     camera.add(this.heldRoot);
+
+    this.buildVest();
+    this.vestRoot.position.copy(VEST_POSITION);
+    this.vestRoot.rotation.copy(VEST_ROTATION);
+    this.vestRoot.visible = false;
+    camera.add(this.vestRoot);
   }
 
   setHeld(block: number | null): void {
@@ -165,6 +183,18 @@ export class ViewModel {
     mesh.position.set(x, y, z);
     if (metal) this.metal.set(mesh, metal);
     this.root.add(mesh);
+  }
+
+  setPlates(tier: PlateTier): void {
+    if (tier === this.plates) return;
+    this.plates = tier;
+    this.vestRoot.visible = tier !== PlateTier.None;
+    if (tier === PlateTier.None) return;
+    const palette = PLATE_METAL[tier];
+    for (const [mesh, role] of this.vestMetal) {
+      shadeFaces(mesh.geometry, palette[role]);
+      mesh.geometry.attributes.color.needsUpdate = true;
+    }
   }
 
   setTier(tier: HammerTier): void {
@@ -200,6 +230,36 @@ export class ViewModel {
     this.add(0.018, 0.205, 0.205, steelDark, 0.075, hy, 0, 'dark');
   }
 
+  /** Chunky breastplate at the bottom of the first-person view. */
+  private buildVest(): void {
+    const steel = 0xb9c0c8;
+    const steelMid = 0x8b929a;
+    const steelDark = 0x5a6068;
+
+    const add = (
+      width: number,
+      height: number,
+      depth: number,
+      color: number,
+      x: number,
+      y: number,
+      z: number,
+      metal: 'light' | 'mid' | 'dark',
+    ): void => {
+      const mesh = part(width, height, depth, color);
+      mesh.position.set(x, y, z);
+      mesh.renderOrder = 9;
+      this.vestMetal.set(mesh, metal);
+      this.vestRoot.add(mesh);
+    };
+
+    add(0.42, 0.28, 0.14, steelMid, 0, 0, 0, 'mid');
+    add(0.44, 0.04, 0.16, steel, 0, 0.14, 0.01, 'light');
+    add(0.16, 0.1, 0.12, steelDark, -0.2, 0.16, 0, 'dark');
+    add(0.16, 0.1, 0.12, steelDark, 0.2, 0.16, 0, 'dark');
+    add(0.08, 0.2, 0.03, steel, 0, 0.02, 0.08, 'light');
+  }
+
   /** `swing` counts down from `swingDuration` to zero after each hit. */
   update(dt: number, swing: number, swingDuration: number, walkSpeed: number): void {
     const progress = swingDuration > 0 ? 1 - Math.min(1, swing / swingDuration) : 1;
@@ -224,5 +284,11 @@ export class ViewModel {
       HELD_POSITION.z - arc * 0.04,
     );
     this.heldRoot.rotation.x = HELD_ROTATION.x + arc * 0.35;
+
+    this.vestRoot.position.set(
+      VEST_POSITION.x + Math.cos(this.swayPhase) * 0.008 * sway,
+      VEST_POSITION.y + Math.abs(Math.sin(this.swayPhase)) * 0.01 * sway,
+      VEST_POSITION.z,
+    );
   }
 }

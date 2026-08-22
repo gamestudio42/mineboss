@@ -5,7 +5,7 @@ import { BossArena } from '../entities/boss/BossArena.ts';
 import { EntityManager } from '../entities/EntityManager.ts';
 import type { EntityContext } from '../entities/Entity.ts';
 import { BlockInteraction } from '../player/BlockInteraction.ts';
-import { HAMMER, HammerTier, PLATE_COST, UPGRADE_COST } from '../player/Hammer.ts';
+import { HAMMER, HammerTier, PLATE_COST, PLATES, PlateTier, UPGRADE_COST } from '../player/Hammer.ts';
 import { Player, SWING_DURATION } from '../player/Player.ts';
 import { PlayerCombat } from '../player/PlayerCombat.ts';
 import { PlayerController } from '../player/PlayerController.ts';
@@ -205,7 +205,11 @@ export class Game {
         this.hud.showHint(`Right click ${UPGRADE_COST} ${name} to strengthen the hammer`, 3.5);
         return;
       }
-      if (this.player.plated || this.player.hammerTier < HammerTier.Iron) return;
+      if (name.includes('Gold') && this.player.hammerTier >= HammerTier.Gold && this.player.plates < PlateTier.Gold) {
+        this.hud.showHint(`Right click ${PLATE_COST} ${name} to smith gold plates`, 3.5);
+        return;
+      }
+      if (this.player.hammerTier < HammerTier.Iron || this.player.plates >= PlateTier.Iron) return;
       this.hud.showHint(`Right click ${PLATE_COST} ${name} to smith iron plates`, 3.5);
     };
     this.interaction.onHammerFeedback = (text) => this.hud.showHint(text, 2.4);
@@ -386,8 +390,9 @@ export class Game {
     this.hintedUpgrade = false;
     this.hintedTorch = false;
     this.player.hammerTier = HammerTier.Wood;
-    this.player.plated = false;
+    this.player.plates = PlateTier.None;
     this.viewModel.setTier(HammerTier.Wood);
+    this.viewModel.setPlates(PlateTier.None);
     this.viewModel.setHeld(null);
 
     this.entities.clear();
@@ -492,8 +497,9 @@ export class Game {
       this.player.inventory,
       this.player.health.current,
       this.player.hammerTier,
-      this.player.plated,
+      this.player.plates,
     );
+    this.viewModel.setPlates(this.player.plates);
     this.hud.setSeed(this.seed);
     const held = this.player.inventory.selectedSlot;
     this.viewModel.setHeld(held.count > 0 ? held.block : null);
@@ -564,7 +570,7 @@ export class Game {
       `tris     ${this.renderer.info.render.triangles}`,
       `entities ${this.entities.entities.length}`,
       `boss     ${boss ? `${boss.stateName} p${boss.phase + 1}` : 'dormant'}`,
-      `hammer   ${HAMMER[this.player.hammerTier].name}${this.player.plated ? ' + plates' : ''}`,
+      `hammer   ${HAMMER[this.player.hammerTier].name}${this.player.plates !== PlateTier.None ? ` + ${PLATES[this.player.plates].name}` : ''}`,
       `seed     ${this.seed}`,
       `ground   ${this.player.body.onGround ? 'yes' : 'no'}${this.player.flying ? ' (flying)' : ''}`,
     ];
@@ -735,7 +741,7 @@ export class Game {
         spawnZ: this.player.spawn.z,
         health: atSpawn ? this.player.health.max : this.player.health.current,
         hammer: this.player.hammerTier,
-        plated: this.player.plated,
+        plates: this.player.plates,
         selected: this.player.inventory.selected,
         slots: this.player.inventory.slots.map((slot) => ({
           block: slot.block,
@@ -776,8 +782,9 @@ export class Game {
 
     this.player.inventory.load(save.player.slots, save.player.selected);
     this.player.hammerTier = save.player.hammer;
-    this.player.plated = save.player.plated === true;
+    this.player.plates = save.player.plates ?? (save.player.plated ? PlateTier.Iron : PlateTier.None);
     this.viewModel.setTier(save.player.hammer);
+    this.viewModel.setPlates(this.player.plates);
     this.player.setSpawn(save.player.spawnX, save.player.spawnY, save.player.spawnZ);
     this.player.position.set(save.player.x, save.player.y, save.player.z);
     this.player.velocity.set(0, 0, 0);
@@ -800,6 +807,7 @@ export class Game {
       elapsed: this.elapsed,
       deaths: this.deaths,
       hammer: this.player.hammerTier,
+      plates: this.player.plates,
       blocksMined: this.blocksMined,
     };
   }

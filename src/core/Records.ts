@@ -1,4 +1,4 @@
-import { HAMMER, HammerTier } from '../player/Hammer.ts';
+import { HAMMER, HammerTier, PLATES, PlateTier, isPlateTier } from '../player/Hammer.ts';
 
 const STORAGE_KEY = 'mineboss.best-run';
 
@@ -6,6 +6,7 @@ export interface RunRecord {
   elapsed: number;
   deaths: number;
   hammer: HammerTier;
+  plates: PlateTier;
   blocksMined: number;
 }
 
@@ -16,7 +17,11 @@ export function formatRunLine(record: RunRecord): string {
     .padStart(2, '0');
   const deathLabel = record.deaths === 1 ? '1 death' : `${record.deaths} deaths`;
   const blockLabel = record.blocksMined === 1 ? '1 block mined' : `${record.blocksMined} blocks mined`;
-  return `${minutes}:${seconds} · ${deathLabel} · ${HAMMER[record.hammer].name} · ${blockLabel}`;
+  const gear =
+    record.plates === PlateTier.None
+      ? HAMMER[record.hammer].name
+      : `${HAMMER[record.hammer].name} · ${PLATES[record.plates].name.toLowerCase()}`;
+  return `${minutes}:${seconds} · ${deathLabel} · ${gear} · ${blockLabel}`;
 }
 
 /** Faster time wins; fewer deaths then more blocks break ties. */
@@ -41,6 +46,7 @@ export function loadBestRun(): RunRecord | null {
       elapsed: Math.max(0, parsed.elapsed),
       deaths: Math.max(0, parsed.deaths),
       hammer,
+      plates: isPlateTier(parsed.plates) ? parsed.plates : PlateTier.None,
       blocksMined: Math.max(0, parsed.blocksMined),
     };
   } catch {

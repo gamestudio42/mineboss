@@ -19,8 +19,11 @@ import {
   HAMMER,
   HammerTier,
   PLATE_COST,
+  PLATES,
+  PlateTier,
   UPGRADE_COST,
   isUpgradeOre,
+  platesFrom,
   upgradeFrom,
 } from './Hammer.ts';
 import { PLAYER_HEIGHT, PLAYER_REACH, PLAYER_WIDTH, type Player } from './Player.ts';
@@ -239,15 +242,7 @@ export class BlockInteraction {
     this.placeCooldown = EAT_COOLDOWN;
     const stats = HAMMER[next];
 
-    if (this.player.hammerTier >= next) {
-      if (next === HammerTier.Iron) return this.trySmithPlates();
-      this.onHammerFeedback?.(
-        this.player.hammerTier === next
-          ? `Already ${stats.name.toLowerCase()}`
-          : 'The hammer is already stronger',
-      );
-      return true;
-    }
+    if (this.player.hammerTier >= next) return this.trySmithPlates();
 
     if (slot.count < UPGRADE_COST) {
       this.onHammerFeedback?.(`Need ${UPGRADE_COST} ${getBlockDef(slot.block).name}`);
@@ -271,34 +266,43 @@ export class BlockInteraction {
     return true;
   }
 
-  /** Four iron, after the hammer is already iron or better, bind a vest. */
+  /** Four of that metal, after its hammer is already bound, forge a vest. */
   private trySmithPlates(): boolean {
+    const slot = this.player.inventory.selectedSlot;
+    if (slot.block === null) return false;
+    const next = platesFrom(slot.block);
+    if (next === null) return false;
+
     this.placeCooldown = EAT_COOLDOWN;
-    if (this.player.plated) {
-      this.onHammerFeedback?.('Already wearing iron plates');
+    const stats = PLATES[next];
+    if (this.player.plates >= next) {
+      this.onHammerFeedback?.(
+        this.player.plates === next
+          ? `Already wearing ${stats.name.toLowerCase()}`
+          : 'The plates are already stronger',
+      );
       return true;
     }
 
-    const slot = this.player.inventory.selectedSlot;
     if (slot.count < PLATE_COST) {
-      this.onHammerFeedback?.(`Need ${PLATE_COST} Iron Ore`);
+      this.onHammerFeedback?.(`Need ${PLATE_COST} ${getBlockDef(slot.block).name}`);
       return true;
     }
 
     this.player.inventory.takeSelected(PLATE_COST);
-    this.player.plated = true;
+    this.player.plates = next;
     this.player.startSwing();
     this.sfx.play('eat');
     this.player.getEyePosition(this.origin);
     this.particles.burst(this.origin, {
       count: 12,
-      color: 0xc8d0d8,
+      color: next === PlateTier.Gold ? 0xffe08a : 0xc8d0d8,
       speed: 1.8,
       spread: 0.45,
       life: 0.4,
       gravity: 6,
     });
-    this.onHammerFeedback?.('Iron plates: the Warden hits softer');
+    this.onHammerFeedback?.(`${stats.name}: the Warden hits softer`);
     return true;
   }
 
