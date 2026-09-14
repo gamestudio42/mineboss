@@ -1,8 +1,8 @@
 # Mineboss
 
-A voxel sandbox in the browser with a three-phase boss fight at its centre. Dig
-through a procedurally generated world, find the obsidian altar buried deep
-underground and wake **The Deep Warden**.
+A voxel sandbox in the browser with two boss fights. Dig through a
+procedurally generated world, wake **The Ruin Sentinel** at the west camp,
+then descend to the obsidian altar and face **The Deep Warden**.
 
 Built with TypeScript, three.js and Vite. No binary assets: the block textures
 are painted procedurally onto a canvas at startup and every sound is
@@ -30,7 +30,7 @@ Requires Node 20+ and a WebGL2 capable browser.
 | `Space` | Jump; rise while swimming |
 | `Shift` | Sprint; sink while swimming |
 | Left click | Mine a block, or attack when aiming at an enemy |
-| Right click | Place, eat, smith, craft torches or a bedroll, rest on a bedroll, or activate the altar |
+| Right click | Place, eat, smith, craft torches or a bedroll, rest on a bedroll, or activate the statue / altar |
 | `1`–`9`, mouse wheel | Select a hotbar slot |
 | `Q` | Toss the selected block in front of you |
 | `Esc` | Pause (volume, look sensitivity, continue save, new game) |
@@ -38,8 +38,10 @@ Requires Node 20+ and a WebGL2 capable browser.
 ## Finding the fight
 
 Pale **birch** stands among the darker oaks. A ruined cobble camp sits west
-of spawn — ore, a spare bedroll and a torch. The compass points there first,
-then swings north to the shrine once you walk into the camp.
+of spawn — a courtyard, a cracked statue, ore, a spare bedroll and a torch.
+The compass points there first. Right click the statue to wake **The Ruin
+Sentinel**, a shorter fight that teaches the stagger window. After it falls
+the compass swings north to the shrine.
 
 A runic shrine of obsidian and glowstone stands north of spawn. After the
 ruin, a compass on the HUD points to it. Descend the spiral stairs — they open into the arena
@@ -82,24 +84,34 @@ The hotbar shows the current hammer and a line for the selected slot. The
 seed sits in the top-left of the HUD.
 
 Pause writes a **Continue** save: seed, position, inventory, hammer, altar
-state and a log of edited blocks. The title screen offers Continue when a
-descent is waiting. New game rolls a new seed.
+and statue state and a log of edited blocks. The title screen offers Continue
+when a descent is waiting. New game rolls a new seed.
 
 Valleys below sea level hold shallow water you can swim through. Diving
 tints the view and muffles the air. After the Warden falls, the compass
 points east to a glowstone cairn; walking up to it grants a cache and
 moves your respawn there.
 
-Every heavy attack the Warden throws ends in a **stagger**: its back cores open
-up, a burst leaves its chest, it takes double damage and it cannot retaliate.
-The first window spells it out on the HUD. That is where the fight is won. Its
-shockwaves only hit grounded targets, so jumping over the crest avoids them.
+Every heavy attack ends in a **stagger**: the golem's back cores open up, a
+burst leaves its chest, it takes double damage and it cannot retaliate. The
+first window spells it out on the HUD. That is where the fights are won.
+Shockwaves only hit grounded targets, so jumping over the crest avoids them.
 
-| Phase | Trigger | New behaviour |
+| Encounter | Where | Notes |
+| --- | --- | --- |
+| The Ruin Sentinel | West courtyard statue | Two phases, wood-hammer friendly, no victory screen |
+| The Deep Warden | Underground altar | Three phases, ends the run |
+
+| Warden phase | Trigger | New behaviour |
 | --- | --- | --- |
 | I | Start | Ground slam with a shockwave, charging dash |
-| II | 66% health | Thrown boulders that destroy terrain, summoned minions |
+| II | 66% health | Telegraphed boulders, a small pack of minions — both still stagger |
 | III | 33% health | Erupting lava pillars, faster and angrier |
+
+| Sentinel phase | Trigger | New behaviour |
+| --- | --- | --- |
+| I | Start | Smaller slam and charge, long stagger |
+| II | 50% health | Thrown stone shards that do not break terrain |
 
 ## How it works
 

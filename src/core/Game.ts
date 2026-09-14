@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 import { Sfx } from '../audio/Sfx.ts';
 import { BossArena } from '../entities/boss/BossArena.ts';
+import { RuinEncounter } from '../entities/boss/RuinEncounter.ts';
 import { EntityManager } from '../entities/EntityManager.ts';
 import type { EntityContext } from '../entities/Entity.ts';
 import { BlockInteraction } from '../player/BlockInteraction.ts';
@@ -25,7 +26,7 @@ import { Loop } from './Loop.ts';
 import { formatRunLine, recordRun, type RunRecord } from './Records.ts';
 import { loadSave, saveRun, type SavedRun } from './Save.ts';
 import { loadSettings, type StoredSettings } from './Settings.ts';
-import { ALTAR, ENTRANCE } from '../world/arena.ts';
+import { ALTAR, ENTRANCE, RUIN_STATUE } from '../world/arena.ts';
 import { clamp, damp, wrapAngle } from './math.ts';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
@@ -77,6 +78,7 @@ export class Game {
   private readonly interaction: BlockInteraction;
   private readonly viewModel: ViewModel;
   private readonly arena: BossArena;
+  private readonly ruin: RuinEncounter;
   private readonly hud: Hud;
   private readonly overlay = new Overlay();
 
@@ -161,17 +163,36 @@ export class Game {
         this.hud.showHint('Jump the shockwave. Stagger it. Eat to heal.', 5);
         this.sfx.play('roar');
       },
-      onPhase: (_phase, label) => {
+      onPhase: (phase, label) => {
         this.hud.bossBar.setPhase(label);
+        if (phase === 2) {
+          this.hud.showHint('Boulders break stone. Clear the pack, then strike the cores.', 3.5);
+          return;
+        }
         this.hud.showHint(`${label}: it grows angrier`, 2.5);
       },
       onVictory: () => this.win(),
       onShake: (intensity) => this.shake(intensity),
-      onStagger: () => {
-        if (this.hintedStagger) return;
-        this.hintedStagger = true;
-        this.hud.showHint('Strike now — the cores are open', 3.4);
+      onStagger: () => this.hintStagger(),
+    });
+    this.ruin = new RuinEncounter(this.entities, {
+      onSummon: (name) => {
+        this.hud.bossBar.show(name);
+        this.hud.bossBar.setPhase('Phase I');
+        this.hud.showHint('Jump the shockwave. Stagger it. Eat to heal.', 5);
+        this.sfx.play('roar');
       },
+      onPhase: (_phase, label) => {
+        this.hud.bossBar.setPhase(label);
+        this.hud.showHint(`${label}: it throws stone — step off the rings`, 3.2);
+      },
+      onDefeated: () => {
+        this.hud.bossBar.hide();
+        this.hud.showHint('The Sentinel is rubble. The shrine stands north', 4.2);
+        this.saveSoon = true;
+      },
+      onShake: (intensity) => this.shake(intensity),
+      onStagger: () => this.hintStagger(),
     });
 
     this.context = {
@@ -195,6 +216,7 @@ export class Game {
     this.overlay.onSettingsChange = (next) => this.applySettings(next);
 
     this.interaction.onAltarActivated = () => this.tryStartFight();
+    this.interaction.onStatueActivated = () => this.tryStartRuinFight();
     this.interaction.onConsumed = (healed) => {
       if (healed <= 0) {
         this.hud.showHint('Already at full health', 1.6);
@@ -352,15 +374,15 @@ export class Game {
     this.sfx.play('death');
     this.input.releaseLock();
     this.hud.bossBar.hide();
+    const sentinelFight = this.ruin.active;
     this.arena.reset(this.context);
+    this.ruin.reset(this.context);
     this.persistSave({ atSpawn: true });
 
     this.overlay.show(
       {
         title: 'YOU DIED',
-        text: this.arena.defeated
-          ? 'You fall. The depths remain quiet. Your pack stays with you.'
-          : 'The Warden returns to its slumber. You keep your items — respawn at the stairs and right click the altar to wake it again.',
+        text: this.deathText(sentinelFight),
         button: 'Respawn',
         secondary: 'New game',
         showControls: false,
@@ -369,6 +391,7 @@ export class Game {
       () => {
         this.player.respawn();
         if (!this.arena.defeated) this.arena.rebuildAltar(this.context.world);
+        if (!this.ruin.defeated) this.ruin.rebuildStatue(this.context.world);
         if (this.arena.discovered) {
           this.player.yaw = Math.atan2(
             -(ALTAR.x - this.player.spawn.x),
@@ -432,6 +455,7 @@ export class Game {
 
     this.entities.clear();
     this.arena.beginNewRun();
+    this.ruin.beginNewRun();
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();
@@ -456,6 +480,32 @@ export class Game {
 
     this.sfx.play('summon');
     this.arena.summon();
+  }
+
+  private tryStartRuinFight(): void {
+    if (!this.ruin.canSummon(this.player.position)) {
+      if (this.ruin.defeated) this.hud.showHint('The statue is spent', 2);
+      return;
+    }
+
+    this.sfx.play('summon');
+    this.ruin.summon(this.world);
+  }
+
+  private hintStagger(): void {
+    if (this.hintedStagger) return;
+    this.hintedStagger = true;
+    this.hud.showHint('Strike now — the cores are open', 3.4);
+  }
+
+  private deathText(sentinelFight: boolean): string {
+    if (sentinelFight) {
+      return 'The Sentinel slumps back into stone. You keep your items — right click the statue to wake it again.';
+    }
+    if (this.arena.defeated) {
+      return 'You fall. The depths remain quiet. Your pack stays with you.';
+    }
+    return 'The Warden returns to its slumber. You keep your items — respawn at the stairs and right click the altar to wake it again.';
   }
 
   private handleLockChange(locked: boolean): void {
@@ -487,6 +537,7 @@ export class Game {
     this.context.elapsed = this.elapsed;
     this.entities.update(this.context);
     this.arena.update();
+    this.ruin.update();
     this.arena.tryDiscover(this.player);
     this.tryDiscoverRuin();
     this.tryClaimCache();
@@ -540,12 +591,12 @@ export class Game {
     const held = this.player.inventory.selectedSlot;
     this.viewModel.setHeld(held.count > 0 ? held.block : null);
 
-    const boss = this.arena.boss;
+    const boss = this.arena.boss ?? this.ruin.boss;
     if (boss && !boss.removed) {
       this.hud.bossBar.update(boss.health?.fraction ?? 0);
       this.hud.bossBar.setVulnerable(boss.stateName === 'stagger');
-    } else if (this.arena.defeated) {
-      this.hud.bossBar.hide();
+    } else if (this.arena.defeated || this.ruin.defeated) {
+      if (!this.arena.active && !this.ruin.active) this.hud.bossBar.hide();
     }
 
     this.updateCrosshair();
@@ -562,7 +613,7 @@ export class Game {
 
   private updateCrosshair(): void {
     if (this.combat.aimed) this.hud.setCrosshair('attack');
-    else if (this.interaction.aimingAltar) this.hud.setCrosshair('altar');
+    else if (this.interaction.aimingAltar || this.interaction.aimingStatue) this.hud.setCrosshair('altar');
     else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
     else if (this.interaction.holdingUpgradeOre) this.hud.setCrosshair('smith');
     else if (this.interaction.aimingBed) this.hud.setCrosshair('rest');
@@ -574,6 +625,24 @@ export class Game {
 
   private updateGuide(): void {
     const position = this.player.position;
+
+    if (this.ruin.active) {
+      this.hud.setObjective('Jump the shockwave. Stagger it, then strike');
+      this.hud.compass.update(false, 0, '');
+      return;
+    }
+
+    const arenaStage = this.arena.guideStage(position);
+    if (!this.ruin.defeated && arenaStage === 'surface') {
+      this.hud.setObjective(
+        this.arena.ruinFound
+          ? 'Right click the cracked statue'
+          : 'A ruin sits west — or follow the shrine north',
+      );
+      this.pointCompass(position, RUIN_STATUE.x + 0.5, position.y, RUIN_STATUE.z + 0.5);
+      return;
+    }
+
     this.hud.setObjective(this.arena.objectiveText(position));
 
     const target = this.arena.guideTarget(position);
@@ -582,12 +651,16 @@ export class Game {
       return;
     }
 
-    const dx = target.x - position.x;
-    const dz = target.z - position.z;
+    this.pointCompass(position, target.x, target.y, target.z);
+  }
+
+  private pointCompass(position: { x: number; y: number; z: number }, x: number, y: number, z: number): void {
+    const dx = x - position.x;
+    const dz = z - position.z;
     const targetYaw = Math.atan2(-dx, -dz);
     const relative = wrapAngle(targetYaw - this.player.yaw);
     const horizontal = Math.round(Math.hypot(dx, dz));
-    const depth = Math.round(position.y - target.y);
+    const depth = Math.round(position.y - y);
     const depthText =
       depth > 2 ? `${depth} below` : depth < -2 ? `${-depth} above` : 'level';
 
@@ -608,6 +681,7 @@ export class Game {
       `tris     ${this.renderer.info.render.triangles}`,
       `entities ${this.entities.entities.length}`,
       `boss     ${boss ? `${boss.stateName} p${boss.phase + 1}` : 'dormant'}`,
+      `ruin     ${this.ruin.boss ? `${this.ruin.boss.stateName} p${this.ruin.boss.phase + 1}` : this.ruin.defeated ? 'fallen' : 'dormant'}`,
       `hammer   ${HAMMER[this.player.hammerTier].name}${this.player.plates !== PlateTier.None ? ` + ${PLATES[this.player.plates].name}` : ''}`,
       `seed     ${this.seed}`,
       `ground   ${this.player.body.onGround ? 'yes' : 'no'}${this.player.flying ? ' (flying)' : ''}`,
@@ -667,7 +741,7 @@ export class Game {
     this.lamp.intensity = submerged ? 22 : 34 * (1 - t);
     this.lamp.color.setHex(submerged ? 0x7ec8ff : 0xffd7a3);
 
-    const fighting = this.arena.active ? 1 : 0;
+    const fighting = this.arena.active || this.ruin.active ? 1 : 0;
     const drown = submerged ? 0.35 : 1;
     this.sfx.setAmbience(
       t * (1 - fighting * 0.35) * drown,
@@ -716,7 +790,7 @@ export class Game {
 
   private tryDiscoverRuin(): void {
     if (!this.arena.tryDiscoverRuin(this.player.position)) return;
-    this.hud.showHint('Iron, coal and a spare bedroll — then the shrine north', 4);
+    this.hud.showHint('A cracked statue slumbers in the courtyard — right click to wake it', 4.2);
     this.saveSoon = true;
   }
 
@@ -800,6 +874,7 @@ export class Game {
         discovered: this.arena.discovered,
         cacheClaimed: this.arena.cacheClaimed,
         ruinFound: this.arena.ruinFound,
+        ruinDefeated: this.ruin.defeated,
       },
       edits: this.world.exportEdits(),
     };
@@ -822,10 +897,12 @@ export class Game {
 
     this.entities.clear();
     this.arena.beginNewRun();
+    this.ruin.beginNewRun();
     this.arena.defeated = save.arena.defeated;
     this.arena.discovered = save.arena.discovered;
     this.arena.cacheClaimed = save.arena.cacheClaimed === true;
     this.arena.ruinFound = save.arena.ruinFound === true;
+    this.ruin.defeated = save.arena.ruinDefeated === true;
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();
@@ -850,6 +927,7 @@ export class Game {
 
     this.chunks.preload(save.player.x, save.player.z, 2);
     if (!this.arena.defeated) this.arena.rebuildAltar(this.world);
+    if (!this.ruin.defeated) this.ruin.rebuildStatue(this.world);
     this.controller.update(0.0001, this.input);
     this.world.onEdit = onEdit;
   }

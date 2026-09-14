@@ -4,7 +4,7 @@ import type { Sfx } from '../audio/Sfx.ts';
 import type { Input } from '../core/Input.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
-import { ALTAR } from '../world/arena.ts';
+import { ALTAR, isRuinStatueColumn } from '../world/arena.ts';
 import {
   Block,
   PLANKS_PER_BED,
@@ -46,6 +46,7 @@ export class BlockInteraction {
   progress = 0;
 
   onAltarActivated: (() => void) | null = null;
+  onStatueActivated: (() => void) | null = null;
   /** Fired after a right-click eat attempt; amount is 0 when already full. */
   onConsumed: ((healed: number) => void) | null = null;
   onConsumableFound: ((name: string) => void) | null = null;
@@ -161,6 +162,10 @@ export class BlockInteraction {
     return this.target !== null && this.isAltarBlock(this.target);
   }
 
+  get aimingStatue(): boolean {
+    return this.target !== null && this.isStatueBlock(this.target);
+  }
+
   get holdingConsumable(): boolean {
     const block = this.player.inventory.selectedSlot.block;
     return block !== null && isConsumable(block);
@@ -194,6 +199,13 @@ export class BlockInteraction {
       this.placeCooldown = PLACE_COOLDOWN;
       this.player.startSwing();
       this.onAltarActivated?.();
+      return;
+    }
+
+    if (hit && this.isStatueBlock(hit)) {
+      this.placeCooldown = PLACE_COOLDOWN;
+      this.player.startSwing();
+      this.onStatueActivated?.();
       return;
     }
 
@@ -437,6 +449,16 @@ export class BlockInteraction {
   private isAltarBlock(hit: VoxelHit): boolean {
     if (hit.block !== Block.RunicStone && hit.block !== Block.CrystalOre) return false;
     return Math.abs(hit.x - ALTAR.x) <= 2 && Math.abs(hit.z - ALTAR.z) <= 2 && Math.abs(hit.y - ALTAR.y) <= 2;
+  }
+
+  private isStatueBlock(hit: VoxelHit): boolean {
+    if (!isRuinStatueColumn(hit.x, hit.z)) return false;
+    return (
+      hit.block === Block.RunicStone ||
+      hit.block === Block.Glowstone ||
+      hit.block === Block.CrystalOre ||
+      hit.block === Block.Cobblestone
+    );
   }
 
   private intersectsPlayer(x: number, y: number, z: number): boolean {
