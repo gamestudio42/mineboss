@@ -61,8 +61,12 @@ export class Boss extends Entity {
   private slamImpacted = false;
   private throwsLeft = 0;
   private throwTimer = 0;
+  private readonly throwAim = new THREE.Vector3();
   private pillarsLeft = 0;
   private pillarTimer = 0;
+  /** After a summon, the next pick must be slam or charge so a stagger still arrives. */
+  private forceMelee = false;
+  readonly landingTelegraph = new Telegraph();
 
   constructor() {
     super(WIDTH, HEIGHT, 'boss', 1.2);
@@ -71,6 +75,7 @@ export class Boss extends Entity {
     this.position.set(ALTAR.x + 0.5, ARENA_STAND_Y, ALTAR.z + 0.5);
 
     this.object3D.add(this.model.root, this.telegraph.object3D);
+    this.landingTelegraph.hide();
     this.model.setPhaseColor(PHASES[0].color);
     this.telegraph.hide();
   }
@@ -107,6 +112,7 @@ export class Boss extends Entity {
     machine.update(dt);
     this.model.update(dt, this.walkSpeed, context.elapsed);
     this.faceTarget(dt);
+    this.mountLandingTelegraph();
   }
 
   override syncTransform(): void {
@@ -120,7 +126,9 @@ export class Boss extends Entity {
   }
 
   override onRemoved(): void {
+    this.landingTelegraph.object3D.removeFromParent();
     this.telegraph.dispose();
+    this.landingTelegraph.dispose();
   }
 
   /** Applies gravity, walks toward a point and keeps the boss inside the arena. */
@@ -234,14 +242,19 @@ export class Boss extends Entity {
 
   /** Chooses the next attack from the pool unlocked by the current phase. */
   pickAttack(): BossStateName {
+    if (this.forceMelee) {
+      this.forceMelee = false;
+      return this.distanceToPlayer() < 9 ? 'slam' : 'charge';
+    }
+
     const distance = this.distanceToPlayer();
     const options: BossStateName[] = [];
 
-    if (distance < 11) options.push('slam', 'slam');
-    if (distance > 7) options.push('charge', 'charge');
+    if (distance < 11) options.push('slam', 'slam', 'slam');
+    if (distance > 7) options.push('charge', 'charge', 'charge');
     if (this.phase >= 1) {
       if (distance > 6) options.push('boulder');
-      if (this.countMinions() < 4) options.push('summon');
+      if (this.countMinions() < 3) options.push('summon');
     }
     if (this.phase >= 2) options.push('pillars', 'pillars');
     if (options.length === 0) options.push('slam');
@@ -304,10 +317,19 @@ export class Boss extends Entity {
 
     this.getChestPosition(this.target);
     boulder.position.set(this.target.x, this.target.y, this.target.z);
-    boulder.launchAt(this.predictPlayer(0.8, new THREE.Vector3()), 0.95);
+    boulder.launchAt(this.throwAim, 0.95);
 
     this.context.entities.add(boulder);
     this.context.sfx.play('hit');
+  }
+
+  /** Rings the predicted landing so the player can step off the crater. */
+  prepareNextBoulder(): void {
+    this.throwTimer = 0.48;
+    this.predictPlayer(0.95, this.throwAim);
+    this.throwAim.y = ARENA_STAND_Y;
+    this.landingTelegraph.show(this.throwAim.x, this.throwAim.y, this.throwAim.z, 2.8);
+    this.landingTelegraph.setProgress(0);
   }
 
   summonMinions(count: number): void {
@@ -433,19 +455,33 @@ export class Boss extends Entity {
   setThrows(count: number): void {
     this.throwsLeft = count;
     this.throwTimer = 0;
+    if (count > 0) this.prepareNextBoulder();
   }
 
   tickThrows(dt: number): boolean {
     if (this.throwsLeft <= 0) return true;
 
     this.throwTimer -= dt;
+    this.landingTelegraph.setProgress(1 - clamp(this.throwTimer / 0.48, 0, 1));
+
     if (this.throwTimer <= 0) {
-      this.throwTimer = 0.42;
       this.throwsLeft -= 1;
       this.throwBoulder();
+      if (this.throwsLeft > 0) this.prepareNextBoulder();
+      else this.landingTelegraph.hide();
     }
 
     return false;
+  }
+
+  forceMeleeNext(): void {
+    this.forceMelee = true;
+  }
+
+  private mountLandingTelegraph(): void {
+    const scene = this.object3D.parent;
+    if (!scene || this.landingTelegraph.object3D.parent === scene) return;
+    scene.add(this.landingTelegraph.object3D);
   }
 
   setPillars(count: number): void {
@@ -556,7 +592,7 @@ const STATES: Record<BossStateName, BossState> = {
 
       boss.telegraph.hide();
       if (boss.advanceCharge(dt)) return 'stagger';
-      if (time > windUp + 1.6) return 'chase';
+      if (time > windUp + 1.6) return 'stagger';
     },
     exit(boss) {
       boss.model.setCrouch(0);
@@ -571,26 +607,25 @@ const STATES: Record<BossStateName, BossState> = {
     },
     update(boss, dt) {
       boss.stopMoving(dt);
-      if (boss.tickThrows(dt)) {
-        boss.attackCooldown = 1.6 / boss.speedMultiplier;
-        return 'chase';
-      }
+      if (boss.tickThrows(dt)) return 'stagger';
     },
     exit(boss) {
       boss.model.setArmRaise(0);
+      boss.landingTelegraph.hide();
     },
   },
 
   summon: {
     enter(boss) {
       boss.model.setArmRaise(0.8);
-      boss.summonMinions(3);
+      boss.summonMinions(2);
       boss.onShake?.(0.3);
     },
     update(boss, dt, time) {
       boss.stopMoving(dt);
       if (time > 1.2) {
-        boss.attackCooldown = 1.8 / boss.speedMultiplier;
+        boss.forceMeleeNext();
+        boss.attackCooldown = 0.8 / boss.speedMultiplier;
         return 'chase';
       }
     },

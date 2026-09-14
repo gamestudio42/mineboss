@@ -25,7 +25,7 @@ export class Minion extends Entity {
   constructor(x: number, y: number, z: number) {
     super(0.9, 1.7, 'boss', 1.1);
     this.position.set(x, y, z);
-    this.health = new Health(26, 0.2);
+    this.health = new Health(18, 0.2);
 
     this.body3D = new THREE.Group();
     const torso = new THREE.Mesh(

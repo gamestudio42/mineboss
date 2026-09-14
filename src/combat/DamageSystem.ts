@@ -4,6 +4,7 @@ import type { Entity } from '../entities/Entity.ts';
 import type { VoxelBody } from '../physics/VoxelBody.ts';
 import type { Player } from '../player/Player.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
+import { ARENA, isInsideArena } from '../world/arena.ts';
 import { Block, TILE_SIDE, getBlockDef } from '../world/blocks.ts';
 import type { World } from '../world/World.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
@@ -96,6 +97,8 @@ export function blastTerrain(options: BlastOptions): void {
 
         const block = world.getBlock(x, y, z);
         if (block === Block.Air) continue;
+        if (y <= ARENA.floorY) continue;
+        if (block === Block.Glowstone && isInsideArena(x + 0.5, y + 0.5, z + 0.5)) continue;
         if (getBlockDef(block).hardness > DESTRUCTIBLE_HARDNESS) continue;
 
         world.setBlock(x, y, z, Block.Air);
