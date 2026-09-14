@@ -11,8 +11,10 @@ import {
   CACHE,
   ENTRANCE,
   ENTRANCE_SPAWN,
-  RUIN,
+  RUIN_COURTYARD,
+  RUIN_STATUE,
   distanceToArenaCenter,
+  distanceToRuinCourtyard,
   isInsideArena,
 } from '../../world/arena.ts';
 import { Boss, BOSS_NAME } from './Boss.ts';
@@ -156,7 +158,7 @@ export class BossArena {
     }
     if (stage === 'altar') return { x: ALTAR.x + 0.5, y: ALTAR.y, z: ALTAR.z + 0.5 };
     if (stage === 'stairs') return { x: ENTRANCE.x + 0.5, y: ARENA.floorY + 1, z: ENTRANCE.z + 0.5 };
-    if (!this.ruinFound) return { x: RUIN.x + 0.5, y: position.y, z: RUIN.z + 0.5 };
+    if (!this.ruinFound) return { x: RUIN_STATUE.x + 0.5, y: position.y, z: RUIN_STATUE.z + 0.5 };
     return { x: ENTRANCE.x + 0.5, y: position.y, z: ENTRANCE.z + 0.5 };
   }
 
@@ -185,7 +187,7 @@ export class BossArena {
   /** Marks the west camp the first time the player walks into it. */
   tryDiscoverRuin(position: THREE.Vector3): boolean {
     if (this.ruinFound) return false;
-    if (Math.hypot(position.x - RUIN.x, position.z - RUIN.z) > 6) return false;
+    if (distanceToRuinCourtyard(position.x, position.z) > RUIN_COURTYARD.radius) return false;
     this.ruinFound = true;
     return true;
   }

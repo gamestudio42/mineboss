@@ -52,6 +52,19 @@ export const RUIN = {
   z: 28,
 } as const;
 
+/** Flattened ring west of the hut where the Ruin Sentinel is fought. */
+export const RUIN_COURTYARD = {
+  centerX: RUIN.x - 10,
+  centerZ: RUIN.z,
+  radius: 14,
+} as const;
+
+/** Cracked statue the player right-clicks to wake the Sentinel. */
+export const RUIN_STATUE = {
+  x: RUIN_COURTYARD.centerX,
+  z: RUIN_COURTYARD.centerZ,
+} as const;
+
 /** Safe respawn just inside the doorway, on the arena floor. */
 export const ENTRANCE_SPAWN = {
   x: ENTRANCE.x + 0.5,
@@ -96,12 +109,26 @@ export function chunkTouchesEntrance(cx: number, cz: number): boolean {
   return minX <= boxMaxX && maxX >= boxMinX && minZ <= boxMaxZ && maxZ >= boxMinZ;
 }
 
+export function distanceToRuinCourtyard(x: number, z: number): number {
+  return Math.hypot(x - RUIN_COURTYARD.centerX, z - RUIN_COURTYARD.centerZ);
+}
+
+export function isInsideRuinCourtyard(x: number, z: number): boolean {
+  return distanceToRuinCourtyard(x, z) < RUIN_COURTYARD.radius - 0.5;
+}
+
+/** True when this column belongs to the cracked statue. */
+export function isRuinStatueColumn(x: number, z: number): boolean {
+  return Math.abs(x - RUIN_STATUE.x) <= 1 && Math.abs(z - RUIN_STATUE.z) <= 1;
+}
+
 export function chunkTouchesRuin(cx: number, cz: number): boolean {
+  const reach = RUIN_COURTYARD.radius + 3;
   const minX = cx * CHUNK_SIZE;
-  const maxX = minX + CHUNK_SIZE - 1;
   const minZ = cz * CHUNK_SIZE;
-  const maxZ = minZ + CHUNK_SIZE - 1;
-  return minX <= RUIN.x + 5 && maxX >= RUIN.x - 5 && minZ <= RUIN.z + 5 && maxZ >= RUIN.z - 5;
+  const closestX = Math.max(minX, Math.min(RUIN_COURTYARD.centerX, minX + CHUNK_SIZE - 1));
+  const closestZ = Math.max(minZ, Math.min(RUIN_COURTYARD.centerZ, minZ + CHUNK_SIZE - 1));
+  return distanceToRuinCourtyard(closestX, closestZ) <= reach;
 }
 
 export function chunkTouchesCache(cx: number, cz: number): boolean {

@@ -7,11 +7,14 @@ import {
   ENTRANCE,
   CACHE,
   RUIN,
+  RUIN_COURTYARD,
+  RUIN_STATUE,
   chunkTouchesArena,
   chunkTouchesCache,
   chunkTouchesEntrance,
   chunkTouchesRuin,
   distanceToArenaCenter,
+  distanceToRuinCourtyard,
 } from '../arena.ts';
 import { Block } from '../blocks.ts';
 import { CHUNK_SIZE, Chunk, WORLD_HEIGHT } from '../Chunk.ts';
@@ -134,7 +137,7 @@ export class TerrainGenerator {
         if (roll < 0.988) continue;
         if (distanceToArenaCenter(wx, wz) < ARENA.radius + ARENA.wall) continue;
         if (Math.hypot(wx - ENTRANCE.x, wz - ENTRANCE.z) < 10) continue;
-        if (Math.hypot(wx - RUIN.x, wz - RUIN.z) < 8) continue;
+        if (distanceToRuinCourtyard(wx, wz) < RUIN_COURTYARD.radius + 3) continue;
 
         const ground = this.surfaceHeight(wx, wz);
         if (ground < SEA_LEVEL + 1 || ground > WORLD_HEIGHT - 20) continue;
@@ -422,31 +425,110 @@ export class TerrainGenerator {
     if (dx === 0 && dz === 0) chunk.set(x, ARENA.floorY + 3, z, Block.CrystalOre);
   }
 
-  /** Collapsed cobble hut west of spawn, with a little ore and a spare bedroll. */
+  /** Courtyard, cracked statue and collapsed cobble hut west of spawn. */
   private buildRuin(chunk: Chunk, baseX: number, baseZ: number): void {
-    const ground = Math.max(this.surfaceHeight(RUIN.x, RUIN.z), SEA_LEVEL);
+    const floor = Math.max(this.surfaceHeight(RUIN.x, RUIN.z), SEA_LEVEL);
+    this.carveRuinCourtyard(chunk, baseX, baseZ, floor);
+    this.buildRuinPosts(chunk, baseX, baseZ, floor);
+    this.buildRuinStatue(chunk, baseX, baseZ, floor);
+    this.buildRuinHut(chunk, baseX, baseZ, floor);
+  }
+
+  /** Levels a ring so the Sentinel fight is readable on the surface. */
+  private carveRuinCourtyard(chunk: Chunk, baseX: number, baseZ: number, floor: number): void {
+    const { centerX, centerZ, radius } = RUIN_COURTYARD;
+    for (let wz = centerZ - radius; wz <= centerZ + radius; wz++) {
+      for (let wx = centerX - radius; wx <= centerX + radius; wx++) {
+        const dist = Math.hypot(wx - centerX, wz - centerZ);
+        if (dist > radius) continue;
+
+        const natural = this.surfaceHeight(wx, wz);
+        const fillFrom = Math.min(natural, floor) - 2;
+        const clearTo = Math.max(natural, floor) + 10;
+        const cobbleRing = Math.abs(dist - (radius - 1)) < 0.7;
+        const cobblePath = (wx + wz) % 5 === 0;
+
+        for (let y = fillFrom; y <= clearTo; y++) {
+          if (y < floor) {
+            this.setWorld(chunk, baseX, baseZ, wx, y, wz, y < floor - 1 ? Block.Stone : Block.Dirt);
+          } else if (y === floor) {
+            this.setWorld(
+              chunk,
+              baseX,
+              baseZ,
+              wx,
+              y,
+              wz,
+              cobbleRing || cobblePath ? Block.Cobblestone : Block.Grass,
+            );
+          } else {
+            this.setWorld(chunk, baseX, baseZ, wx, y, wz, Block.Air);
+          }
+        }
+      }
+    }
+  }
+
+  private buildRuinPosts(chunk: Chunk, baseX: number, baseZ: number, floor: number): void {
+    const { centerX, centerZ, radius } = RUIN_COURTYARD;
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      const wx = Math.round(centerX + Math.cos(angle) * (radius - 1));
+      const wz = Math.round(centerZ + Math.sin(angle) * (radius - 1));
+      if (Math.hypot(wx - RUIN.x, wz - RUIN.z) < 5) continue;
+
+      this.setWorld(chunk, baseX, baseZ, wx, floor + 1, wz, Block.Cobblestone);
+      this.setWorld(chunk, baseX, baseZ, wx, floor + 2, wz, Block.Cobblestone);
+      if (i % 2 === 0) this.setWorld(chunk, baseX, baseZ, wx, floor + 3, wz, Block.Glowstone);
+    }
+  }
+
+  /** 3x3 cracked idol: cobble body, runic core, glowstone crown. */
+  private buildRuinStatue(chunk: Chunk, baseX: number, baseZ: number, floor: number): void {
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const wx = RUIN_STATUE.x + dx;
+        const wz = RUIN_STATUE.z + dz;
+        this.setWorld(chunk, baseX, baseZ, wx, floor + 1, wz, Block.Cobblestone);
+
+        const centre = dx === 0 && dz === 0;
+        const arm = Math.abs(dx) + Math.abs(dz) === 1;
+        if (centre) {
+          this.setWorld(chunk, baseX, baseZ, wx, floor + 2, wz, Block.RunicStone);
+          this.setWorld(chunk, baseX, baseZ, wx, floor + 3, wz, Block.Cobblestone);
+          this.setWorld(chunk, baseX, baseZ, wx, floor + 4, wz, Block.RunicStone);
+          this.setWorld(chunk, baseX, baseZ, wx, floor + 5, wz, Block.Glowstone);
+        } else if (arm) {
+          this.setWorld(chunk, baseX, baseZ, wx, floor + 2, wz, Block.Cobblestone);
+        }
+      }
+    }
+  }
+
+  /** Collapsed cobble hut on the east rim, with a little ore and a spare bedroll. */
+  private buildRuinHut(chunk: Chunk, baseX: number, baseZ: number, floor: number): void {
     for (let dz = -2; dz <= 2; dz++) {
       for (let dx = -2; dx <= 2; dx++) {
         const wx = RUIN.x + dx;
         const wz = RUIN.z + dz;
         const ring = Math.max(Math.abs(dx), Math.abs(dz));
-        this.setWorld(chunk, baseX, baseZ, wx, ground, wz, ring === 0 ? Block.Planks : Block.Cobblestone);
+        this.setWorld(chunk, baseX, baseZ, wx, floor, wz, ring === 0 ? Block.Planks : Block.Cobblestone);
 
         const doorway = dx === 2 && Math.abs(dz) <= 1;
         if (ring === 2 && !doorway) {
-          this.setWorld(chunk, baseX, baseZ, wx, ground + 1, wz, Block.Cobblestone);
+          this.setWorld(chunk, baseX, baseZ, wx, floor + 1, wz, Block.Cobblestone);
           if ((dx + dz) % 2 !== 0) {
-            this.setWorld(chunk, baseX, baseZ, wx, ground + 2, wz, Block.Cobblestone);
+            this.setWorld(chunk, baseX, baseZ, wx, floor + 2, wz, Block.Cobblestone);
           }
         }
       }
     }
 
-    this.setWorld(chunk, baseX, baseZ, RUIN.x, ground + 1, RUIN.z, Block.Bed);
-    this.setWorld(chunk, baseX, baseZ, RUIN.x - 1, ground + 1, RUIN.z, Block.IronOre);
-    this.setWorld(chunk, baseX, baseZ, RUIN.x, ground + 1, RUIN.z - 1, Block.CoalOre);
-    this.setWorld(chunk, baseX, baseZ, RUIN.x + 1, ground + 1, RUIN.z, Block.Mushroom);
-    this.setWorld(chunk, baseX, baseZ, RUIN.x, ground + 2, RUIN.z + 1, Block.Torch);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x, floor + 1, RUIN.z, Block.Bed);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x - 1, floor + 1, RUIN.z, Block.IronOre);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x, floor + 1, RUIN.z - 1, Block.CoalOre);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x + 1, floor + 1, RUIN.z, Block.Mushroom);
+    this.setWorld(chunk, baseX, baseZ, RUIN.x, floor + 2, RUIN.z + 1, Block.Torch);
   }
 
   /** A small glowstone cairn with food, so victory still has a walk. */
