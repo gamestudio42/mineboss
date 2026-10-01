@@ -84,3 +84,21 @@ de câmera e combate no navegador nem as duas vitórias por jogo manual.
 3. Acompanhar a criança por 15–20 minutos: construção livre, treino, chefão,
    saída e retorno à base. Ajustar dificuldade e ritmo a partir dessa observação;
    não houve sessão com a criança nem validação de diversão nesta entrega.
+
+## Melhoria visual do martelo — 30/09/2026
+
+- Após a melhoria, `pnpm test` passou os 48 testes e `pnpm build` passou
+  TypeScript e produção (pacote principal de 719,41 kB, mesmo aviso de tamanho).
+- Novo modelo voxel com cabeça reforçada, ponteiras, rebites, gema, cabo de
+  madeira, empunhadura e mão com manga. Paletas distintas para madeira, ferro e ouro.
+- Corrigida a sobreposição incorreta de faces: os itens em primeira pessoa são
+  desenhados após limpar a profundidade do mundo, mantendo profundidade entre
+  suas próprias peças. A geometria do martelo usa uma única chamada de desenho.
+- Conferidos no Chrome, numa prévia temporária usando a classe real `ViewModel`
+  e a câmera do jogo: três materiais, repouso, golpe, pose de impacto, retorno
+  ao repouso e ferramenta diante de parede, com bloco e armadura equipados.
+- A partida também carregou e desenhou mundo e modelo novo. A rejeição de
+  captura do mouse descrita acima permanece; não foi afirmada uma nova sessão
+  de combate manual. A prévia não depende da captura de mouse.
+- Evidência: [martelo de ferro na prévia](docs/validation/martelo-ferro.jpg).
+  Os arquivos temporários da prévia e do modelo antigo foram removidos.

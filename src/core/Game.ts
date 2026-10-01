@@ -641,6 +641,7 @@ export class Game {
 
     this.updateAtmosphere(dt);
     this.renderer.render(this.scene, this.camera);
+    this.viewModel.render(this.renderer, this.scene);
     this.input.endFrame();
   }
 
