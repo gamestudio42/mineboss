@@ -15,9 +15,9 @@ export interface HammerStats {
 }
 
 export const HAMMER: Record<HammerTier, HammerStats> = {
-  [HammerTier.Wood]: { name: 'Hammer', mineSpeed: 1, damage: 1 },
-  [HammerTier.Iron]: { name: 'Iron hammer', mineSpeed: 1.75, damage: 1.1 },
-  [HammerTier.Gold]: { name: 'Gold hammer', mineSpeed: 1.35, damage: 1.55 },
+  [HammerTier.Wood]: { name: 'Martelo', mineSpeed: 1, damage: 1 },
+  [HammerTier.Iron]: { name: 'Martelo de ferro', mineSpeed: 1.75, damage: 1.1 },
+  [HammerTier.Gold]: { name: 'Martelo de ouro', mineSpeed: 1.35, damage: 1.55 },
 };
 
 export const UPGRADE_COST = 3;
@@ -38,8 +38,8 @@ export interface PlateStats {
 
 export const PLATES: Record<PlateTier, PlateStats> = {
   [PlateTier.None]: { name: '', reduction: 0 },
-  [PlateTier.Iron]: { name: 'Iron plates', reduction: 0.28 },
-  [PlateTier.Gold]: { name: 'Gold plates', reduction: 0.42 },
+  [PlateTier.Iron]: { name: 'Armadura de ferro', reduction: 0.28 },
+  [PlateTier.Gold]: { name: 'Armadura de ouro', reduction: 0.42 },
 };
 
 export function platesFrom(block: Block): PlateTier | null {

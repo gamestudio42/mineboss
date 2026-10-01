@@ -24,6 +24,9 @@ export class Overlay {
   private readonly volumeValue: HTMLElement;
   private readonly sensitivityValue: HTMLElement;
 
+  private readonly extras = document.createElement('div');
+  private readonly back = document.createElement('button');
+
   private action: (() => void) | null = null;
   private secondaryAction: (() => void) | null = null;
   private current: StoredSettings = { volume: 0.45, muted: false, sensitivity: 1 };
@@ -44,6 +47,11 @@ export class Overlay {
     this.volumeValue = document.getElementById('setting-volume-value') as HTMLElement;
     this.sensitivityValue = document.getElementById('setting-sensitivity-value') as HTMLElement;
 
+    this.extras.className = 'play-extras';
+    this.controls.before(this.extras);
+    this.back.textContent = 'Voltar aos modos';
+    this.back.classList.add('hidden');
+    this.secondary.parentElement?.append(this.back);
     this.button.addEventListener('click', () => this.action?.());
     this.secondary.addEventListener('click', () => this.secondaryAction?.());
     this.volume.addEventListener('input', () => this.commit());
@@ -61,10 +69,13 @@ export class Overlay {
   }
 
   show(content: OverlayContent, action: () => void, secondaryAction?: () => void): void {
+    this.extras.replaceChildren();
+    this.back.classList.add('hidden');
+    this.back.onclick = null;
     this.title.textContent = content.title;
     this.text.textContent = content.text;
     this.button.textContent = content.button;
-    this.secondary.textContent = content.secondary ?? 'New game';
+    this.secondary.textContent = content.secondary ?? 'Nova partida';
     this.secondary.classList.toggle('hidden', content.secondary === undefined);
     this.controls.classList.toggle('hidden', content.showControls === false);
     this.settings.classList.toggle('hidden', content.showSettings !== true);
@@ -73,6 +84,21 @@ export class Overlay {
     this.syncInputs();
     this.root.classList.remove('hidden');
   }
+
+  setBackAction(action: () => void): void {
+    this.back.classList.remove('hidden');
+    this.back.onclick = action;
+  }
+
+  addAction(label: string, action: () => void): void {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.onclick = action;
+    this.extras.append(button);
+  }
+
+  addContent(node: HTMLElement): void { this.extras.append(node); }
 
   hide(): void {
     this.root.classList.add('hidden');

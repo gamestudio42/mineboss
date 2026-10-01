@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 
+import type { BuildEdit } from './BuildHistory.ts';
 import type { Sfx } from '../audio/Sfx.ts';
 import type { Input } from '../core/Input.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
 import { ALTAR, isRuinStatueColumn } from '../world/arena.ts';
+import { isOneBlockCell } from '../world/oneblock/phases.ts';
 import {
   Block,
-  PLANKS_PER_BED,
   TILE_SIDE,
-  TORCHES_PER_COAL,
   getBlockDef,
   isBed,
   isBedMaterial,
@@ -19,15 +19,7 @@ import {
 import { raycastVoxels, type VoxelHit } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
 import {
-  HAMMER,
-  HammerTier,
-  PLATE_COST,
-  PLATES,
-  PlateTier,
-  UPGRADE_COST,
   isUpgradeOre,
-  platesFrom,
-  upgradeFrom,
 } from './Hammer.ts';
 import { PLAYER_HEIGHT, PLAYER_REACH, PLAYER_WIDTH, type Player } from './Player.ts';
 
@@ -53,8 +45,12 @@ export class BlockInteraction {
   onUpgradeFound: ((name: string) => void) | null = null;
   onTorchFuelFound: ((name: string) => void) | null = null;
   onBedFound: ((name: string) => void) | null = null;
+  onBlockPlaced: (() => void) | null = null;
+  onBuildEdit: ((edit: BuildEdit) => void) | null = null;
   onSpawnSet: (() => void) | null = null;
   onHammerFeedback: ((text: string) => void) | null = null;
+  /** Fired before the drop when the regenerating core is mined. */
+  onOneBlockMined: ((hit: VoxelHit) => void) | null = null;
 
   private readonly origin = new THREE.Vector3();
   private readonly direction = new THREE.Vector3();
@@ -62,6 +58,7 @@ export class BlockInteraction {
   private readonly highlight: THREE.LineSegments;
   private readonly crack: THREE.Mesh;
   private placeCooldown = 0;
+  private mineCooldown = 0;
   private targetKey = '';
 
   constructor(
@@ -90,6 +87,7 @@ export class BlockInteraction {
 
   update(dt: number, input: Input, entityBlocksAim: boolean): InteractionResult {
     this.placeCooldown = Math.max(0, this.placeCooldown - dt);
+    this.mineCooldown = Math.max(0, this.mineCooldown - dt);
 
     this.player.getEyePosition(this.origin);
     this.player.getForward(this.direction);
@@ -103,13 +101,15 @@ export class BlockInteraction {
 
     let brokeBlock = false;
     if (this.target && !entityBlocksAim) {
-      if (input.isMouseDown(0)) brokeBlock = this.mine(dt, this.target);
+      if (input.isMouseDown(0) || input.wasMousePressed(0)) {
+        if (this.mineCooldown === 0) brokeBlock = this.mine(dt, this.target);
+      }
       else this.progress = 0;
     } else {
       this.progress = 0;
     }
 
-    if (input.isMouseDown(2) && this.placeCooldown === 0) this.useItem(this.target);
+    if ((input.isMouseDown(2) || input.wasMousePressed(2)) && this.placeCooldown === 0) this.useItem(this.target);
 
     this.updateVisuals();
     return { targetDistance: this.target?.distance ?? Infinity, brokeBlock };
@@ -119,7 +119,7 @@ export class BlockInteraction {
     const def = getBlockDef(hit.block);
     if (!Number.isFinite(def.hardness)) return false;
 
-    this.progress += (dt * this.player.mineSpeed) / def.hardness;
+    this.progress += this.player.creative ? 1 : (dt * this.player.mineSpeed) / def.hardness;
     this.player.startSwing();
 
     this.breakPoint.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
@@ -135,8 +135,11 @@ export class BlockInteraction {
 
     if (this.progress < 1) return false;
 
-    this.world.setBlock(hit.x, hit.y, hit.z, Block.Air);
+    const core = this.world.generator.mode === 'oneblock' && isOneBlockCell(hit.x, hit.y, hit.z);
+    if (core) this.onOneBlockMined?.(hit);
+    else this.editBlock(hit.x, hit.y, hit.z, Block.Air);
     this.progress = 0;
+    if (this.player.creative) this.mineCooldown = PLACE_COOLDOWN;
 
     this.particles.burst(this.breakPoint, {
       count: 16,
@@ -146,7 +149,7 @@ export class BlockInteraction {
       life: 0.7,
     });
 
-    if (def.drop !== null) {
+    if (def.drop !== null && !this.player.creative) {
       this.player.inventory.add(def.drop, 1);
       const drop = getBlockDef(def.drop);
       if (drop.heal > 0) this.onConsumableFound?.(drop.name);
@@ -214,10 +217,14 @@ export class BlockInteraction {
       return;
     }
 
-    if (this.tryConsume()) return;
-    if (this.tryUpgrade()) return;
-    if (this.tryCraftTorches()) return;
-    if (this.tryCraftBed(hit)) return;
+    if (!this.player.creative) {
+      if (this.tryConsume()) return;
+      if (this.holdingUpgradeOre || this.holdingTorchFuel) {
+        this.placeCooldown = EAT_COOLDOWN;
+        this.onHammerFeedback?.('Aperte C para criar itens.');
+        return;
+      }
+    }
     if (!hit) return;
 
     const x = hit.x + hit.nx;
@@ -231,8 +238,9 @@ export class BlockInteraction {
     if (block === null || isConsumable(block) || isUpgradeOre(block) || isTorchFuel(block)) return;
 
     this.placeCooldown = PLACE_COOLDOWN;
+    if (!this.editBlock(x, y, z, block)) return;
     this.player.inventory.takeSelected();
-    this.world.setBlock(x, y, z, block);
+    this.onBlockPlaced?.();
     this.player.startSwing();
     this.sfx.play('place');
   }
@@ -265,80 +273,6 @@ export class BlockInteraction {
     return true;
   }
 
-  private tryUpgrade(): boolean {
-    const slot = this.player.inventory.selectedSlot;
-    if (this.player.dead || slot.block === null) return false;
-
-    const next = upgradeFrom(slot.block);
-    if (next === null) return false;
-
-    this.placeCooldown = EAT_COOLDOWN;
-    const stats = HAMMER[next];
-
-    if (this.player.hammerTier >= next) return this.trySmithPlates();
-
-    if (slot.count < UPGRADE_COST) {
-      this.onHammerFeedback?.(`Need ${UPGRADE_COST} ${getBlockDef(slot.block).name}`);
-      return true;
-    }
-
-    this.player.inventory.takeSelected(UPGRADE_COST);
-    this.player.hammerTier = next;
-    this.player.startSwing();
-    this.sfx.play('eat');
-    this.player.getEyePosition(this.origin);
-    this.particles.burst(this.origin, {
-      count: 14,
-      color: next === HammerTier.Gold ? 0xffe08a : 0xc8d0d8,
-      speed: 2,
-      spread: 0.5,
-      life: 0.45,
-      gravity: 6,
-    });
-    this.onHammerFeedback?.(`${stats.name}: mines faster and hits harder`);
-    return true;
-  }
-
-  /** Four of that metal, after its hammer is already bound, forge a vest. */
-  private trySmithPlates(): boolean {
-    const slot = this.player.inventory.selectedSlot;
-    if (slot.block === null) return false;
-    const next = platesFrom(slot.block);
-    if (next === null) return false;
-
-    this.placeCooldown = EAT_COOLDOWN;
-    const stats = PLATES[next];
-    if (this.player.plates >= next) {
-      this.onHammerFeedback?.(
-        this.player.plates === next
-          ? `Already wearing ${stats.name.toLowerCase()}`
-          : 'The plates are already stronger',
-      );
-      return true;
-    }
-
-    if (slot.count < PLATE_COST) {
-      this.onHammerFeedback?.(`Need ${PLATE_COST} ${getBlockDef(slot.block).name}`);
-      return true;
-    }
-
-    this.player.inventory.takeSelected(PLATE_COST);
-    this.player.plates = next;
-    this.player.startSwing();
-    this.sfx.play('eat');
-    this.player.getEyePosition(this.origin);
-    this.particles.burst(this.origin, {
-      count: 12,
-      color: next === PlateTier.Gold ? 0xffe08a : 0xc8d0d8,
-      speed: 1.8,
-      spread: 0.45,
-      life: 0.4,
-      gravity: 6,
-    });
-    this.onHammerFeedback?.(`${stats.name}: the Warden hits softer`);
-    return true;
-  }
-
   /** Drops one selected block into the air just ahead of the player. */
   tossSelected(): boolean {
     const slot = this.player.inventory.selectedSlot;
@@ -362,41 +296,14 @@ export class BlockInteraction {
 
       const block = this.player.inventory.takeSelected(1);
       if (block === null) return false;
-      this.world.setBlock(x, y, z, block);
+      this.editBlock(x, y, z, block);
       this.player.startSwing();
       this.sfx.play('place');
       return true;
     }
 
-    this.onHammerFeedback?.('No room to toss');
+    this.onHammerFeedback?.('Não há espaço para soltar');
     return false;
-  }
-
-  /** Four planks become a bedroll, but only while looking at air so planks still place. */
-  private tryCraftBed(hit: VoxelHit | null): boolean {
-    if (hit) return false;
-    const slot = this.player.inventory.selectedSlot;
-    if (this.player.dead || slot.block === null || !isBedMaterial(slot.block)) return false;
-
-    this.placeCooldown = EAT_COOLDOWN;
-    if (slot.count < PLANKS_PER_BED) {
-      this.onHammerFeedback?.(`Need ${PLANKS_PER_BED} Planks`);
-      return true;
-    }
-
-    this.player.inventory.takeSelected(PLANKS_PER_BED);
-    const leftover = this.player.inventory.add(Block.Bed, 1);
-    if (leftover === 1) {
-      this.player.inventory.add(Block.Planks, PLANKS_PER_BED);
-      this.onHammerFeedback?.('Hotbar is full');
-      return true;
-    }
-
-    this.player.startSwing();
-    this.sfx.play('place');
-    this.onBedFound?.('Bedroll');
-    this.onHammerFeedback?.('Crafted a bedroll — place it, then right click to rest');
-    return true;
   }
 
   private restAt(hit: VoxelHit): void {
@@ -406,7 +313,7 @@ export class BlockInteraction {
     const z = hit.z + 0.5;
     const spawn = this.player.spawn;
     if (Math.hypot(spawn.x - x, spawn.y - y, spawn.z - z) < 0.2) {
-      this.onHammerFeedback?.('You already rest here');
+      this.onHammerFeedback?.('Você já descansa aqui');
       return;
     }
 
@@ -414,36 +321,6 @@ export class BlockInteraction {
     this.player.startSwing();
     this.sfx.play('eat');
     this.onSpawnSet?.();
-  }
-
-  /** One coal becomes four placeable lights. */
-  private tryCraftTorches(): boolean {
-    const slot = this.player.inventory.selectedSlot;
-    if (this.player.dead || slot.block === null || !isTorchFuel(slot.block)) return false;
-
-    this.placeCooldown = EAT_COOLDOWN;
-    this.player.inventory.takeSelected(1);
-    const leftover = this.player.inventory.add(Block.Torch, TORCHES_PER_COAL);
-    if (leftover === TORCHES_PER_COAL) {
-      this.player.inventory.add(Block.CoalOre, 1);
-      this.onHammerFeedback?.('Hotbar is full');
-      return true;
-    }
-
-    this.player.startSwing();
-    this.sfx.play('place');
-    this.player.getEyePosition(this.origin);
-    this.particles.burst(this.origin, {
-      count: 10,
-      color: 0xffb15a,
-      speed: 1.8,
-      spread: 0.45,
-      life: 0.4,
-      gravity: 6,
-    });
-    const made = TORCHES_PER_COAL - leftover;
-    this.onHammerFeedback?.(made === TORCHES_PER_COAL ? `Crafted ${made} torches` : `Crafted ${made} torches — hotbar is full`);
-    return true;
   }
 
   private isAltarBlock(hit: VoxelHit): boolean {
@@ -461,7 +338,15 @@ export class BlockInteraction {
     );
   }
 
-  private intersectsPlayer(x: number, y: number, z: number): boolean {
+  private editBlock(x: number, y: number, z: number, after: Block): boolean {
+    const before = this.world.getBlock(x, y, z);
+    const previousEdit = this.world.edits.get(`${x},${y},${z}`);
+    if (!this.world.setBlock(x, y, z, after)) return false;
+    this.onBuildEdit?.({ x, y, z, before, after, previousEdit });
+    return true;
+  }
+
+  intersectsPlayer(x: number, y: number, z: number): boolean {
     const position = this.player.position;
     const half = PLAYER_WIDTH / 2;
     return (

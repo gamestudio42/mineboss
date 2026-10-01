@@ -34,7 +34,7 @@ export class RuinEncounter {
   }
 
   canSummon(position: THREE.Vector3): boolean {
-    if (this.active || this.defeated) return false;
+    if (this.active) return false;
     return isInsideRuinCourtyard(position.x, position.z);
   }
 
@@ -65,11 +65,11 @@ export class RuinEncounter {
 
   reset(context: EntityContext): void {
     for (const entity of context.entities.entities) {
-      if (entity.team === 'boss') context.entities.remove(entity);
+      if (entity.team === 'boss' && entity.clearedOnDeath) context.entities.remove(entity);
     }
     context.entities.flushRemoved();
     this.boss = null;
-    if (!this.defeated) this.rebuildStatue(context.world);
+    if (context.world.generator.ruinUnlocked) this.rebuildStatue(context.world);
   }
 
   /** Rebuilds the 3x3 cracked idol after a death mid-fight. */
@@ -81,20 +81,20 @@ export class RuinEncounter {
         const x = RUIN_STATUE.x + dx;
         const z = RUIN_STATUE.z + dz;
         for (let y = floor + 1; y <= floor + 6; y++) {
-          world.setBlock(x, y, z, Block.Air);
+          world.restoreStructure(x, y, z, Block.Air);
         }
 
-        world.setBlock(x, floor + 1, z, Block.Cobblestone);
+        world.restoreStructure(x, floor + 1, z, Block.Cobblestone);
 
         const centre = dx === 0 && dz === 0;
         const arm = Math.abs(dx) + Math.abs(dz) === 1;
         if (centre) {
-          world.setBlock(x, floor + 2, z, Block.RunicStone);
-          world.setBlock(x, floor + 3, z, Block.Cobblestone);
-          world.setBlock(x, floor + 4, z, Block.RunicStone);
-          world.setBlock(x, floor + 5, z, Block.Glowstone);
+          world.restoreStructure(x, floor + 2, z, Block.RunicStone);
+          world.restoreStructure(x, floor + 3, z, Block.Cobblestone);
+          world.restoreStructure(x, floor + 4, z, Block.RunicStone);
+          world.restoreStructure(x, floor + 5, z, Block.Glowstone);
         } else if (arm) {
-          world.setBlock(x, floor + 2, z, Block.Cobblestone);
+          world.restoreStructure(x, floor + 2, z, Block.Cobblestone);
         }
       }
     }

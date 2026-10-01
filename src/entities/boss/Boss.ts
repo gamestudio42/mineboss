@@ -14,7 +14,7 @@ import { Shockwave } from './attacks/Shockwave.ts';
 import { Telegraph } from './attacks/Telegraph.ts';
 import { Minion } from './Minion.ts';
 
-export const BOSS_NAME = 'The Deep Warden';
+export const BOSS_NAME = 'Guardião das Profundezas';
 export const BOSS_MAX_HEALTH = 520;
 
 const WIDTH = 3;
@@ -26,13 +26,13 @@ const CHASE_STANDOFF = 3.2;
 const CHARGE_SPEED = 16;
 
 const PHASES = [
-  { label: 'Phase I', speed: 1, color: 0x8b5cf6, staggerTime: 3.2 },
-  { label: 'Phase II', speed: 1.15, color: 0x38bdf8, staggerTime: 2.7 },
-  { label: 'Phase III', speed: 1.4, color: 0xff5a2e, staggerTime: 2.2 },
+  { label: 'Fase I', speed: 1, color: 0x8b5cf6, staggerTime: 3.2 },
+  { label: 'Fase II', speed: 1.15, color: 0x38bdf8, staggerTime: 2.7 },
+  { label: 'Fase III', speed: 1.4, color: 0xff5a2e, staggerTime: 2.2 },
 ] as const;
 
 /**
- * The Deep Warden. Behaviour lives in a state machine; every heavy attack ends
+ * Guardião das Profundezas. Behaviour lives in a state machine; every heavy attack ends
  * in a stagger, which is the window where the player can safely deal damage.
  */
 export class Boss extends Entity {
@@ -98,7 +98,7 @@ export class Boss extends Entity {
 
   override update(context: EntityContext): void {
     this.context = context;
-    const dt = context.dt;
+    const dt = context.dt * (context.player.gentle ? 0.65 : 1);
 
     const machine = (this.machine ??= new BossStateMachine(STATES, 'awaken', this));
     this.health?.update(dt);
@@ -384,7 +384,7 @@ export class Boss extends Entity {
       for (let z = ALTAR.z - 2; z <= ALTAR.z + 2; z++) {
         for (let x = ALTAR.x - 2; x <= ALTAR.x + 2; x++) {
           if (world.getBlock(x, y, z) === Block.Obsidian) continue;
-          world.setBlock(x, y, z, Block.Air);
+          if (!world.edits.has(`${x},${y},${z}`)) world.restoreStructure(x, y, z, Block.Air);
         }
       }
     }

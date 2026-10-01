@@ -1,10 +1,16 @@
 import * as THREE from 'three';
 
 import { Sfx } from '../audio/Sfx.ts';
+import { BossPractice } from '../entities/boss/BossPractice.ts';
 import { BossArena } from '../entities/boss/BossArena.ts';
 import { RuinEncounter } from '../entities/boss/RuinEncounter.ts';
 import { EntityManager } from '../entities/EntityManager.ts';
 import type { EntityContext } from '../entities/Entity.ts';
+import { recipePanel } from '../ui/RecipePanel.ts';
+import { craftRecipe } from '../player/Recipes.ts';
+import type { OneBlockPace } from '../world/oneblock/phases.ts';
+import { BuildHistory } from '../player/BuildHistory.ts';
+import { updateBuildLesson } from '../ui/BuildLesson.ts';
 import { BlockInteraction } from '../player/BlockInteraction.ts';
 import { HAMMER, HammerTier, PLATE_COST, PLATES, PlateTier, UPGRADE_COST } from '../player/Hammer.ts';
 import { Player, SWING_DURATION } from '../player/Player.ts';
@@ -17,16 +23,32 @@ import { TorchLights } from '../render/TorchLights.ts';
 import { ViewModel } from '../render/ViewModel.ts';
 import { Hud } from '../ui/Hud.ts';
 import { Overlay } from '../ui/Overlay.ts';
+import {
+  ALTAR,
+  CACHE,
+  ENTRANCE,
+  RUIN_COURTYARD,
+  RUIN_STATUE,
+  chunkTouchesArena,
+  chunkTouchesCache,
+  chunkTouchesEntrance,
+  chunkTouchesRuin,
+} from '../world/arena.ts';
 import { Block, isWater } from '../world/blocks.ts';
 import { ChunkManager } from '../world/ChunkManager.ts';
+import { OneBlock } from '../world/oneblock/OneBlock.ts';
+import { ISLAND_Y, VOID_KILL_Y, isOneBlockCell } from '../world/oneblock/phases.ts';
 import { TerrainGenerator } from '../world/terrain/generator.ts';
 import { World } from '../world/World.ts';
 import { Input } from './Input.ts';
 import { Loop } from './Loop.ts';
 import { formatRunLine, recordRun, type RunRecord } from './Records.ts';
-import { loadSave, saveRun, type SavedRun } from './Save.ts';
+import { modeName, type GameMode } from './GameMode.ts';
+import { blockGrid, CATALOG_GROUPS } from '../ui/BlockCatalog.ts';
+import { getBlockDef, isSolid } from '../world/blocks.ts';
+import { ENTRANCE_SPAWN } from '../world/arena.ts';
+import { loadSave, loadPreviousSave, parseSave, saveRun, SAVE_VERSION, type SavedRun } from './Save.ts';
 import { loadSettings, type StoredSettings } from './Settings.ts';
-import { ALTAR, ENTRANCE, RUIN_STATUE } from '../world/arena.ts';
 import { clamp, damp, wrapAngle } from './math.ts';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
@@ -39,8 +61,8 @@ const SPRINT_FOV = 84;
 /** Below this height the atmosphere is fully underground. */
 const UNDERGROUND_Y = 42;
 
-const SPAWN_X = 10;
-const SPAWN_Z = 10;
+const SPAWN_X = 0;
+const SPAWN_Z = 0;
 const STEP_DISTANCE = 2.4;
 const DEFAULT_SEED = 1337;
 const AUTOSAVE_INTERVAL = 12;
@@ -79,6 +101,19 @@ export class Game {
   private readonly viewModel: ViewModel;
   private readonly arena: BossArena;
   private readonly ruin: RuinEncounter;
+  private survival: SavedRun['survival'];
+  private practice: BossPractice | null = null;
+  private fightCreative = false;
+  private creativePalette: SavedRun['creativePalette'];
+  private tutorialDone = false;
+  private home: SavedRun['home'];
+  private fightReturn: { position: THREE.Vector3; spawn: THREE.Vector3; yaw: number; pitch: number; flying?: boolean } | null = null;
+  private readonly buildHistory = new BuildHistory();
+  private readonly trophies = new Set<number>();
+  private guidance = true;
+  private buildLesson = 0;
+  private mode: GameMode = 'adventure';
+  private readonly oneBlock: OneBlock;
   private readonly hud: Hud;
   private readonly overlay = new Overlay();
 
@@ -99,6 +134,7 @@ export class Game {
   private saveTimer = 0;
   private saveSoon = false;
   private wasInWater = false;
+  private voidFall = false;
   private readonly context: EntityContext;
 
   constructor(readonly canvas: HTMLCanvasElement) {
@@ -110,12 +146,12 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.1, 400);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.1, 520);
     this.camera.rotation.order = 'YXZ';
     // The camera carries the first person view model, so it must be in the graph.
     this.scene.add(this.camera);
 
-    this.fog = new THREE.Fog(SKY_COLOR, 50, 118);
+    this.fog = new THREE.Fog(SKY_COLOR, 40, 170);
     this.scene.fog = this.fog;
     this.scene.background = this.skyColor.clone();
 
@@ -138,13 +174,14 @@ export class Game {
     const waterMaterial = createWaterMaterial(this.atlas);
 
     this.world = new World(new TerrainGenerator(this.seed));
+    this.oneBlock = new OneBlock(this.seed);
     this.chunks = new ChunkManager(this.world, this.scene, [terrainMaterial, emissiveMaterial], waterMaterial);
     this.particles = new ParticleSystem(this.scene);
     this.torchLights = new TorchLights(this.scene);
     this.entities = new EntityManager(this.scene);
 
     this.controller = new PlayerController(this.player, this.world, this.camera);
-    this.combat = new PlayerCombat(this.player, this.entities, this.particles, this.sfx);
+    this.combat = new PlayerCombat(this.player, this.entities, this.particles, this.sfx, this.world);
     this.interaction = new BlockInteraction(
       this.player,
       this.world,
@@ -156,20 +193,20 @@ export class Game {
 
     this.viewModel = new ViewModel(this.camera, this.atlas);
     this.hud = new Hud(this.atlas);
+    this.combat.onHit = vulnerable => this.hud.showHint(vulnerable ? 'Acertou! Ele está vulnerável!' : 'Acertou!', 0.7);
     this.arena = new BossArena(this.entities, {
       onSummon: (name) => {
         this.hud.bossBar.show(name);
-        this.hud.bossBar.setPhase('Phase I');
-        this.hud.showHint('Jump the shockwave. Stagger it. Eat to heal.', 5);
+        this.hud.bossBar.setPhase('Fase I');
         this.sfx.play('roar');
       },
       onPhase: (phase, label) => {
         this.hud.bossBar.setPhase(label);
         if (phase === 2) {
-          this.hud.showHint('Boulders break stone. Clear the pack, then strike the cores.', 3.5);
+          this.hud.showHint('Desvie das pedras e dos monstrinhos. Bata quando ele ficar vulnerável.', 3.5);
           return;
         }
-        this.hud.showHint(`${label}: it grows angrier`, 2.5);
+        this.hud.showHint(`${label}: ele está mais forte`, 2.5);
       },
       onVictory: () => this.win(),
       onShake: (intensity) => this.shake(intensity),
@@ -178,17 +215,25 @@ export class Game {
     this.ruin = new RuinEncounter(this.entities, {
       onSummon: (name) => {
         this.hud.bossBar.show(name);
-        this.hud.bossBar.setPhase('Phase I');
-        this.hud.showHint('Jump the shockwave. Stagger it. Eat to heal.', 5);
+        this.hud.bossBar.setPhase('Fase I');
         this.sfx.play('roar');
       },
       onPhase: (_phase, label) => {
         this.hud.bossBar.setPhase(label);
-        this.hud.showHint(`${label}: it throws stone — step off the rings`, 3.2);
+        this.hud.showHint(`${label}: ele joga pedras — saia dos círculos`, 3.2);
       },
       onDefeated: () => {
+        this.rewardBoss(Block.SentinelTrophy);
+        this.finishFight();
+        this.ruin.rebuildStatue(this.world);
+        this.showBossVictory('Sentinela vencido!');
         this.hud.bossBar.hide();
-        this.hud.showHint('The Sentinel is rubble. The shrine stands north', 4.2);
+        this.hud.showHint(
+          (this.mode === 'adventure' || this.oneBlock.shrineUnlocked)
+            ? 'Você venceu o Sentinela! O santuário fica ao norte'
+            : 'Você venceu o Sentinela! Continue explorando o bloco',
+          4.2,
+        );
         this.saveSoon = true;
       },
       onShake: (intensity) => this.shake(intensity),
@@ -208,6 +253,12 @@ export class Game {
 
     this.input = new Input(canvas);
     this.input.onLockChange = (locked) => this.handleLockChange(locked);
+    this.input.onLockError = () => {
+      if (this.state !== 'playing') return;
+      this.pause();
+      this.overlay.show({ title: 'Vamos ativar o mouse', text: 'Clique na aba do jogo para ativá-la e tente abaixo. Se o navegador pedir, permita usar o mouse.', button: 'Ativar mouse', secondary: 'Voltar à pausa', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    };
+    document.getElementById('mouse-activate')!.onclick = () => this.input.requestLock();
     this.loop = new Loop((dt) => this.tick(dt));
 
     const settings = loadSettings();
@@ -215,11 +266,23 @@ export class Game {
     this.overlay.bindSettings(settings);
     this.overlay.onSettingsChange = (next) => this.applySettings(next);
 
+    this.interaction.onBlockPlaced = () => {
+      if (this.buildLesson === 1) this.buildLesson = 2;
+      if (this.mode === 'oneblock') {
+        const earned = this.oneBlock.claimGoals(this.world, this.player);
+        if (earned.length) { this.hud.showHint('Você conseguiu! Novos materiais na mochila.', 5); this.saveSoon = true; }
+      }
+    };
+    this.interaction.onBuildEdit = edit => { if (this.player.creative && !this.arena.active && !this.ruin.active) this.buildHistory.record(edit); };
+    this.player.inventory.onOverflow = () => this.hud.showHint('Barra cheia: material guardado na mochila. Aperte B.', 4);
+    this.oneBlock.onWarning = () => this.hud.showHint('⚠ Um monstrinho está chegando! Afaste-se do bloco.', 3);
+    window.addEventListener('pagehide', () => { if (this.state !== 'menu') this.persistSave({ atSpawn: this.player.dead }); });
     this.interaction.onAltarActivated = () => this.tryStartFight();
     this.interaction.onStatueActivated = () => this.tryStartRuinFight();
+    this.interaction.onOneBlockMined = () => this.handleOneBlockMined();
     this.interaction.onConsumed = (healed) => {
       if (healed <= 0) {
-        this.hud.showHint('Already at full health', 1.6);
+        this.hud.showHint('Sua vida já está cheia', 1.6);
         return;
       }
       this.hud.flashHeal();
@@ -227,34 +290,34 @@ export class Game {
     this.interaction.onConsumableFound = (name) => {
       if (this.hintedConsumable) return;
       this.hintedConsumable = true;
-      this.hud.showHint(`Right click to eat ${name} and recover health`, 3.5);
+      this.hud.showHint(`Botão direito: comer ${name} e recuperar vida`, 3.5);
     };
     this.interaction.onUpgradeFound = (name) => {
       if (!this.hintedUpgrade) {
         this.hintedUpgrade = true;
-        this.hud.showHint(`Right click ${UPGRADE_COST} ${name} to strengthen the hammer`, 3.5);
+        this.hud.showHint(`C: criar um martelo com ${UPGRADE_COST} ${name}`, 3.5);
         return;
       }
       if (name.includes('Gold') && this.player.hammerTier >= HammerTier.Gold && this.player.plates < PlateTier.Gold) {
-        this.hud.showHint(`Right click ${PLATE_COST} ${name} to smith gold plates`, 3.5);
+        this.hud.showHint(`C: criar armadura com ${PLATE_COST} ${name}`, 3.5);
         return;
       }
       if (this.player.hammerTier < HammerTier.Iron || this.player.plates >= PlateTier.Iron) return;
-      this.hud.showHint(`Right click ${PLATE_COST} ${name} to smith iron plates`, 3.5);
+      this.hud.showHint(`C: criar armadura com ${PLATE_COST} ${name}`, 3.5);
     };
     this.interaction.onHammerFeedback = (text) => this.hud.showHint(text, 2.4);
     this.interaction.onTorchFuelFound = (name) => {
       if (this.hintedTorch) return;
       this.hintedTorch = true;
-      this.hud.showHint(`Right click ${name} to craft four torches`, 3.5);
+      this.hud.showHint(`C: use ${name} para criar tochas`, 3.5);
     };
     this.interaction.onBedFound = () => {
       if (this.hintedBed) return;
       this.hintedBed = true;
-      this.hud.showHint('Place the bedroll, then right click it to set spawn', 3.8);
+      this.hud.showHint('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
     };
     this.interaction.onSpawnSet = () => {
-      this.hud.showHint('You will wake here', 2.6);
+      this.hud.showHint('Você vai voltar aqui ao renascer', 2.6);
       this.saveSoon = true;
     };
     this.player.health.onDamage = (amount) => {
@@ -268,7 +331,7 @@ export class Game {
       this.sfx.play('plate');
       if (this.hintedPlates) return;
       this.hintedPlates = true;
-      this.hud.showHint('The plates take the blow', 3.2);
+      this.hud.showHint('Sua armadura protegeu você', 3.2);
     };
     this.player.health.onDeath = () => {
       this.pendingDeath = true;
@@ -281,57 +344,72 @@ export class Game {
     window.addEventListener('resize', this.resize);
     this.resize();
 
-    const save = loadSave();
+    const save = loadSave(this.mode);
     if (save) this.applySave(save);
     else this.prepareWorld();
     this.showMenu();
   }
 
   private prepareWorld(): void {
-    this.chunks.preload(SPAWN_X, SPAWN_Z, 2);
+    this.syncGeneratorUnlocks();
+    const x = this.mode === 'adventure' ? 10 : SPAWN_X;
+    const z = this.mode === 'adventure' ? 10 : SPAWN_Z;
+    this.chunks.preload(x, z, 2);
 
-    const ground = this.world.surfaceY(SPAWN_X, SPAWN_Z);
-    this.player.setSpawn(SPAWN_X + 0.5, ground + 1, SPAWN_Z + 0.5);
+    this.player.setSpawn(x + 0.5, this.mode === 'adventure' ? this.world.surfaceY(x, z) + 1 : ISLAND_Y + 1, z + 0.5);
     this.player.respawn();
-    this.player.yaw = Math.atan2(-(ENTRANCE.x - SPAWN_X), -(ENTRANCE.z - SPAWN_Z));
+    this.home = { x: this.player.spawn.x, y: this.player.spawn.y, z: this.player.spawn.z };
+    this.player.yaw = 0;
+    // In OneBlock the only mineable block starts beneath the player.
+    this.player.pitch = this.mode === 'oneblock' ? -1.38 : 0;
     this.player.inventory.clear();
     this.player.inventory.select(0);
-    this.player.inventory.add(Block.Cobblestone, 32);
-    this.player.inventory.add(Block.Planks, 16);
-    this.player.inventory.add(Block.Bed, 1);
-    this.player.inventory.add(Block.Mushroom, 4);
-    this.player.inventory.add(Block.CoalOre, 8);
+    if (this.mode === 'adventure') {
+      this.player.inventory.add(Block.Cobblestone, 32);
+      this.player.inventory.add(Block.Planks, 16);
+      this.player.inventory.add(Block.Bed, 1);
+      this.player.inventory.add(Block.Mushroom, 4);
+      this.player.inventory.add(Block.CoalOre, 8);
+      this.player.yaw = Math.atan2(-(ENTRANCE.x - x), -(ENTRANCE.z - z));
+    } else {
+      this.player.inventory.add(Block.Dirt, 4);
+      this.player.inventory.add(Block.Mushroom, 2);
+    }
     this.controller.update(0.0001, this.input);
   }
 
   private showMenu(): void {
     this.state = 'menu';
     this.hud.setVisible(false);
-    const save = loadSave();
-    if (save) {
-      this.overlay.show(
-        {
-          title: 'MINEBOSS',
-          text: `Seed ${save.seed}. A descent is waiting.\nA ruin sits west. The shrine stands north.`,
-          button: 'Continue',
-          secondary: 'New game',
-          showSettings: true,
-        },
-        () => this.startPlaying(),
-        () => this.newGame(),
-      );
-      return;
-    }
+    this.overlay.show({
+      title: 'MINEBOSS',
+      text: 'Escolha seu mundo. Cada modo guarda uma partida separada.\nAventura: explore o mundo aberto. OneBlock: construa no vazio.',
+      button: 'Aventura', secondary: 'OneBlock', showSettings: true, showControls: false,
+    }, () => this.showModeMenu('adventure'), () => this.showModeMenu('oneblock'));
+  }
 
-    this.overlay.show(
-      {
-        title: 'MINEBOSS',
-        text: 'A ruin sits west. The shrine stands north. Descend the stairs and wake what sleeps beneath.',
-        button: 'Click to play',
-        showSettings: true,
-      },
-      () => this.startPlaying(),
-    );
+  private showModeMenu(mode: GameMode): void {
+    const save = loadSave(mode);
+    this.overlay.show({
+      title: modeName(mode),
+      text: mode === 'adventure' ? 'Explore florestas, cavernas e ruínas. Descubra os bosses no mundo aberto.' : 'Mine o bloco infinito, expanda sua ilha e desbloqueie as ilhas dos bosses.',
+      button: save ? 'Continuar' : 'Jogar', secondary: save ? 'Nova partida' : 'Voltar',
+      showControls: false,
+    }, () => {
+      if (save) { this.applySave(save); this.startPlaying(); }
+      else this.chooseStyle(mode);
+    }, () => save ? this.confirmNewGame(mode) : this.showMenu());
+    this.overlay.setBackAction(() => this.showMenu());
+    this.overlay.addAction('Importar mundo', () => this.importWorld());
+    if (loadPreviousSave(mode)) this.overlay.addAction('Recuperar cópia anterior', () => this.confirmRecovery(mode));
+    if (save?.updatedAt) {
+      const stamp = document.createElement('p'); stamp.textContent = `Salvo em ${new Date(save.updatedAt).toLocaleString('pt-BR')}`; this.overlay.addContent(stamp);
+    }
+  }
+
+  private confirmNewGame(mode: GameMode): void {
+    this.overlay.show({ title: 'Nova partida', text: `Substituir a partida de ${modeName(mode)}? O outro modo será preservado.`, button: 'Criar partida', secondary: 'Voltar', showControls: false },
+      () => this.chooseStyle(mode), () => this.showModeMenu(mode));
   }
 
   private startPlaying(): void {
@@ -340,11 +418,18 @@ export class Game {
     this.hud.setVisible(true);
     this.state = 'playing';
     this.input.requestLock();
-    if (!this.arena.ruinFound) {
-      this.hud.showHint('A ruin sits west — or follow the shrine north', 4.2);
-    } else if (!this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
+    document.getElementById('mouse-prompt')!.classList.toggle('hidden', this.input.locked);
+    if (this.arena.active || this.ruin.active || this.practice) {
+      this.hud.hideHint();
+    } else if (this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked) {
+      this.hud.showHint('Use o direito para colocar terra e ampliar a ilha.', 5);
+    } else if (this.player.creative) {
+      this.hud.showHint('B: escolha blocos. Esc: sua base, ideias e chefões.', 4);
+    } else if (!this.arena.ruinFound) {
+      this.hud.showHint('Encontre o Sentinela: siga a bússola ou use Visitar no menu', 4.2);
+    } else if (!this.player.creative && !this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
       this.hintedBed = true;
-      this.hud.showHint('Place the bedroll, then right click it to set spawn', 3.8);
+      this.hud.showHint('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
     }
     this.persistSave();
   }
@@ -353,17 +438,21 @@ export class Game {
     if (this.state !== 'playing') return;
     this.persistSave();
     this.state = 'paused';
+    document.getElementById('mouse-prompt')!.classList.add('hidden');
+    this.input.releaseLock();
+    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
     this.overlay.show(
       {
-        title: 'PAUSED',
-        text: 'The world keeps its secrets while you are away.',
-        button: 'Resume',
-        secondary: 'New game',
-        showSettings: true,
+        title: 'Pausa',
+        text: fighting ? 'Continue ou saia da batalha.' : this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked ? 'Seu bloco infinito está esperando.' : 'Continue construindo ou visite o chefão quando quiser.',
+        button: 'Continuar',
+        secondary: 'Modos de jogo',
+        showControls: false,
       },
       () => this.startPlaying(),
-      () => this.newGame(),
+      () => this.showMenu(),
     );
+    this.addPlayActions();
   }
 
   private die(): void {
@@ -375,23 +464,35 @@ export class Game {
     this.input.releaseLock();
     this.hud.bossBar.hide();
     const sentinelFight = this.ruin.active;
+    const voided = this.voidFall;
+    this.voidFall = false;
     this.arena.reset(this.context);
     this.ruin.reset(this.context);
+    this.entities.clear();
+    this.oneBlock.cancelWarning();
+    this.finishFight();
+    this.ensureSafeSpawn();
     this.persistSave({ atSpawn: true });
 
     this.overlay.show(
       {
-        title: 'YOU DIED',
-        text: this.deathText(sentinelFight),
-        button: 'Respawn',
-        secondary: 'New game',
+        title: 'Vamos tentar de novo?',
+        text: this.deathText(sentinelFight, voided),
+        button: 'Renascer',
+        secondary: 'Modos de jogo',
         showControls: false,
         showSettings: true,
       },
       () => {
+        const flying = this.player.flying;
         this.player.respawn();
-        if (!this.arena.defeated) this.arena.rebuildAltar(this.context.world);
-        if (!this.ruin.defeated) this.ruin.rebuildStatue(this.context.world);
+        this.player.flying = this.player.creative && flying;
+        if (this.world.generator.shrineUnlocked && !this.arena.defeated) {
+          this.arena.rebuildAltar(this.context.world);
+        }
+        if (this.world.generator.ruinUnlocked && !this.ruin.defeated) {
+          this.ruin.rebuildStatue(this.context.world);
+        }
         if (this.arena.discovered) {
           this.player.yaw = Math.atan2(
             -(ALTAR.x - this.player.spawn.x),
@@ -400,11 +501,16 @@ export class Game {
         }
         this.startPlaying();
       },
-      () => this.newGame(),
+      () => this.showMenu(),
     );
+    this.overlay.addAction('Voltar à base', () => { this.goHome(); this.startPlaying(); });
   }
 
   private win(): void {
+    this.rewardBoss(Block.WardenTrophy);
+    this.finishFight();
+    this.arena.rebuildAltar(this.world);
+    this.unlockCacheIsland();
     this.state = 'victory';
     this.sfx.play('victory');
     this.input.releaseLock();
@@ -413,20 +519,39 @@ export class Game {
 
     this.overlay.show(
       {
-        title: 'VICTORY',
+        title: 'Você venceu!',
         text: this.victoryText(),
-        button: 'Keep exploring',
-        secondary: 'New game',
+        button: 'Voltar à base',
+        secondary: 'Continuar explorando',
         showControls: false,
         showSettings: true,
       },
+      () => { this.goHome(); this.startPlaying(); },
       () => this.startPlaying(),
-      () => this.newGame(),
     );
   }
 
   /** Regenerates the world and sends the player back to the surface spawn. */
-  private newGame(): void {
+  private newGame(mode: GameMode, pace: OneBlockPace = 'classic'): void {
+    this.mode = mode;
+    this.practice = null;
+    this.fightCreative = false;
+    this.creativePalette = undefined;
+    this.tutorialDone = false;
+    this.guidance = true;
+    this.home = undefined;
+    this.fightReturn = null;
+    this.buildHistory.clear();
+    this.buildLesson = 0;
+    this.survival = undefined;
+    this.trophies.clear();
+    this.player.creative = false;
+    this.player.health.immune = false;
+    this.player.inventory.unlimited = false;
+    this.player.gentle = true;
+    this.player.edgeProtection = true;
+    this.player.flying = false;
+    this.player.pitch = 0;
     // Lock first, while the click is still a user gesture. Terrain preload
     // is synchronous and would otherwise make Chrome reject pointer lock.
     this.sfx.resume();
@@ -439,6 +564,7 @@ export class Game {
     this.saveTimer = 0;
     this.saveSoon = false;
     this.wasInWater = false;
+    this.voidFall = false;
     this.deaths = 0;
     this.blocksMined = 0;
     this.hintedConsumable = false;
@@ -460,7 +586,8 @@ export class Game {
     this.torchLights.clear();
     this.chunks.reset();
     this.seed = (Math.random() * 0x7fffffff) | 0;
-    this.world.reseed(this.seed);
+    this.world.reseed(this.seed, this.mode);
+    this.oneBlock.reset(this.seed, pace);
 
     this.player.swing = 0;
     this.hud.bossBar.hide();
@@ -473,47 +600,44 @@ export class Game {
   }
 
   private tryStartFight(): void {
-    if (!this.arena.canSummon(this.player.position)) {
-      if (this.arena.defeated) this.hud.showHint('The altar is spent', 2);
-      return;
-    }
-
-    this.sfx.play('summon');
-    this.arena.summon();
+    if (this.arena.active || this.ruin.active || !this.world.generator.shrineUnlocked || !this.arena.canSummon(this.player.position)) return;
+    this.confirmFight(false);
   }
 
   private tryStartRuinFight(): void {
-    if (!this.ruin.canSummon(this.player.position)) {
-      if (this.ruin.defeated) this.hud.showHint('The statue is spent', 2);
-      return;
-    }
-
-    this.sfx.play('summon');
-    this.ruin.summon(this.world);
+    if (this.arena.active || this.ruin.active || !this.world.generator.ruinUnlocked || !this.ruin.canSummon(this.player.position)) return;
+    this.confirmFight(true);
   }
 
   private hintStagger(): void {
-    if (this.hintedStagger) return;
     this.hintedStagger = true;
-    this.hud.showHint('Strike now — the cores are open', 3.4);
+    this.hud.showHint('BATA AGORA! O chefão está vulnerável!', 3.4);
   }
 
-  private deathText(sentinelFight: boolean): string {
+  private deathText(sentinelFight: boolean, voided: boolean): string {
+    if (voided && !sentinelFight) {
+      return 'Você caiu! Seus itens estão guardados. Renasça e amplie sua ilha.';
+    }
     if (sentinelFight) {
-      return 'The Sentinel slumps back into stone. You keep your items — right click the statue to wake it again.';
+      return 'Seus itens continuam com você. Renasça perto e tente o Sentinela de novo quando quiser.';
     }
     if (this.arena.defeated) {
-      return 'You fall. The depths remain quiet. Your pack stays with you.';
+      return 'Seus itens estão seguros. Renasça para continuar.';
     }
-    return 'The Warden returns to its slumber. You keep your items — respawn at the stairs and right click the altar to wake it again.';
+    return 'Seus itens estão seguros. Renasça e escolha quando tentar de novo.';
   }
 
   private handleLockChange(locked: boolean): void {
+    document.getElementById('mouse-prompt')!.classList.toggle('hidden', locked || this.state !== 'playing');
+    if (locked && this.state !== 'playing') { this.input.releaseLock(); return; }
     if (!locked && this.state === 'playing') this.pause();
   }
 
   private tick(dt: number): void {
-    if (this.state === 'playing') this.updateWorld(dt);
+    if (this.state === 'playing') {
+      if (this.input.locked) this.updateWorld(dt);
+      else if (this.input.wasPressed('Escape')) this.pause();
+    }
 
     this.updateAtmosphere(dt);
     this.renderer.render(this.scene, this.camera);
@@ -521,24 +645,41 @@ export class Game {
   }
 
   private updateWorld(dt: number): void {
+    if (this.input.wasPressed('Escape')) { this.pause(); return; }
+    if (this.input.wasPressed('KeyB') && !this.practice) { this.openCatalog(); return; }
+    if (this.input.wasPressed('KeyC') && !this.player.creative && !this.arena.active && !this.ruin.active && !this.practice) { this.showRecipes(); return; }
+    if (this.input.wasPressed('KeyH')) { this.showHelp(); return; }
+    if (this.input.wasPressed('KeyZ')) this.undoBuild();
     this.elapsed += dt;
 
     this.handleHotbarInput();
-    if (this.input.wasPressed('KeyQ')) this.interaction.tossSelected();
+    if (this.input.wasPressed('KeyQ') && !this.practice) this.interaction.tossSelected();
     if (this.input.wasPressed('F3')) this.hud.debug.toggle();
 
+    this.player.health.immune = this.player.creative || this.practice !== null;
+    this.oneBlock.gentle = this.player.gentle;
+    if (this.mode === 'oneblock') this.oneBlock.update(dt, this.world, this.entities, this.player);
     this.controller.look(this.input);
     this.controller.update(dt, this.input);
+    if (this.mode === 'oneblock' && !this.player.flying && this.player.position.y < VOID_KILL_Y) {
+      this.voidFall = true;
+      this.player.health.damage(this.player.health.max, { bypassInvulnerability: true });
+    }
     this.combat.update(dt, this.input);
-    const interaction = this.interaction.update(dt, this.input, this.combat.aimed !== null);
-    if (interaction.brokeBlock) this.blocksMined += 1;
+    const interaction = this.practice ? { brokeBlock: false } : this.interaction.update(dt, this.input, this.combat.aimed !== null);
+    if (this.state !== 'playing') return;
+    if (interaction.brokeBlock) {
+      this.blocksMined += 1;
+      if (this.buildLesson === 2) { this.buildLesson = 0; this.tutorialDone = true; this.saveSoon = true; this.hud.showHint('Muito bem! Você já sabe escolher, colocar e remover blocos.', 5); }
+    }
 
     this.context.dt = dt;
     this.context.elapsed = this.elapsed;
     this.entities.update(this.context);
+    if (this.state !== 'playing') return;
     this.arena.update();
     this.ruin.update();
-    this.arena.tryDiscover(this.player);
+    if (this.world.generator.shrineUnlocked && !this.player.creative) this.arena.tryDiscover(this.player);
     this.tryDiscoverRuin();
     this.tryClaimCache();
 
@@ -588,6 +729,14 @@ export class Game {
     );
     this.viewModel.setPlates(this.player.plates);
     this.hud.setSeed(this.seed);
+    this.hud.setPhase(this.mode === 'oneblock' ? `${this.oneBlock.label} · ${!this.oneBlock.ruinUnlocked ? 'Ruína: ' + this.oneBlock.broken + '/' + this.oneBlock.ruinAt : !this.oneBlock.shrineUnlocked ? 'Santuário: ' + this.oneBlock.broken + '/' + this.oneBlock.shrineAt : 'Ilhas liberadas'}` : this.player.creative ? 'Aventura · Construção livre ∞' : 'Aventura · Sobrevivência');
+    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    updateBuildLesson(fighting ? 0 : this.buildLesson);
+    document.getElementById('flight-status')!.textContent = this.player.creative ? (this.player.flying ? 'Voando · Espaço sobe · Ctrl desce · Shift acelera · F pousa' : 'No chão · Espaço pula · F voa') : '';
+    document.getElementById('play-help')!.textContent = fighting
+      ? 'Espaço: pular · Esquerdo: atacar · Esc: pausar'
+      : this.player.creative ? 'B: blocos · Z: desfazer · H: ajuda · Esc: menu'
+      : 'B: mochila · C: criar · H: ajuda · Esc: menu';
     const held = this.player.inventory.selectedSlot;
     this.viewModel.setHeld(held.count > 0 ? held.block : null);
 
@@ -612,7 +761,22 @@ export class Game {
   }
 
   private updateCrosshair(): void {
+    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    const target = this.interaction.target;
+    const aimingCore = this.mode === 'oneblock' && target !== null && isOneBlockCell(target.x, target.y, target.z);
+    document.getElementById('action-label')!.textContent = this.combat.aimed
+      ? 'Botão esquerdo: bater'
+      : fighting ? 'Pule e desvie · espere BATA AGORA!'
+      : this.interaction.aimingAltar || this.interaction.aimingStatue ? 'Botão direito: enfrentar chefão'
+      : this.interaction.aimingBed ? 'Botão direito: descansar'
+      : this.practice ? this.practice.objective
+      : aimingCore ? 'Segure esquerdo: quebrar o bloco infinito'
+      : this.interaction.holdingTorchFuel || this.interaction.holdingUpgradeOre ? 'C: criar itens'
+      : target ? 'Esquerdo: remover · Direito: colocar / usar'
+      : this.mode === 'oneblock' ? 'Olhe para baixo: esquerdo quebra o bloco'
+      : this.player.creative ? 'B: escolher materiais' : 'Explore e construa';
     if (this.combat.aimed) this.hud.setCrosshair('attack');
+    else if (fighting) this.hud.setCrosshair('idle');
     else if (this.interaction.aimingAltar || this.interaction.aimingStatue) this.hud.setCrosshair('altar');
     else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
     else if (this.interaction.holdingUpgradeOre) this.hud.setCrosshair('smith');
@@ -625,33 +789,51 @@ export class Game {
 
   private updateGuide(): void {
     const position = this.player.position;
-
-    if (this.ruin.active) {
-      this.hud.setObjective('Jump the shockwave. Stagger it, then strike');
+    if (this.practice) { this.hud.setObjective(this.practice.objective); this.hud.compass.update(false,0,''); return; }
+    if (this.player.creative && !this.ruin.active && !this.arena.active) {
+      this.hud.setObjective(this.guidance ? 'Construa do seu jeito · Esc: sua base e chefões' : null);
+      this.hud.compass.update(false, 0, '');
+      return;
+    }
+    if (!this.guidance && !this.ruin.active && !this.arena.active) {
+      this.hud.setObjective('Construa do seu jeito · B: blocos e mochila');
       this.hud.compass.update(false, 0, '');
       return;
     }
 
-    const arenaStage = this.arena.guideStage(position);
-    if (!this.ruin.defeated && arenaStage === 'surface') {
+    if (this.ruin.active) {
+      this.hud.setObjective('Pule a onda! Bata quando o chefão ficar vulnerável');
+      this.hud.compass.update(false, 0, '');
+      return;
+    }
+
+    if (this.arena.active) {
+      this.hud.setObjective(this.arena.objectiveText(position));
+      this.hud.compass.update(false, 0, '');
+      return;
+    }
+
+    if ((this.mode === 'adventure' || this.oneBlock.ruinUnlocked) && !this.ruin.defeated && this.arena.guideStage(position) === 'surface') {
       this.hud.setObjective(
-        this.arena.ruinFound
-          ? 'Right click the cracked statue'
-          : 'A ruin sits west — or follow the shrine north',
+        this.arena.ruinFound ? 'Botão direito na estátua: enfrentar o Sentinela' : 'Encontre o Sentinela: siga a bússola ou use Visitar no menu',
       );
       this.pointCompass(position, RUIN_STATUE.x + 0.5, position.y, RUIN_STATUE.z + 0.5);
       return;
     }
 
-    this.hud.setObjective(this.arena.objectiveText(position));
-
-    const target = this.arena.guideTarget(position);
-    if (!target) {
-      this.hud.compass.update(false, 0, '');
+    if (this.mode === 'adventure' || this.oneBlock.shrineUnlocked || this.arena.defeated) {
+      this.hud.setObjective(this.arena.objectiveText(position));
+      const target = this.arena.guideTarget(position);
+      if (!target) {
+        this.hud.compass.update(false, 0, '');
+        return;
+      }
+      this.pointCompass(position, target.x, target.y, target.z);
       return;
     }
 
-    this.pointCompass(position, target.x, target.y, target.z);
+    this.hud.setObjective('Quebre o bloco infinito');
+    this.hud.compass.update(false, 0, '');
   }
 
   private pointCompass(position: { x: number; y: number; z: number }, x: number, y: number, z: number): void {
@@ -662,7 +844,7 @@ export class Game {
     const horizontal = Math.round(Math.hypot(dx, dz));
     const depth = Math.round(position.y - y);
     const depthText =
-      depth > 2 ? `${depth} below` : depth < -2 ? `${-depth} above` : 'level';
+      depth > 2 ? `${depth} abaixo` : depth < -2 ? `${-depth} acima` : 'mesma altura';
 
     this.hud.compass.update(true, relative, `${horizontal}m · ${depthText}`);
   }
@@ -684,6 +866,7 @@ export class Game {
       `ruin     ${this.ruin.boss ? `${this.ruin.boss.stateName} p${this.ruin.boss.phase + 1}` : this.ruin.defeated ? 'fallen' : 'dormant'}`,
       `hammer   ${HAMMER[this.player.hammerTier].name}${this.player.plates !== PlateTier.None ? ` + ${PLATES[this.player.plates].name}` : ''}`,
       `seed     ${this.seed}`,
+      `phase    ${this.oneBlock.label} (${this.oneBlock.broken})`,
       `ground   ${this.player.body.onGround ? 'yes' : 'no'}${this.player.flying ? ' (flying)' : ''}`,
     ];
   }
@@ -732,8 +915,8 @@ export class Game {
 
     this.fog.color.copy(this.blendedColor);
     (this.scene.background as THREE.Color).copy(this.blendedColor);
-    this.fog.near = submerged ? 1.4 : 4 + t * 46;
-    this.fog.far = submerged ? 16 : 46 + t * 72;
+    this.fog.near = submerged ? 1.4 : 16 + t * 36;
+    this.fog.far = submerged ? 16 : 90 + t * 80;
     this.sunLight.intensity = submerged ? 0.18 : 0.1 + t * 0.95;
     this.skyLight.intensity = submerged ? 0.28 : 0.42 + t * 0.73;
 
@@ -789,12 +972,15 @@ export class Game {
   }
 
   private tryDiscoverRuin(): void {
+    if (this.ruin.active || this.arena.active || this.practice) return;
+    if (this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked) return;
     if (!this.arena.tryDiscoverRuin(this.player.position)) return;
-    this.hud.showHint('A cracked statue slumbers in the courtyard — right click to wake it', 4.2);
+    this.hud.showHint('Você encontrou o Sentinela! Botão direito na estátua para escolher a luta', 4.2);
     this.saveSoon = true;
   }
 
   private tryClaimCache(): void {
+    if (!this.world.generator.cacheUnlocked) return;
     if (!this.arena.tryClaim(this.player.position)) return;
 
     this.player.setSpawn(this.player.position.x, this.player.position.y, this.player.position.z);
@@ -816,8 +1002,8 @@ export class Game {
     });
     this.hud.showHint(
       leftovers > 0
-        ? 'The cairn yields a cache — hotbar is full. You will respawn here.'
-        : 'The cairn yields a cache. You will respawn here.',
+        ? 'Recompensa guardada na mochila. Você vai renascer aqui.'
+        : 'Você encontrou materiais! Vai renascer aqui.',
       4.5,
     );
     this.saveSoon = true;
@@ -825,7 +1011,7 @@ export class Game {
 
   private updateSave(dt: number): void {
     this.saveTimer += dt;
-    if (this.saveSoon || this.saveTimer >= AUTOSAVE_INTERVAL) {
+    if ((this.saveSoon && this.saveTimer >= 1) || this.saveTimer >= AUTOSAVE_INTERVAL) {
       this.saveSoon = false;
       this.saveTimer = 0;
       this.persistSave();
@@ -834,13 +1020,29 @@ export class Game {
 
   private persistSave(options: { atSpawn?: boolean } = {}): void {
     if (this.player.dead && !options.atSpawn) return;
-    saveRun(this.snapshotRun(options.atSpawn === true));
+    const ok = saveRun(this.snapshotRun(options.atSpawn === true));
+    document.getElementById('save-status')!.textContent = ok ? '✓ Mundo salvo neste navegador' : '⚠ Não foi possível salvar. Exporte seu mundo pelo menu.';
   }
 
   private snapshotRun(atSpawn: boolean): SavedRun {
-    const position = atSpawn ? this.player.spawn : this.player.position;
+    const returnTo = this.fightReturn;
+    const position = returnTo?.position ?? (atSpawn ? this.player.spawn : this.player.position);
+    const spawn = returnTo?.spawn ?? this.player.spawn;
+    const palette = this.fightCreative && this.creativePalette ? this.creativePalette : this.inventorySnapshot();
     return {
-      version: 1,
+      version: SAVE_VERSION,
+      updatedAt: Date.now(),
+      home: this.home,
+      guidance: this.guidance,
+      tutorialDone: this.tutorialDone,
+      creativePalette: this.player.creative ? this.inventorySnapshot() : this.creativePalette,
+      creative: this.player.creative || this.fightCreative,
+      gentle: this.player.gentle,
+      edgeProtection: this.player.edgeProtection,
+      reserve: palette.reserve,
+      survival: this.fightCreative ? this.inventorySnapshot() : this.survival,
+      trophies: [...this.trophies],
+      mode: this.mode,
       seed: this.seed,
       elapsed: this.elapsed,
       deaths: this.deaths,
@@ -852,19 +1054,20 @@ export class Game {
       hintedPlates: this.hintedPlates,
       hintedStagger: this.hintedStagger,
       player: {
+        flying: returnTo?.flying ?? this.player.flying,
         x: position.x,
         y: position.y,
         z: position.z,
-        yaw: this.player.yaw,
-        pitch: atSpawn ? 0 : this.player.pitch,
-        spawnX: this.player.spawn.x,
-        spawnY: this.player.spawn.y,
-        spawnZ: this.player.spawn.z,
+        yaw: returnTo?.yaw ?? this.player.yaw,
+        pitch: returnTo?.pitch ?? (atSpawn ? 0 : this.player.pitch),
+        spawnX: spawn.x,
+        spawnY: spawn.y,
+        spawnZ: spawn.z,
         health: atSpawn ? this.player.health.max : this.player.health.current,
         hammer: this.player.hammerTier,
         plates: this.player.plates,
-        selected: this.player.inventory.selected,
-        slots: this.player.inventory.slots.map((slot) => ({
+        selected: palette.selected,
+        slots: palette.slots.map((slot) => ({
           block: slot.block,
           count: slot.count,
         })),
@@ -876,6 +1079,7 @@ export class Game {
         ruinFound: this.arena.ruinFound,
         ruinDefeated: this.ruin.defeated,
       },
+      oneBlock: this.oneBlock.snapshot(),
       edits: this.world.exportEdits(),
     };
   }
@@ -884,6 +1088,31 @@ export class Game {
     const onEdit = this.world.onEdit;
     this.world.onEdit = null;
 
+    this.practice = null;
+    this.fightCreative = false;
+    this.fightReturn = null;
+    this.buildHistory.clear();
+    this.buildLesson = 0;
+    this.hud.hideHint();
+    this.hud.setObjective(null);
+    this.hud.compass.update(false, 0, '');
+    this.player.creative = save.creative === true && save.mode === 'adventure';
+    this.player.gentle = save.gentle !== false;
+    this.player.edgeProtection = save.edgeProtection !== false;
+    this.player.health.immune = this.player.creative;
+    this.player.inventory.unlimited = this.player.creative;
+    this.survival = save.survival;
+    this.creativePalette = save.creativePalette;
+    this.guidance = save.guidance !== false;
+    this.tutorialDone = save.tutorialDone === true;
+    this.home = save.home ?? { x: save.player.spawnX, y: save.player.spawnY, z: save.player.spawnZ };
+    this.trophies.clear();
+    for (const id of save.trophies ?? []) this.trophies.add(id);
+    this.mode = save.mode;
+    this.pendingDeath = false;
+    this.saveSoon = false;
+    this.saveTimer = 0;
+    this.hud.bossBar.hide();
     this.seed = save.seed;
     this.elapsed = save.elapsed;
     this.deaths = save.deaths;
@@ -906,10 +1135,14 @@ export class Game {
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();
-    this.world.reseed(save.seed);
+    this.world.reseed(save.seed, this.mode);
+    this.oneBlock.reset(save.seed);
+    this.oneBlock.load(save.oneBlock);
+    this.syncGeneratorUnlocks();
     this.world.importEdits(save.edits);
 
     this.player.inventory.load(save.player.slots, save.player.selected);
+    for (const slot of save.reserve ?? []) if (slot.block !== null) this.player.inventory.reserve.set(slot.block, slot.count);
     this.player.hammerTier = save.player.hammer;
     this.player.plates = save.player.plates ?? (save.player.plated ? PlateTier.Iron : PlateTier.None);
     this.viewModel.setTier(save.player.hammer);
@@ -926,8 +1159,18 @@ export class Game {
     this.player.swing = 0;
 
     this.chunks.preload(save.player.x, save.player.z, 2);
-    if (!this.arena.defeated) this.arena.rebuildAltar(this.world);
-    if (!this.ruin.defeated) this.ruin.rebuildStatue(this.world);
+    if (this.world.generator.shrineUnlocked && !this.arena.defeated) this.arena.rebuildAltar(this.world);
+    if (this.world.generator.ruinUnlocked && !this.ruin.defeated) this.ruin.rebuildStatue(this.world);
+    if (this.mode === 'oneblock') {
+      this.world.ensureChunk(0, 0);
+      if (!isSolid(this.world.getBlock(0, ISLAND_Y, 0))) this.world.setBlock(0, ISLAND_Y, 0, Block.Dirt);
+    }
+    this.player.health.invulnerability = 5;
+    if (this.player.creative) this.player.flying = save.player.flying !== false;
+    if (this.player.position.y < 0 || this.player.body.intersectsWorld(this.world)) {
+      this.ensureSafeSpawn();
+      this.player.respawn();
+    }
     this.controller.update(0.0001, this.input);
     this.world.onEdit = onEdit;
   }
@@ -944,15 +1187,425 @@ export class Game {
 
   private victoryText(): string {
     const run = this.currentRun();
-    const { best, isNewBest } = recordRun(run);
+    const { best, isNewBest } = recordRun(run, `${this.mode}-${this.player.gentle ? 'gentle' : 'normal'}`);
     const lines = [
-      'The Deep Warden collapses into rubble. The depths are yours.',
+      'Você venceu o Guardião! Seu troféu está nos materiais. Decore sua base!',
       '',
       formatRunLine(run),
     ];
-    if (isNewBest) lines.push('New best run');
-    else lines.push(`Best: ${formatRunLine(best)}`);
+    if (isNewBest) lines.push('Novo recorde');
+    else lines.push(`Recorde: ${formatRunLine(best)}`);
     return lines.join('\n');
+  }
+
+  private inventorySnapshot(): NonNullable<SavedRun['survival']> {
+    return { slots: this.player.inventory.slots.map(s => ({ ...s })), selected: this.player.inventory.selected, reserve: this.reserveSnapshot() };
+  }
+
+  private reserveSnapshot(): Array<{ block: number; count: number }> {
+    return [...this.player.inventory.reserve].map(([block, count]) => ({ block, count }));
+  }
+
+  private setCreative(enabled: boolean): void {
+    if (this.mode !== 'adventure' || this.player.creative === enabled) return;
+    if (enabled) {
+      this.survival = this.inventorySnapshot();
+      this.player.inventory.clear();
+      if (this.creativePalette) {
+        this.player.inventory.load(this.creativePalette.slots, this.creativePalette.selected);
+        for (const slot of this.creativePalette.reserve) if (slot.block !== null) this.player.inventory.reserve.set(slot.block, slot.count);
+      } else for (const block of [Block.Planks, Block.Cobblestone, Block.Glowstone, Block.Log, Block.Leaves, Block.Bed]) this.player.inventory.add(block, 64);
+      this.player.health.reset();
+    } else {
+      this.creativePalette = this.inventorySnapshot();
+      const saved = this.survival;
+      this.player.inventory.clear();
+      if (saved) {
+        this.player.inventory.load(saved.slots, saved.selected);
+        for (const slot of saved.reserve) if (slot.block !== null) this.player.inventory.reserve.set(slot.block, slot.count);
+      }
+      this.survival = undefined;
+      this.player.flying = false;
+      this.player.body.fallPeak = this.player.position.y;
+      this.player.health.invulnerability = 5;
+    }
+    this.player.creative = enabled;
+    this.player.inventory.unlimited = enabled;
+    this.player.health.immune = enabled;
+  }
+
+  private chooseStyle(mode: GameMode): void {
+    if (mode === 'oneblock') {
+      this.overlay.show({ title: 'Ritmo do OneBlock', text: 'Curto: ruína em 90 blocos e santuário em 140. Clássico: 360 e 560. Seus mundos antigos mantêm o ritmo original.', button: 'Ritmo curto', secondary: 'Ritmo clássico', showControls: false }, () => this.newGame(mode, 'quick'), () => this.newGame(mode, 'classic'));
+      this.overlay.setBackAction(() => this.showModeMenu(mode)); return;
+    }
+    this.overlay.show({ title: 'Como quer brincar?', text: 'Construção livre: blocos sem fim e voo. Sobrevivência: colete materiais. Você pode trocar depois, no mesmo mundo.', button: 'Construção livre ∞', secondary: 'Sobrevivência', showControls: false },
+      () => { this.newGame(mode); this.setCreative(true); this.openCatalog(); }, () => this.newGame(mode));
+    this.overlay.setBackAction(() => this.showModeMenu(mode));
+  }
+
+  private showPaused(): void {
+    this.state = 'playing';
+    this.pause();
+  }
+
+  private stopForPanel(): void {
+    document.getElementById('mouse-prompt')!.classList.add('hidden');
+    this.state = 'paused';
+    this.input.releaseLock();
+    this.persistSave();
+  }
+
+  private addPlayActions(): void {
+    if (this.practice) {
+      this.overlay.addAction('Sair do treino', () => this.stopPractice());
+      this.overlay.addAction('Como brincar', () => this.showHelp());
+      return;
+    }
+    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    if (fighting) {
+      this.overlay.addAction('Sair da batalha', () => {
+        this.arena.reset(this.context); this.ruin.reset(this.context);
+        this.finishFight(); this.goHome(); this.startPlaying();
+      });
+    } else if (this.world.generator.ruinUnlocked) {
+      this.overlay.addAction('Treinar com segurança', () => this.startPractice());
+      this.overlay.addAction('Visitar o Sentinela', () => {
+        this.confirmFight(true);
+      });
+    }
+    if (!fighting && this.world.generator.shrineUnlocked) this.overlay.addAction('Visitar o Guardião', () => this.confirmFight(false));
+    if (!fighting) {
+      this.overlay.addAction('Voltar à base', () => { this.goHome(); this.startPlaying(); });
+      this.overlay.addAction('Marcar minha base', () => this.markHome());
+      if (this.mode === 'oneblock') this.overlay.addAction('Ideias para a ilha', () => this.showIslandGoals());
+      if (!this.player.creative) this.overlay.addAction('Criar itens', () => this.showRecipes());
+      if (this.player.creative) this.overlay.addAction('Desfazer último bloco', () => { this.undoBuild(); this.startPlaying(); });
+    }
+    this.overlay.addAction(this.player.creative ? 'Escolher blocos' : 'Abrir mochila', () => this.openCatalog());
+    this.overlay.addAction('Como brincar', () => this.showHelp());
+    this.overlay.addAction('Mais opções', () => this.showMoreOptions());
+  }
+
+  private showMoreOptions(): void {
+    this.stopForPanel();
+    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    this.overlay.show({ title: 'Mais opções', text: 'Ajuste o jogo e cuide da sua partida.', button: 'Voltar à pausa', secondary: 'Continuar jogo', showSettings: true, showControls: false },
+      () => this.showPaused(), () => this.startPlaying());
+    if (!fighting) {
+      if (this.mode === 'adventure') this.overlay.addAction(this.player.creative ? 'Trocar para Sobrevivência' : 'Construção livre ∞', () => {
+        if (this.player.creative) this.goHome();
+        this.setCreative(!this.player.creative); this.showMoreOptions();
+      });
+      this.overlay.addAction(`Dificuldade: ${this.player.gentle ? 'Tranquila' : 'Normal'}`, () => { this.player.gentle = !this.player.gentle; this.showMoreOptions(); });
+      this.overlay.addAction(`Proteção de borda: ${this.player.edgeProtection ? 'ligada' : 'desligada'}`, () => { this.player.edgeProtection = !this.player.edgeProtection; this.showMoreOptions(); });
+      this.overlay.addAction(`Guia: ${this.guidance ? 'ligado' : 'desligado'}`, () => { this.guidance = !this.guidance; this.showMoreOptions(); });
+    }
+    if (!fighting && loadPreviousSave(this.mode)) this.overlay.addAction('Recuperar cópia anterior', () => this.confirmRecovery(this.mode));
+    this.overlay.addAction('Exportar mundo', () => this.exportWorld());
+    if (!fighting) this.overlay.addAction('Importar mundo', () => this.importWorld());
+  }
+
+  private openCatalog(category = '🌳 Natureza'): void {
+    this.stopForPanel();
+    const creative = this.player.creative;
+    this.overlay.show({ title: creative ? 'Escolha um bloco' : 'Sua mochila', text: creative ? 'Escolha uma figura. Depois, use o botão direito para colocar e o esquerdo para remover.' : 'Os materiais que não couberam na barra ficam aqui. Escolha um para usar no espaço selecionado.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    if (creative) {
+      for (const group of Object.keys(CATALOG_GROUPS)) this.overlay.addAction(group, () => this.openCatalog(group));
+      const blocks = [...(CATALOG_GROUPS[category] ?? [])];
+      if (category === '✨ Decoração') {
+        blocks.push(...this.trophies);
+        if (this.trophies.has(Block.SentinelTrophy)) blocks.push(Block.SentinelBanner);
+        if (this.trophies.has(Block.WardenTrophy)) blocks.push(Block.WardenLantern);
+      }
+      this.overlay.addContent(blockGrid(this.atlas, blocks.map(block => ({ block })), block => {
+        Object.assign(this.player.inventory.selectedSlot, { block, count: 64 });
+        if (!this.tutorialDone) this.buildLesson = 1;
+        this.startPlaying();
+      }, this.player.inventory.selectedSlot.block));
+      this.overlay.addAction('Ideias para construir', () => this.showBuildIdeas());
+    } else {
+      this.overlay.addContent(blockGrid(this.atlas, this.reserveSnapshot(), block => {
+        this.player.inventory.equipReserve(block); this.startPlaying();
+      }));
+      if (!this.player.inventory.reserve.size) {
+        const empty = document.createElement('p'); empty.textContent = 'A mochila está vazia. Seus materiais estão na barra do jogo.'; this.overlay.addContent(empty);
+      }
+    }
+  }
+
+  private showRecipes(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: 'Criar itens', text: 'Escolha o que quer fazer. Os materiais da barra e da mochila contam juntos.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    this.overlay.addContent(recipePanel(this.atlas, this.player, id => {
+      if (craftRecipe(this.player, id)) {
+        this.viewModel.setTier(this.player.hammerTier);
+        this.viewModel.setPlates(this.player.plates);
+        this.sfx.play('place'); this.persistSave();
+      }
+      this.showRecipes();
+    }));
+  }
+
+  private showIslandGoals(): void {
+    this.stopForPanel();
+    const goals = this.oneBlock.goalProgress(this.world);
+    this.overlay.show({ title: 'Ideias para a ilha', text: 'Você pode seguir estas ideias ou construir do seu jeito. Cada prêmio é dado uma vez.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    for (const goal of goals) {
+      const text = document.createElement('p');
+      text.textContent = `${this.oneBlock.goals.has(goal.id) ? 'Concluído' : Math.min(goal.current, goal.target) + '/' + goal.target} · ${goal.label} · prêmio: ${goal.count} ${getBlockDef(goal.reward).name}`;
+      this.overlay.addContent(text);
+    }
+  }
+
+  private showBuildIdeas(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: 'O que vamos construir?', text: 'Escolha uma ideia ou invente a sua. Não precisa completar nenhuma missão.', button: 'Escolher materiais', secondary: 'Voltar ao jogo', showControls: false }, () => this.openCatalog(), () => this.startPlaying());
+    for (const [name, idea] of [
+      ['Casa colorida', 'Faça um chão, quatro paredes e janelas. Deixe um espaço para entrar!'],
+      ['Ponte', 'Ligue dois lugares com tábuas. Coloque bordas para não cair.'],
+      ['Castelo', 'Construa uma torre, um portão aberto e um lugar para o seu troféu.'],
+    ]) this.overlay.addAction(name, () => {
+      this.overlay.show({ title: name, text: idea, button: 'Escolher materiais', secondary: 'Outra ideia', showControls: false }, () => this.openCatalog(), () => this.showBuildIdeas());
+    });
+  }
+
+  private showHelp(): void {
+    this.stopForPanel();
+    const firstSteps = this.mode === 'oneblock'
+      ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure o botão esquerdo para quebrá-lo.\n3. Escolha terra na barra e use o direito para ampliar a ilha.'
+      : this.player.creative
+        ? '1. Aperte B e escolha um bloco.\n2. Mire no chão e use o direito para colocar.\n3. Clique com o esquerdo para remover.'
+        : '1. Use o esquerdo para pegar blocos.\n2. Use o direito para colocar ou usar.\n3. Aperte B para abrir a mochila.';
+    const bossTip = this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked
+      ? `O Sentinela aparece depois de ${this.oneBlock.ruinAt} blocos quebrados.`
+      : 'Para o chefão: Esc > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!';
+    this.overlay.show({ title: 'Como brincar', text: `${firstSteps}\n\nPara andar: W A S D e mouse.\n${bossTip}`, button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    if (this.player.creative) {
+      this.overlay.addAction('Praticar construção', () => { this.tutorialDone = false; this.buildLesson = 0; this.openCatalog(); });
+      this.overlay.addAction('Pular tutorial', () => { this.tutorialDone = true; this.buildLesson = 0; this.startPlaying(); });
+    }
+    this.overlay.addAction('Mais controles e receitas', () => this.showAdvancedHelp());
+  }
+
+  private showAdvancedHelp(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: 'Controles e receitas', text: 'F liga o voo na construção livre; Espaço sobe e Ctrl desce.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.', button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
+  }
+
+  private startPractice(): void {
+    this.stopForPanel();
+    this.fightReturn = { position: this.player.position.clone(), spawn: this.player.spawn.clone(), yaw: this.player.yaw, pitch: this.player.pitch, flying: this.player.flying };
+    this.fightCreative = this.player.creative;
+    this.setCreative(false);
+    this.buildHistory.clear(); this.buildLesson=0;
+    const x=RUIN_COURTYARD.centerX+7.5,z=RUIN_COURTYARD.centerZ+7.5;
+    this.chunks.preload(x,z,2);
+    this.player.setSpawn(x,this.world.generator.surfaceHeight(x,z)+1,z);
+    this.ensureSafeSpawn();this.player.respawn();this.player.yaw=Math.PI/2;
+    this.practice = new BossPractice(this.player.position.x-3,this.player.position.y,this.player.position.z,
+      text=>this.hud.showHint(text,4),()=>this.stopPractice(true));
+    this.entities.add(this.practice);
+    this.startPlaying();
+  }
+
+  private stopPractice(completed = false): void {
+    this.practice = null;
+    for (const entity of this.entities.entities) if (entity instanceof BossPractice || entity.team==='boss' && entity.clearedOnDeath) this.entities.remove(entity);
+    this.finishFight(); this.goHome(); this.stopForPanel();
+    this.overlay.show({ title: completed ? 'Treino concluído!' : 'Treino encerrado', text: completed ? 'Você pulou, desviou e acertou! Pode visitar o chefão quando quiser.' : 'Sua construção está esperando. Pode treinar outra vez quando quiser.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false },()=>this.startPlaying(),()=>this.showPaused());
+  }
+
+  private confirmFight(sentinel: boolean): void {
+    this.stopForPanel();
+    this.overlay.show({ title: sentinel ? 'Enfrentar o Sentinela?' : 'Enfrentar o Guardião?', text: `Dificuldade ${this.player.gentle ? 'Tranquila' : 'Normal'}. Pule as ondas e saia dos círculos. Quando ele ficar vulnerável, bata!\nDurante a luta, voo e invulnerabilidade ficam desligados. Seus itens e construções são preservados.`, button: 'Enfrentar chefão', secondary: 'Agora não', showControls: false }, () => {
+      this.buildLesson = 0;
+      this.hud.hideHint();
+      this.fightReturn = { position: this.player.position.clone(), spawn: this.player.spawn.clone(), yaw: this.player.yaw, pitch: this.player.pitch, flying: this.player.flying };
+      this.buildHistory.clear();
+      this.fightCreative = this.player.creative;
+      this.setCreative(false);
+      if (sentinel) {
+        this.player.setSpawn(RUIN_STATUE.x + 7.5, this.world.generator.surfaceHeight(RUIN_STATUE.x, RUIN_STATUE.z) + 1, RUIN_STATUE.z + 0.5);
+      } else this.player.setSpawn(ENTRANCE_SPAWN.x, ENTRANCE_SPAWN.y, ENTRANCE_SPAWN.z);
+      this.ensureSafeSpawn(); this.player.respawn();
+      this.player.yaw = sentinel ? Math.PI / 2 : Math.PI;
+      if (sentinel) this.ruin.summon(this.world); else this.arena.summon();
+      this.hud.setObjective('Pule e desvie · bata quando aparecer BATA AGORA!');
+      this.hud.compass.update(false, 0, '');
+      this.sfx.play('summon'); this.startPlaying();
+    }, () => this.startPlaying());
+  }
+
+  private finishFight(): void {
+    this.hud.bossBar.hide();
+    this.hud.hideHint();
+    this.hud.setObjective(null);
+    for (const entity of this.entities.entities) {
+      if (entity !== this.arena.boss && entity !== this.ruin.boss && entity.team === 'boss' && entity.clearedOnDeath) this.entities.remove(entity);
+    }
+    if (this.fightCreative) { this.fightCreative = false; this.setCreative(true); }
+    this.player.health.immune = this.player.creative;
+    this.player.health.invulnerability = 5;
+    if (this.fightReturn) {
+      this.player.flying = this.player.creative && this.fightReturn.flying === true;
+      this.player.spawn.copy(this.fightReturn.spawn);
+      this.fightReturn = null;
+    }
+  }
+
+  private rewardBoss(block: Block): void {
+    if (this.trophies.has(block)) return;
+    this.trophies.add(block);
+    this.player.inventory.add(block, 1);
+    this.player.inventory.add(block === Block.SentinelTrophy ? Block.SentinelBanner : Block.WardenLantern, 8);
+    if (!this.player.creative) { this.player.inventory.add(Block.Glowstone, 16); this.player.inventory.add(Block.Planks, 32); }
+    this.saveSoon = true;
+  }
+
+  private showBossVictory(title: string): void {
+    this.state = 'victory'; this.input.releaseLock(); this.persistSave();
+    this.overlay.show({ title, text: 'Você conseguiu! Seu troféu está nos materiais. Decore sua base ou continue a aventura. A estátua permite lutar de novo.', button: 'Voltar à base', secondary: 'Continuar explorando', showControls: false }, () => {
+      this.goHome();
+      this.startPlaying();
+    }, () => this.startPlaying());
+  }
+
+  private markHome(): void {
+    const p = this.player.position;
+    const floor = this.world.getBlock(Math.floor(p.x), Math.floor(p.y - 0.1), Math.floor(p.z));
+    if (!this.player.body.onGround || !isSolid(floor) || getBlockDef(floor).contactDamage > 0) {
+      this.overlay.show({ title: 'Pouse para marcar sua base', text: 'Escolha um chão firme e desligue o voo com F. Depois marque sua base aqui.', button: 'Voltar ao jogo', showControls: false }, () => this.startPlaying());
+      return;
+    }
+    this.home = { x: p.x, y: p.y, z: p.z };
+    this.player.spawn.copy(p);
+    this.persistSave();
+    this.startPlaying(); this.hud.showHint('Sua base está marcada! Esc: Voltar à base.', 5);
+  }
+
+  private goHome(): void {
+    if (this.arena.active || this.ruin.active || this.practice) return;
+    const home = this.home ?? this.player.spawn;
+    const spawn = this.player.spawn.clone();
+    const flying = this.player.flying;
+    this.player.setSpawn(home.x, home.y, home.z);
+    this.ensureSafeSpawn();
+    this.player.respawn();
+    this.player.spawn.copy(spawn);
+    this.player.flying = this.player.creative && flying;
+    this.player.pitch = 0;
+    this.controller.update(0.0001, this.input);
+  }
+
+  private undoBuild(): void {
+    if (!this.player.creative || this.arena.active || this.ruin.active) return;
+    const ok = this.buildHistory.undo(this.world, (x,y,z) => this.interaction.intersectsPlayer(x,y,z));
+    if (ok && this.buildLesson === 2) this.buildLesson = 1;
+    this.hud.showHint(ok ? 'Última edição desfeita.' : 'Não há edição segura para desfazer. Afaste-se do bloco e tente de novo.', 3);
+  }
+
+  private ensureSafeSpawn(): void {
+    const spawn = this.player.spawn;
+    this.chunks.preload(spawn.x, spawn.z, 2);
+    const safe = (x: number, y: number, z: number): boolean => {
+      const floor = this.world.getBlock(x, y - 1, z);
+      return isSolid(floor) && getBlockDef(floor).contactDamage === 0 &&
+        [0, 1].every(dy => { const id = this.world.getBlock(x, y + dy, z); return !isSolid(id) && getBlockDef(id).contactDamage === 0; });
+    };
+    const sx = Math.floor(spawn.x), sy = Math.floor(spawn.y), sz = Math.floor(spawn.z);
+    for (let radius = 0; radius <= 8; radius++) for (let dy = 0; dy <= 12; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) for (let dz = -radius; dz <= radius; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) continue;
+        for (const y of dy === 0 ? [sy] : [sy + dy, sy - dy]) {
+          if (y < (this.mode === 'oneblock' ? VOID_KILL_Y + 1 : 1) || y > 125) continue;
+          if (safe(sx + dx, y, sz + dz)) { this.player.setSpawn(sx + dx + 0.5, y, sz + dz + 0.5); return; }
+        }
+      }
+    }
+    // Emergency platform above the spawn column; never overwrite an existing block.
+    for (let y = 125; y > 1; y--) if ([0, 1, 2].every(dy => this.world.getBlock(sx, y + dy, sz) === Block.Air)) {
+      this.world.setBlock(sx, y, sz, Block.Cobblestone);
+      this.player.setSpawn(sx + 0.5, y + 1, sz + 0.5); return;
+    }
+  }
+
+  private confirmRecovery(mode: GameMode): void {
+    const previous = loadPreviousSave(mode);
+    if (!previous) return;
+    this.overlay.show({ title: 'Recuperar cópia anterior?', text: `Voltar à cópia de ${modeName(mode)}${previous.updatedAt ? ' salva em ' + new Date(previous.updatedAt).toLocaleString('pt-BR') : ''}? O outro modo continua igual.`, button: 'Recuperar mundo', secondary: 'Cancelar', showControls: false }, () => {
+      if (!saveRun(previous)) { this.hud.showHint('Não foi possível recuperar. Exporte o mundo e libere espaço.', 6); return; }
+      this.applySave(previous); this.startPlaying();
+    }, () => this.showModeMenu(mode));
+  }
+
+  private exportWorld(): void {
+    const run = this.snapshotRun(this.player.dead);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(run)], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = `mineboss-${this.mode}-${this.seed}.json`; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private importWorld(): void {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json,application/json';
+    input.onchange = async () => {
+      const file = input.files?.[0]; if (!file) return;
+      let run: SavedRun | null = null;
+      try { if (file.size <= 20_000_000) run = parseSave(await file.text()); } catch { /* report below */ }
+      if (!run) {
+        this.overlay.show({ title: 'Arquivo inválido', text: 'Seu mundo atual não foi alterado. Escolha uma cópia exportada pelo MineBoss.', button: 'Voltar', showControls: false }, () => this.showMenu()); return;
+      }
+      const imported = run;
+      this.overlay.show({ title: 'Importar mundo?', text: `Este arquivo substitui somente a partida de ${modeName(imported.mode)}. Exporte a partida atual antes se quiser guardá-la.`, button: 'Importar', secondary: 'Cancelar', showControls: false }, () => {
+        if (!saveRun(imported)) { document.getElementById('save-status')!.textContent = '⚠ Importação não salva: armazenamento indisponível.'; return; }
+        this.applySave(imported); this.startPlaying();
+      }, () => this.showMenu());
+    };
+    input.click();
+  }
+
+  private handleOneBlockMined(): void {
+    const result = this.oneBlock.break(this.world, this.player, this.entities);
+    if (result.unlocked === 'ruin') {
+      this.revealStructure(chunkTouchesRuin, RUIN_COURTYARD.centerX, RUIN_COURTYARD.centerZ, RUIN_COURTYARD.radius + 6);
+      this.hud.showHint('Uma ilha apareceu! Siga a bússola até o Sentinela', 4.5);
+    } else if (result.unlocked === 'shrine') {
+      this.revealStructure(
+        (cx, cz) => chunkTouchesArena(cx, cz) || chunkTouchesEntrance(cx, cz),
+        ENTRANCE.x,
+        ENTRANCE.z,
+        36,
+      );
+      this.hud.showHint('O santuário apareceu ao norte! Há um chefão lá embaixo', 4.8);
+    }
+    if (result.spawnedMob) this.sfx.play('roar');
+    this.saveSoon = true;
+  }
+
+  private syncGeneratorUnlocks(): void {
+    this.world.generator.applyUnlocks({
+      ruin: this.mode === 'adventure' || this.oneBlock.ruinUnlocked,
+      shrine: this.mode === 'adventure' || this.oneBlock.shrineUnlocked,
+      cache: this.mode === 'adventure' || this.arena.defeated,
+    });
+  }
+
+  private unlockCacheIsland(): void {
+    if (this.world.generator.cacheUnlocked) return;
+    this.world.generator.cacheUnlocked = true;
+    this.revealStructure(chunkTouchesCache, CACHE.x, CACHE.z, 8);
+  }
+
+  private revealStructure(
+    test: (cx: number, cz: number) => boolean,
+    x: number,
+    z: number,
+    radius: number,
+  ): void {
+    this.syncGeneratorUnlocks();
+    this.chunks.regenerateWhere(test);
+    this.chunks.preload(x, z, Math.max(2, Math.ceil(radius / 16)));
+    this.chunks.preload(this.player.position.x, this.player.position.z, 2);
   }
 
   private readonly resize = (): void => {

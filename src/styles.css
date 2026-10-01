@@ -335,6 +335,16 @@ body {
   text-shadow: 0 1px 3px #000;
 }
 
+#phase-label {
+  position: absolute;
+  left: 16px;
+  top: 34px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  opacity: 0.88;
+  text-shadow: 0 1px 3px #000;
+}
+
 #objective {
   position: absolute;
   left: 50%;
@@ -352,10 +362,13 @@ body {
   opacity: 1;
 }
 
+#mouse-prompt { position: fixed; z-index: 25; top: 35%; left: 50%; transform: translateX(-50%); padding: 20px; text-align: center; background: #182837; border: 2px solid #b3d28b; border-radius: 12px; }
+#mouse-prompt.hidden { display: none; }
+#mouse-activate { min-height: 44px; padding: 10px 24px; font: inherit; font-weight: 700; background: var(--accent); color: #182837; border: 0; border-radius: 8px; cursor: pointer; }
 #hint {
   position: absolute;
   left: 50%;
-  top: 58%;
+  top: 64%;
   transform: translateX(-50%);
   font-size: 15px;
   letter-spacing: 1px;
@@ -446,8 +459,7 @@ body {
   gap: 10px;
 }
 
-#overlay-button,
-#overlay-secondary {
+#overlay-actions button {
   padding: 12px 28px;
   font-family: inherit;
   font-size: 15px;
@@ -470,7 +482,7 @@ body {
   transform: translateY(-1px);
 }
 
-#overlay-secondary {
+#overlay-actions button:not(#overlay-button) {
   color: #f2f4f8;
   background: transparent;
   border: 1px solid var(--panel-border);
@@ -549,3 +561,31 @@ kbd {
   border-bottom-width: 2px;
   border-radius: 3px;
 }
+
+/* Large, readable choices for building and family play. */
+#overlay-panel { max-height: 92vh; overflow-y: auto; }
+.play-extras { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.play-extras:empty { display: none; }
+.play-extras button { min-height: 44px; padding: 10px 14px; font: inherit; color: #fff; background: #25394c; border: 2px solid #6e94a5; border-radius: 8px; cursor: pointer; }
+.play-extras button:hover, .play-extras button:focus-visible { background: #3e6170; outline: 2px solid #f4d477; }
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 12px; width: 100%; }
+.recipe-grid button { width: 100%; }
+.recipe-grid button:disabled { opacity: .55; cursor: default; }
+.block-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 10px; width: 100%; }
+.block-grid button { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.block-grid button[aria-pressed='true'] { border-color: #ffe08a; background: #456052; }
+.block-grid canvas { image-rendering: pixelated; }
+#save-status { position: fixed; right: 16px; top: 12px; z-index: 20; font-size: 12px; color: #c5e8d4; pointer-events: none; text-shadow: 0 1px 3px #000; }
+#flight-status { position: absolute; left: 16px; top: 80px; font-size: 13px; max-width: 280px; text-shadow: 0 1px 3px #000; color: #aeddff; }
+#build-lesson { position: absolute; left: 16px; top: 135px; display: flex; align-items: center; gap: 12px; padding: 12px; max-width: 260px; background: #16212ddb; border-radius: 10px; }
+#build-lesson svg { flex: 0 0 42px; width: 42px; }
+#build-lesson .left-button, #build-lesson .right-button { fill: #263c4c; }
+#build-lesson[data-step='1'] .right-button, #build-lesson[data-step='2'] .left-button { fill: #ffb347; }
+#play-help { position: absolute; left: 16px; top: 55px; font-size: 13px; max-width: 280px; text-shadow: 0 1px 3px #000; }
+#action-label { position: absolute; top: 54%; left: 50%; transform: translateX(-50%); text-shadow: 0 1px 3px #000; text-align: center; }
+
+#overlay-panel:has(.play-extras:not(:empty)) { width: min(760px, 94vw); max-width: 94vw; }
+#overlay-panel:has(.play-extras:not(:empty)) .title { font-size: 30px; letter-spacing: 3px; margin: 0 0 14px; }
+#overlay-panel:has(.play-extras:not(:empty)) #overlay-actions { flex-direction: row; justify-content: center; flex-wrap: wrap; }
+#overlay-panel:has(.block-grid) { padding: 24px; }
+#overlay-panel:has(.block-grid) #overlay-text { margin-bottom: 16px; }

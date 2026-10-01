@@ -9,6 +9,7 @@ export interface ShockwaveOptions {
   damage: number;
   knockback: number;
   color?: number;
+  onPass?: (jumped: boolean) => void;
 }
 
 /** Expanding ground ring. Jumping over the crest avoids the hit. */
@@ -58,9 +59,10 @@ export class Shockwave extends Entity {
     );
     const grounded = player.position.y < this.position.y + 1.2 && player.body.onGround;
 
-    if (Math.abs(distance - this.radius) < 1.3 && grounded) {
+    if (Math.abs(distance - this.radius) < 1.3) {
       this.hitPlayerAlready = true;
-      hitPlayer(player, this.options.damage, this.position, this.options.knockback);
+      this.options.onPass?.(!grounded);
+      if (grounded) hitPlayer(player, this.options.damage, this.position, this.options.knockback);
     }
   }
 

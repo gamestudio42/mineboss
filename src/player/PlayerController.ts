@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Input } from '../core/Input.ts';
 import { BASE_LOOK_SENSITIVITY } from '../core/Settings.ts';
 import { clamp, damp } from '../core/math.ts';
-import { getBlockDef, isWater } from '../world/blocks.ts';
+import { getBlockDef, isWater, isSolid } from '../world/blocks.ts';
 import type { World } from '../world/World.ts';
 import type { Player } from './Player.ts';
 
@@ -11,7 +11,8 @@ const PITCH_LIMIT = Math.PI / 2 - 0.001;
 
 const WALK_SPEED = 4.6;
 const SPRINT_SPEED = 6.4;
-const FLY_SPEED = 14;
+const FLY_SPEED = 6;
+const FAST_FLY_SPEED = 14;
 const GROUND_ACCELERATION = 45;
 const AIR_ACCELERATION = 9;
 const GRAVITY = 28;
@@ -55,7 +56,7 @@ export class PlayerController {
   update(dt: number, input: Input): void {
     const player = this.player;
 
-    if (input.wasPressed('KeyF')) {
+    if (player.creative && input.wasPressed('KeyF')) {
       player.flying = !player.flying;
       player.velocity.y = 0;
     }
@@ -74,7 +75,7 @@ export class PlayerController {
 
     const swimming = !player.flying && this.bodyInWater();
     player.swimming = swimming;
-    const speed = player.flying ? FLY_SPEED : swimming ? SWIM_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
+    const speed = player.flying ? (input.isDown('ShiftLeft') ? FAST_FLY_SPEED : FLY_SPEED) : swimming ? SWIM_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
     const targetX = wishLength > 0 ? (wishX / wishLength) * speed : 0;
     const targetZ = wishLength > 0 ? (wishZ / wishLength) * speed : 0;
 
@@ -85,7 +86,7 @@ export class PlayerController {
 
     if (player.flying) {
       const lift = (input.isDown('Space') ? 1 : 0) - (input.isDown('ControlLeft') ? 1 : 0);
-      player.velocity.y = damp(player.velocity.y, lift * FLY_SPEED, 12, dt);
+      player.velocity.y = damp(player.velocity.y, lift * speed, 12, dt);
     } else if (swimming) {
       const lift = (input.isDown('Space') ? 1 : 0) - (input.isDown('ShiftLeft') || input.isDown('ControlLeft') ? 1 : 0);
       player.velocity.y = damp(player.velocity.y, lift * SWIM_LIFT - 1.2, 8, dt);
@@ -101,6 +102,19 @@ export class PlayerController {
     const wasAirborne = !player.body.onGround;
     const peakBefore = player.body.fallPeak;
 
+    if (player.edgeProtection && player.body.onGround && !player.flying && player.velocity.y <= 0) {
+      const supported = (x: number, z: number): boolean => {
+        for (const dx of [-0.25, 0.25]) for (const dz of [-0.25, 0.25]) {
+          const id = this.world.getBlock(Math.floor(x + dx), Math.floor(player.position.y - 0.1), Math.floor(z + dz));
+          if (isSolid(id) && getBlockDef(id).contactDamage === 0) return true;
+        }
+        return false;
+      };
+      const nx = player.position.x + player.velocity.x * dt;
+      const nz = player.position.z + player.velocity.z * dt;
+      if (!supported(nx, player.position.z)) player.velocity.x = 0;
+      if (!supported(player.position.x + player.velocity.x * dt, nz)) player.velocity.z = 0;
+    }
     player.body.move(this.world, dt);
 
     if (swimming) player.body.fallPeak = player.position.y;

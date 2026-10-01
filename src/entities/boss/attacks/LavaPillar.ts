@@ -42,7 +42,7 @@ export class LavaPillar extends Entity {
   }
 
   override update(context: EntityContext): void {
-    this.timer += context.dt;
+    this.timer += context.dt * (context.player.gentle ? 0.65 : 1);
 
     if (this.timer < WARN_TIME) {
       this.telegraph.setProgress(this.timer / WARN_TIME);

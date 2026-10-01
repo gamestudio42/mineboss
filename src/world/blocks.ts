@@ -30,6 +30,19 @@ export enum Block {
   Bed = 23,
   BirchLog = 24,
   BirchLeaves = 25,
+  SentinelTrophy = 26,
+  WardenTrophy = 27,
+  White = 28,
+  Red = 29,
+  Orange = 30,
+  Yellow = 31,
+  Green = 32,
+  Blue = 33,
+  Purple = 34,
+  Pink = 35,
+  Glass = 36,
+  SentinelBanner = 37,
+  WardenLantern = 38,
 }
 
 export enum Tile {
@@ -64,6 +77,19 @@ export enum Tile {
   BirchLogSide = 28,
   BirchLogTop = 29,
   BirchLeaves = 30,
+  White = 31,
+  Red = 32,
+  Orange = 33,
+  Yellow = 34,
+  Green = 35,
+  Blue = 36,
+  Purple = 37,
+  Pink = 38,
+  Glass = 39,
+  SentinelTrophy = 40,
+  WardenTrophy = 41,
+  SentinelBanner = 42,
+  WardenLantern = 43,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -112,48 +138,48 @@ function def(
 }
 
 export const BLOCKS: readonly BlockDef[] = [
-  def(Block.Air, 'Air', [Tile.Stone, Tile.Stone, Tile.Stone], {
+  def(Block.Air, 'Ar', [Tile.Stone, Tile.Stone, Tile.Stone], {
     opaque: false,
     solid: false,
     hardness: Infinity,
     drop: null,
   }),
-  def(Block.Stone, 'Stone', [Tile.Stone, Tile.Stone, Tile.Stone], {
+  def(Block.Stone, 'Pedra', [Tile.Stone, Tile.Stone, Tile.Stone], {
     hardness: 0.45,
     drop: Block.Cobblestone,
   }),
-  def(Block.Dirt, 'Dirt', [Tile.Dirt, Tile.Dirt, Tile.Dirt], { hardness: 0.25 }),
-  def(Block.Grass, 'Grass Block', [Tile.GrassTop, Tile.GrassSide, Tile.Dirt], {
+  def(Block.Dirt, 'Terra', [Tile.Dirt, Tile.Dirt, Tile.Dirt], { hardness: 0.25 }),
+  def(Block.Grass, 'Grama', [Tile.GrassTop, Tile.GrassSide, Tile.Dirt], {
     hardness: 0.28,
     drop: Block.Dirt,
   }),
-  def(Block.Sand, 'Sand', [Tile.Sand, Tile.Sand, Tile.Sand], { hardness: 0.2 }),
-  def(Block.Gravel, 'Gravel', [Tile.Gravel, Tile.Gravel, Tile.Gravel], { hardness: 0.25 }),
-  def(Block.Cobblestone, 'Cobblestone', [Tile.Cobblestone, Tile.Cobblestone, Tile.Cobblestone], {
+  def(Block.Sand, 'Areia', [Tile.Sand, Tile.Sand, Tile.Sand], { hardness: 0.2 }),
+  def(Block.Gravel, 'Cascalho', [Tile.Gravel, Tile.Gravel, Tile.Gravel], { hardness: 0.25 }),
+  def(Block.Cobblestone, 'Pedregulho', [Tile.Cobblestone, Tile.Cobblestone, Tile.Cobblestone], {
     hardness: 0.5,
   }),
-  def(Block.Log, 'Log', [Tile.LogTop, Tile.LogSide, Tile.LogTop], { hardness: 0.55 }),
-  def(Block.Leaves, 'Leaves', [Tile.Leaves, Tile.Leaves, Tile.Leaves], {
+  def(Block.Log, 'Tronco', [Tile.LogTop, Tile.LogSide, Tile.LogTop], { hardness: 0.55 }),
+  def(Block.Leaves, 'Folhas', [Tile.Leaves, Tile.Leaves, Tile.Leaves], {
     hardness: 0.12,
     drop: null,
   }),
-  def(Block.BirchLog, 'Birch Log', [Tile.BirchLogTop, Tile.BirchLogSide, Tile.BirchLogTop], {
+  def(Block.BirchLog, 'Tronco de bétula', [Tile.BirchLogTop, Tile.BirchLogSide, Tile.BirchLogTop], {
     hardness: 0.5,
   }),
-  def(Block.BirchLeaves, 'Birch Leaves', [Tile.BirchLeaves, Tile.BirchLeaves, Tile.BirchLeaves], {
+  def(Block.BirchLeaves, 'Folhas de bétula', [Tile.BirchLeaves, Tile.BirchLeaves, Tile.BirchLeaves], {
     hardness: 0.1,
     drop: null,
   }),
-  def(Block.Planks, 'Planks', [Tile.Planks, Tile.Planks, Tile.Planks], { hardness: 0.4 }),
-  def(Block.CoalOre, 'Coal Ore', [Tile.CoalOre, Tile.CoalOre, Tile.CoalOre], { hardness: 0.7 }),
-  def(Block.IronOre, 'Iron Ore', [Tile.IronOre, Tile.IronOre, Tile.IronOre], { hardness: 0.85 }),
-  def(Block.GoldOre, 'Gold Ore', [Tile.GoldOre, Tile.GoldOre, Tile.GoldOre], { hardness: 0.95 }),
-  def(Block.CrystalOre, 'Crystal Ore', [Tile.CrystalOre, Tile.CrystalOre, Tile.CrystalOre], {
+  def(Block.Planks, 'Tábuas', [Tile.Planks, Tile.Planks, Tile.Planks], { hardness: 0.4 }),
+  def(Block.CoalOre, 'Carvão', [Tile.CoalOre, Tile.CoalOre, Tile.CoalOre], { hardness: 0.7 }),
+  def(Block.IronOre, 'Ferro', [Tile.IronOre, Tile.IronOre, Tile.IronOre], { hardness: 0.85 }),
+  def(Block.GoldOre, 'Ouro', [Tile.GoldOre, Tile.GoldOre, Tile.GoldOre], { hardness: 0.95 }),
+  def(Block.CrystalOre, 'Cristal', [Tile.CrystalOre, Tile.CrystalOre, Tile.CrystalOre], {
     hardness: 1.1,
     glow: 0.35,
     heal: 8,
   }),
-  def(Block.Bedrock, 'Bedrock', [Tile.Bedrock, Tile.Bedrock, Tile.Bedrock], {
+  def(Block.Bedrock, 'Rocha inquebrável', [Tile.Bedrock, Tile.Bedrock, Tile.Bedrock], {
     hardness: Infinity,
     drop: null,
   }),
@@ -163,41 +189,54 @@ export const BLOCKS: readonly BlockDef[] = [
     glow: 0.85,
     drop: null,
   }),
-  def(Block.Obsidian, 'Obsidian', [Tile.Obsidian, Tile.Obsidian, Tile.Obsidian], {
+  def(Block.Obsidian, 'Obsidiana', [Tile.Obsidian, Tile.Obsidian, Tile.Obsidian], {
     hardness: 3.2,
   }),
-  def(Block.RunicStone, 'Runic Stone', [Tile.RunicTop, Tile.RunicSide, Tile.DarkBrick], {
+  def(Block.RunicStone, 'Pedra rúnica', [Tile.RunicTop, Tile.RunicSide, Tile.DarkBrick], {
     hardness: 2.4,
     glow: 0.4,
   }),
-  def(Block.DarkBrick, 'Dark Brick', [Tile.DarkBrick, Tile.DarkBrick, Tile.DarkBrick], {
+  def(Block.DarkBrick, 'Tijolos escuros', [Tile.DarkBrick, Tile.DarkBrick, Tile.DarkBrick], {
     hardness: 1.4,
   }),
-  def(Block.Glowstone, 'Glowstone', [Tile.Glowstone, Tile.Glowstone, Tile.Glowstone], {
+  def(Block.Glowstone, 'Pedra luminosa', [Tile.Glowstone, Tile.Glowstone, Tile.Glowstone], {
     hardness: 0.4,
     glow: 1,
   }),
-  def(Block.Mushroom, 'Mushroom', [Tile.Mushroom, Tile.Mushroom, Tile.Mushroom], {
+  def(Block.Mushroom, 'Cogumelo', [Tile.Mushroom, Tile.Mushroom, Tile.Mushroom], {
     hardness: 0.08,
     solid: false,
     heal: 4,
   }),
-  def(Block.Torch, 'Torch', [Tile.TorchFlame, Tile.Torch, Tile.Torch], {
+  def(Block.Torch, 'Tocha', [Tile.TorchFlame, Tile.Torch, Tile.Torch], {
     hardness: 0.08,
     opaque: false,
     solid: false,
     glow: 0.95,
   }),
-  def(Block.Water, 'Water', [Tile.Water, Tile.Water, Tile.Water], {
+  def(Block.Water, 'Água', [Tile.Water, Tile.Water, Tile.Water], {
     hardness: Infinity,
     opaque: false,
     solid: false,
     drop: null,
   }),
-  def(Block.Bed, 'Bedroll', [Tile.Bed, Tile.BedEnd, Tile.Bed], {
+  def(Block.Bed, 'Cama', [Tile.Bed, Tile.BedEnd, Tile.Bed], {
     hardness: 0.12,
   }),
-];
+  def(Block.SentinelTrophy, 'Troféu do Sentinela', [Tile.SentinelTrophy, Tile.SentinelTrophy, Tile.DarkBrick], { glow: 0.5 }),
+  def(Block.WardenTrophy, 'Troféu do Guardião', [Tile.WardenTrophy, Tile.WardenTrophy, Tile.DarkBrick], { glow: 0.7 }),
+  def(Block.White, 'Branco', [Tile.White, Tile.White, Tile.White], { hardness: 0.25 }),
+  def(Block.Red, 'Vermelho', [Tile.Red, Tile.Red, Tile.Red], { hardness: 0.25 }),
+  def(Block.Orange, 'Laranja', [Tile.Orange, Tile.Orange, Tile.Orange], { hardness: 0.25 }),
+  def(Block.Yellow, 'Amarelo', [Tile.Yellow, Tile.Yellow, Tile.Yellow], { hardness: 0.25 }),
+  def(Block.Green, 'Verde', [Tile.Green, Tile.Green, Tile.Green], { hardness: 0.25 }),
+  def(Block.Blue, 'Azul', [Tile.Blue, Tile.Blue, Tile.Blue], { hardness: 0.25 }),
+  def(Block.Purple, 'Roxo', [Tile.Purple, Tile.Purple, Tile.Purple], { hardness: 0.25 }),
+  def(Block.Pink, 'Rosa', [Tile.Pink, Tile.Pink, Tile.Pink], { hardness: 0.25 }),
+  def(Block.Glass, 'Vidro', [Tile.Glass, Tile.Glass, Tile.Glass], { opaque: false, hardness: 0.2 }),
+  def(Block.SentinelBanner, 'Emblema do Sentinela', [Tile.SentinelBanner, Tile.SentinelBanner, Tile.DarkBrick], { glow: 0.3 }),
+  def(Block.WardenLantern, 'Lanterna do Guardião', [Tile.WardenLantern, Tile.WardenLantern, Tile.DarkBrick], { glow: 1 }),
+].sort((a, b) => a.id - b.id);
 
 const BLOCK_COUNT = BLOCKS.length;
 

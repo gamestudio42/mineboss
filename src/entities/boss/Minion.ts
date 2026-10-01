@@ -16,33 +16,48 @@ const ATTACK_DAMAGE = 4;
 const ATTACK_COOLDOWN = 1.1;
 const LIFETIME = 45;
 
+export interface MinionOptions {
+  lifetime?: number;
+  color?: number;
+  headColor?: number;
+  eyeColor?: number;
+  health?: number;
+  clearedOnDeath?: boolean;
+}
+
 /** Small golem summoned by the boss: walks at the player and punches. */
 export class Minion extends Entity {
   private cooldown = 0;
-  private life = LIFETIME;
+  private life: number;
   private readonly body3D: THREE.Group;
 
-  constructor(x: number, y: number, z: number) {
+  constructor(x: number, y: number, z: number, options: MinionOptions = {}) {
     super(0.9, 1.7, 'boss', 1.1);
     this.position.set(x, y, z);
-    this.health = new Health(18, 0.2);
+    this.life = options.lifetime ?? LIFETIME;
+    this.clearedOnDeath = options.clearedOnDeath ?? true;
+    this.health = new Health(options.health ?? 18, 0.2);
+
+    const body = options.color ?? 0x4b4459;
+    const headColor = options.headColor ?? (options.color !== undefined ? body - 0x111111 : 0x3a3446);
+    const eyeColor = options.eyeColor ?? 0xff8a3c;
 
     this.body3D = new THREE.Group();
     const torso = new THREE.Mesh(
       new THREE.BoxGeometry(0.9, 1.1, 0.7),
-      new THREE.MeshLambertMaterial({ color: 0x4b4459, flatShading: true }),
+      new THREE.MeshLambertMaterial({ color: body, flatShading: true }),
     );
     torso.position.y = 1.1;
 
     const head = new THREE.Mesh(
       new THREE.BoxGeometry(0.6, 0.5, 0.6),
-      new THREE.MeshLambertMaterial({ color: 0x3a3446, flatShading: true }),
+      new THREE.MeshLambertMaterial({ color: headColor, flatShading: true }),
     );
     head.position.y = 1.9;
 
     const eye = new THREE.Mesh(
       new THREE.BoxGeometry(0.42, 0.1, 0.05),
-      new THREE.MeshBasicMaterial({ color: 0xff8a3c }),
+      new THREE.MeshBasicMaterial({ color: eyeColor }),
     );
     eye.position.set(0, 1.92, 0.31);
 

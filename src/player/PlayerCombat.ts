@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import type { World } from '../world/World.ts';
+import { raycastVoxels } from '../world/raycast.ts';
 import type { Sfx } from '../audio/Sfx.ts';
 import { hitEntity } from '../combat/DamageSystem.ts';
 import type { Entity } from '../entities/Entity.ts';
@@ -18,6 +20,7 @@ const KNOCKBACK = 4.5;
 /** Melee swings against entities; block mining lives in BlockInteraction. */
 export class PlayerCombat {
   aimed: Entity | null = null;
+  onHit: ((vulnerable: boolean) => void) | null = null;
 
   private cooldown = 0;
   private readonly origin = new THREE.Vector3();
@@ -29,6 +32,7 @@ export class PlayerCombat {
     private readonly entities: EntityManager,
     private readonly particles: ParticleSystem,
     private readonly sfx: Sfx,
+    private readonly world?: World,
   ) {}
 
   update(dt: number, input: Input): void {
@@ -39,9 +43,10 @@ export class PlayerCombat {
     this.player.getForward(this.direction);
 
     const hit = this.entities.raycast(this.origin, this.direction, ATTACK_REACH, 'boss');
-    this.aimed = hit?.entity ?? null;
+    const wall = this.world ? raycastVoxels(this.world, this.origin, this.direction, ATTACK_REACH) : null;
+    this.aimed = hit && (!wall || wall.distance >= hit.distance) ? hit.entity : null;
 
-    if (!this.aimed || !input.isMouseDown(0) || this.cooldown > 0) return;
+    if (!this.aimed || !(input.isMouseDown(0) || input.wasMousePressed(0)) || this.cooldown > 0) return;
 
     this.cooldown = ATTACK_COOLDOWN;
     this.player.startSwing();
@@ -59,6 +64,7 @@ export class PlayerCombat {
     this.aimed.hitFlash();
     this.aimed.getCenter(this.impact);
     const staggered = this.aimed.damageMultiplier > 1;
+    this.onHit?.(staggered);
     this.particles.burst(this.impact, {
       count: staggered ? 20 : critical ? 14 : 8,
       color: staggered ? 0xe9d5ff : critical ? 0xffe08a : 0xff6a4a,

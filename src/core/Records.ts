@@ -15,8 +15,8 @@ export function formatRunLine(record: RunRecord): string {
   const seconds = Math.floor(record.elapsed % 60)
     .toString()
     .padStart(2, '0');
-  const deathLabel = record.deaths === 1 ? '1 death' : `${record.deaths} deaths`;
-  const blockLabel = record.blocksMined === 1 ? '1 block mined' : `${record.blocksMined} blocks mined`;
+  const deathLabel = record.deaths === 1 ? '1 tentativa' : `${record.deaths} tentativas`;
+  const blockLabel = record.blocksMined === 1 ? '1 bloco coletado' : `${record.blocksMined} blocos coletados`;
   const gear =
     record.plates === PlateTier.None
       ? HAMMER[record.hammer].name
@@ -31,9 +31,9 @@ export function isBetterRun(next: RunRecord, best: RunRecord): boolean {
   return next.blocksMined > best.blocksMined;
 }
 
-export function loadBestRun(): RunRecord | null {
+export function loadBestRun(category = 'adventure-normal'): RunRecord | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(`${STORAGE_KEY}.${category}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<RunRecord>;
     if (typeof parsed.elapsed !== 'number' || typeof parsed.deaths !== 'number') return null;
@@ -54,19 +54,19 @@ export function loadBestRun(): RunRecord | null {
   }
 }
 
-export function saveBestRun(record: RunRecord): void {
+export function saveBestRun(record: RunRecord, category = 'adventure-normal'): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+    localStorage.setItem(`${STORAGE_KEY}.${category}`, JSON.stringify(record));
   } catch {
     // Private mode or a full quota should not break the game.
   }
 }
 
 /** Writes the run if it beats the stored best. Returns the best after the check. */
-export function recordRun(record: RunRecord): { best: RunRecord; isNewBest: boolean } {
-  const previous = loadBestRun();
+export function recordRun(record: RunRecord, category = 'adventure-normal'): { best: RunRecord; isNewBest: boolean } {
+  const previous = loadBestRun(category);
   if (!previous || isBetterRun(record, previous)) {
-    saveBestRun(record);
+    saveBestRun(record, category);
     return { best: record, isNewBest: true };
   }
   return { best: previous, isNewBest: false };

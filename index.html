@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,19 +11,20 @@
     <div id="app">
       <canvas id="viewport"></canvas>
 
-      <div id="hud" class="hidden">
+      <div id="mouse-prompt" class="hidden"><p>Clique para olhar e brincar</p><button id="mouse-activate" type="button">Ativar mouse</button></div>
+    <div id="hud" class="hidden">
         <div id="water-veil"></div>
         <div id="crosshair"></div>
 
         <div id="boss-bar" class="hidden">
-          <div class="boss-bar-name">The Deep Warden</div>
+          <div class="boss-bar-name">Guardião das Profundezas</div>
           <div class="boss-bar-track">
             <div class="boss-bar-chip"></div>
             <div class="boss-bar-fill"></div>
           </div>
           <div class="boss-bar-status">
-            <div class="boss-bar-phase">Phase I</div>
-            <div class="boss-bar-vulnerable hidden">VULNERABLE</div>
+            <div class="boss-bar-phase">Fase I</div>
+            <div class="boss-bar-vulnerable hidden">BATA AGORA!</div>
           </div>
         </div>
 
@@ -36,7 +37,12 @@
 
         <div id="objective"></div>
         <div id="seed-label"></div>
+        <div id="phase-label"></div>
         <div id="hint"></div>
+        <div id="flight-status"></div>
+        <div id="build-lesson" class="hidden"><svg viewBox="0 0 60 80" aria-label="Botões do mouse"><rect x="8" y="3" width="44" height="72" rx="22" fill="#263c4c" stroke="white" stroke-width="3"/><path class="left-button" d="M30 4 C14 4 9 14 9 32 H30 Z"/><path class="right-button" d="M30 4 C46 4 51 14 51 32 H30 Z"/><path d="M30 4 V35 M9 33 H51" fill="none" stroke="white" stroke-width="2"/></svg><span></span></div>
+        <div id="play-help">B: blocos e mochila · H: ajuda · Esc: menu</div>
+        <div id="action-label"></div>
 
         <div id="bottom-bar">
           <div id="health"></div>
@@ -50,17 +56,18 @@
         <div id="debug" class="hidden"></div>
       </div>
 
+      <div id="save-status" role="status" aria-live="polite"></div>
       <div id="damage-flash"></div>
 
       <div id="overlay">
         <div id="overlay-panel">
           <h1 class="title">MINEBOSS</h1>
           <p id="overlay-text">
-            Follow the shrine, descend the stairs and wake what sleeps beneath.
+            Construa seu mundo e enfrente chefões quando quiser.
           </p>
           <div id="overlay-actions">
-            <button id="overlay-button" type="button">Click to play</button>
-            <button id="overlay-secondary" class="hidden" type="button">New game</button>
+            <button id="overlay-button" type="button">Jogar</button>
+            <button id="overlay-secondary" class="hidden" type="button">Nova partida</button>
           </div>
           <div id="settings" class="hidden">
             <label class="setting">
@@ -69,21 +76,23 @@
             </label>
             <label class="setting setting-check">
               <input id="setting-mute" type="checkbox" />
-              <span>Mute</span>
+              <span>Sem som</span>
             </label>
             <label class="setting">
-              <span>Look sensitivity <strong id="setting-sensitivity-value">1.0×</strong></span>
+              <span>Sensibilidade do mouse <strong id="setting-sensitivity-value">1.0×</strong></span>
               <input id="setting-sensitivity" type="range" min="40" max="220" value="100" />
             </label>
           </div>
           <ul id="controls">
-            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</li>
-            <li><kbd>Space</kbd> jump / swim up &middot; <kbd>Shift</kbd> sprint / sink</li>
-            <li><kbd>Left click</kbd> mine / attack</li>
-            <li><kbd>Right click</kbd> place, eat, smith, craft, rest or activate the statue / altar</li>
-            <li><kbd>1</kbd>&hellip;<kbd>9</kbd> or wheel: select slot</li>
-            <li><kbd>Q</kbd> toss the selected block</li>
-            <li><kbd>Esc</kbd> pause</li>
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> andar</li>
+            <li><kbd>Space</kbd> pular / nadar para cima &middot; <kbd>Shift</kbd> correr / mergulhar</li>
+            <li><kbd>Botão esquerdo</kbd> remover / atacar</li>
+            <li><kbd>Botão direito</kbd> colocar / usar / enfrentar chefão</li>
+            <li><kbd>1</kbd>&hellip;<kbd>9</kbd> ou roda do mouse: escolher material</li>
+            <li><kbd>Q</kbd> soltar um bloco</li>
+            <li><kbd>B</kbd> blocos e mochila · <kbd>H</kbd> ajuda</li>
+            <li><kbd>F</kbd> voo na construção livre · <kbd>Ctrl</kbd> descer</li>
+            <li><kbd>Esc</kbd> menu</li>
           </ul>
         </div>
       </div>

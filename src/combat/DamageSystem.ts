@@ -57,7 +57,7 @@ export function hitPlayer(
   knockback: number,
 ): boolean {
   const reduction = player.armor;
-  if (!player.health.damage(amount * (1 - reduction))) return false;
+  if (!player.health.damage(amount * (player.gentle ? 0.45 : 1) * (1 - reduction))) return false;
   if (reduction > 0) player.onPlateAbsorb?.(amount * reduction);
   if (from && knockback > 0) applyKnockback(player.body, from, knockback);
   return true;
@@ -96,7 +96,7 @@ export function blastTerrain(options: BlastOptions): void {
         if (distance > radius) continue;
 
         const block = world.getBlock(x, y, z);
-        if (block === Block.Air) continue;
+        if (block === Block.Air || world.edits.has(`${x},${y},${z}`)) continue;
         if (y <= ARENA.floorY) continue;
         if (block === Block.Glowstone && isInsideArena(x + 0.5, y + 0.5, z + 0.5)) continue;
         if (getBlockDef(block).hardness > DESTRUCTIBLE_HARDNESS) continue;

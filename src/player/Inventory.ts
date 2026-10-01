@@ -16,6 +16,9 @@ export class Inventory {
   }));
 
   selected = 0;
+  unlimited = false;
+  readonly reserve = new Map<Block, number>();
+  onOverflow: (() => void) | null = null;
 
   get selectedSlot(): Slot {
     return this.slots[this.selected];
@@ -50,7 +53,11 @@ export class Inventory {
       remaining -= slot.count;
     }
 
-    return remaining;
+    if (remaining > 0) {
+      this.reserve.set(block, (this.reserve.get(block) ?? 0) + remaining);
+      this.onOverflow?.();
+    }
+    return 0;
   }
 
   takeSelected(count = 1): Block | null {
@@ -58,16 +65,50 @@ export class Inventory {
     if (slot.block === null || slot.count < count) return null;
 
     const block = slot.block;
+    if (this.unlimited) return block;
     slot.count -= count;
     if (slot.count <= 0) slot.block = null;
     return block;
   }
 
+  count(block: Block): number {
+    return this.slots.reduce((sum, slot) => sum + (slot.block === block ? slot.count : 0), 0) + (this.reserve.get(block) ?? 0);
+  }
+
+  /** Check the entire cost first, then consume across hotbar and reserve. */
+  remove(block: Block, count: number): boolean {
+    if (!Number.isSafeInteger(count) || count <= 0 || this.count(block) < count) return false;
+    let remaining = count;
+    for (const slot of this.slots) {
+      if (slot.block !== block) continue;
+      const taken = Math.min(slot.count, remaining);
+      slot.count -= taken; remaining -= taken;
+      if (!slot.count) slot.block = null;
+      if (!remaining) return true;
+    }
+    const rest = (this.reserve.get(block) ?? 0) - remaining;
+    if (rest > 0) this.reserve.set(block, rest); else this.reserve.delete(block);
+    return true;
+  }
+
   clear(): void {
+    this.reserve.clear();
     for (const slot of this.slots) {
       slot.block = null;
       slot.count = 0;
     }
+  }
+
+  equipReserve(block: Block): void {
+    const count = this.reserve.get(block) ?? 0;
+    if (!count) return;
+    const slot = this.selectedSlot;
+    const old = { ...slot };
+    this.reserve.delete(block);
+    slot.block = block;
+    slot.count = Math.min(STACK_SIZE, count);
+    if (count > STACK_SIZE) this.reserve.set(block, count - STACK_SIZE);
+    if (old.block !== null && old.count > 0) this.reserve.set(old.block, (this.reserve.get(old.block) ?? 0) + old.count);
   }
 
   load(slots: Array<{ block: Block | null; count: number }>, selected: number): void {

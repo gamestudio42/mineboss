@@ -1,18 +1,12 @@
 import {
   HAMMER,
   HammerTier,
-  PLATE_COST,
   PLATES,
   PlateTier,
-  UPGRADE_COST,
-  platesFrom,
-  upgradeFrom,
 } from '../player/Hammer.ts';
 import type { Inventory } from '../player/Inventory.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import {
-  PLANKS_PER_BED,
-  TORCHES_PER_COAL,
   getBlockDef,
   isBed,
   isBedMaterial,
@@ -44,31 +38,14 @@ function requireElement(id: string): HTMLElement {
   return element;
 }
 
-function slotHint(block: number | null, count: number, tier: HammerTier, plates: PlateTier): string {
+function slotHint(block: number | null, count: number): string {
   if (block === null || count <= 0) return '';
-
   const name = getBlockDef(block).name;
-  if (isConsumable(block)) return `${name} — right click to eat`;
-  if (isTorchFuel(block)) return `${name} — right click: ${TORCHES_PER_COAL} torches`;
-  if (isBed(block)) return `${name} — place, then right click to rest`;
-  if (isBedMaterial(block)) {
-    return `${name} — place, or look at air: ${PLANKS_PER_BED} for a bedroll`;
-  }
-
-  const next = upgradeFrom(block);
-  if (next !== null) {
-    if (tier >= next) {
-      const plate = platesFrom(block);
-      if (plate !== null) {
-        if (plates >= plate) return `${name} — already ${PLATES[plates].name.toLowerCase()}`;
-        return `${name} — ${PLATE_COST} to smith ${PLATES[plate].name}`;
-      }
-      return `${name} — already ${HAMMER[tier].name.toLowerCase()}`;
-    }
-    return `${name} — ${UPGRADE_COST} to smith ${HAMMER[next].name}`;
-  }
-
-  return `${name} — right click to place · Q to toss`;
+  if (isConsumable(block)) return name + ' · direito: comer';
+  if (isBed(block)) return name + ' · coloque e clique para descansar';
+  if (isTorchFuel(block) || block === 11 || block === 12) return name + ' · C: criar itens';
+  if (isBedMaterial(block)) return name + ' · direito: colocar · C: criar cama';
+  return name + ' · direito: colocar';
 }
 
 /** All in-game HUD widgets: hearts, hotbar, hint line, boss bar and debug. */
@@ -84,6 +61,7 @@ export class Hud {
   private readonly hammerRoot = requireElement('hammer-label');
   private readonly slotHintRoot = requireElement('slot-hint');
   private readonly seedRoot = requireElement('seed-label');
+  private readonly phaseRoot = requireElement('phase-label');
   private readonly waterVeil = requireElement('water-veil');
   private readonly crosshair = requireElement('crosshair');
   private readonly flash = requireElement('damage-flash');
@@ -180,8 +158,12 @@ export class Hud {
   }
 
   setSeed(seed: number): void {
-    const label = `Seed ${seed}`;
+    const label = `Mundo ${seed}`;
     if (this.seedRoot.textContent !== label) this.seedRoot.textContent = label;
+  }
+
+  setPhase(label: string): void {
+    if (this.phaseRoot.textContent !== label) this.phaseRoot.textContent = label;
   }
 
   setObjective(text: string | null): void {
@@ -204,7 +186,7 @@ export class Hud {
     }
 
     const slot = inventory.selectedSlot;
-    const hint = slotHint(slot.block, slot.count, hammerTier, plates);
+    const hint = inventory.unlimited && slot.block !== null ? `${getBlockDef(slot.block).name} ∞ — botão direito: colocar · B: outros blocos` : slotHint(slot.block, slot.count);
     if (hint === this.lastHint) return;
     this.lastHint = hint;
     this.slotHintRoot.textContent = hint;

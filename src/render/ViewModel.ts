@@ -146,6 +146,7 @@ export class ViewModel {
       geometry,
       new THREE.MeshBasicMaterial({
         map: atlas.texture,
+        alphaTest: 0.5,
         depthTest: false,
         fog: false,
       }),

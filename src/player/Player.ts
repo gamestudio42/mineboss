@@ -20,6 +20,9 @@ export class Player {
 
   yaw = 0;
   pitch = 0;
+  creative = false;
+  edgeProtection = true;
+  gentle = true;
   flying = false;
   sprinting = false;
   swimming = false;
@@ -82,6 +85,7 @@ export class Player {
     this.body.fallPeak = this.spawn.y;
     this.body.onGround = false;
     this.health.reset();
+    this.health.invulnerability = 5;
     this.flying = false;
     this.swimming = false;
     this.pitch = 0;

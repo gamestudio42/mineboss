@@ -342,14 +342,15 @@ export function buildSectionMesh(volume: Uint8Array): SectionMesh {
           );
           continue;
         }
-        if (OPAQUE[block] !== 1) continue;
+        if (OPAQUE[block] !== 1 && block !== Block.Glass) continue;
 
         const glow = GLOW[block];
         const emissive = glow >= EMISSIVE_THRESHOLD;
 
         for (const face of FACES) {
           const [nx, ny, nz] = face.normal;
-          if (OPAQUE[volume[volumeIndex(x + nx, y + ny, z + nz)]] === 1) continue;
+          const neighbor = volume[volumeIndex(x + nx, y + ny, z + nz)];
+          if (OPAQUE[neighbor] === 1 || (block === Block.Glass && neighbor === Block.Glass)) continue;
 
           const [ux, uy, uz] = face.u;
           const [vx, vy, vz] = face.v;

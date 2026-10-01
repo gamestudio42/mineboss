@@ -1,3 +1,4 @@
+import type { GameMode } from '../core/GameMode.ts';
 import { Block } from './blocks.ts';
 import {
   CHUNK_SIZE,
@@ -69,14 +70,14 @@ export class World {
   }
 
   /** Swaps the noise seed and forgets every column and edit. */
-  reseed(seed: number): void {
-    this.generator = new TerrainGenerator(seed);
+  reseed(seed: number, mode: GameMode = this.generator.mode): void {
+    this.generator = new TerrainGenerator(seed, mode);
     this.clear();
   }
 
-  /** Bedrock below the world, air above it, air inside ungenerated chunks. */
+  /** Air below and above the world, and inside ungenerated chunks. */
   getBlock(wx: number, wy: number, wz: number): number {
-    if (wy < 0) return Block.Bedrock;
+    if (wy < 0) return this.generator.mode === 'adventure' ? Block.Bedrock : Block.Air;
     if (wy >= WORLD_HEIGHT) return Block.Air;
 
     const cx = wx >> 4;
@@ -85,6 +86,14 @@ export class World {
     if (!chunk) return Block.Air;
 
     return chunk.get(wx - cx * CHUNK_SIZE, wy, wz - cz * CHUNK_SIZE);
+  }
+
+  restoreStructure(wx: number, wy: number, wz: number, id: number): boolean {
+    const edited = this.edits.get(editKey(wx, wy, wz));
+    if (edited !== undefined && edited !== Block.Air) return false;
+    const result = this.setBlock(wx, wy, wz, id);
+    this.edits.delete(editKey(wx, wy, wz));
+    return result;
   }
 
   setBlock(wx: number, wy: number, wz: number, id: number): boolean {

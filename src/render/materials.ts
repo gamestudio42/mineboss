@@ -10,6 +10,7 @@ export function createTerrainMaterial(atlas: BlockAtlas): THREE.MeshLambertMater
   return new THREE.MeshLambertMaterial({
     map: atlas.texture,
     vertexColors: true,
+    alphaTest: 0.5,
   });
 }
 

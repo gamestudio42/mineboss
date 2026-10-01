@@ -27,10 +27,11 @@ export class Loop {
     this.rafId = requestAnimationFrame(this.frame);
 
     // Clamp so an alt-tab pause cannot teleport entities through the world.
-    const dt = Math.min((now - this.last) / 1000, 0.1);
+    const elapsed = Math.max(0, (now - this.last) / 1000);
+    const dt = Math.min(elapsed, 0.1);
     this.last = now;
 
-    this.fpsAccum += dt;
+    this.fpsAccum += elapsed;
     this.fpsFrames += 1;
     if (this.fpsAccum >= 0.5) {
       this.fps = this.fpsFrames / this.fpsAccum;

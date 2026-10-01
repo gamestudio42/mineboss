@@ -34,6 +34,8 @@ export abstract class Entity {
   removed = false;
   /** Scales incoming damage; the boss raises it while staggered. */
   damageMultiplier = 1;
+  /** Encounter resets skip entities that crawled out of the One Block. */
+  clearedOnDeath = true;
 
   private readonly box = createBox();
 

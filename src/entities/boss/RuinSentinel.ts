@@ -16,7 +16,7 @@ import { BossModel } from './BossModel.ts';
 import { Shockwave } from './attacks/Shockwave.ts';
 import { Telegraph } from './attacks/Telegraph.ts';
 
-export const SENTINEL_NAME = 'The Ruin Sentinel';
+export const SENTINEL_NAME = 'Sentinela das Ruínas';
 export const SENTINEL_MAX_HEALTH = 200;
 
 const WIDTH = 2.2;
@@ -28,8 +28,8 @@ const CHARGE_SPEED = 12;
 const MODEL_SCALE = 0.77;
 
 const PHASES = [
-  { label: 'Phase I', speed: 1, color: 0xd4a017, staggerTime: 3.6 },
-  { label: 'Phase II', speed: 1.12, color: 0x7c9a3c, staggerTime: 3.2 },
+  { label: 'Fase I', speed: 1, color: 0xd4a017, staggerTime: 3.6 },
+  { label: 'Fase II', speed: 1.12, color: 0x7c9a3c, staggerTime: 3.2 },
 ] as const;
 
 type SentinelStateName =
@@ -111,7 +111,7 @@ export class RuinSentinel extends Entity {
 
   override update(context: EntityContext): void {
     this.context = context;
-    const dt = context.dt;
+    const dt = context.dt * (context.player.gentle ? 0.65 : 1);
 
     const machine = (this.machine ??= new StateMachine(STATES, 'awaken', this));
     this.health?.update(dt);
@@ -345,7 +345,7 @@ export class RuinSentinel extends Entity {
         for (let y = this.floorY + 1; y <= top; y++) {
           if (!isRuinStatueColumn(x, z)) continue;
           if (world.getBlock(x, y, z) === Block.Air) continue;
-          world.setBlock(x, y, z, Block.Air);
+          if (!world.edits.has(`${x},${y},${z}`)) world.restoreStructure(x, y, z, Block.Air);
         }
       }
     }

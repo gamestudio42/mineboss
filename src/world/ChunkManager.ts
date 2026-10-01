@@ -15,6 +15,7 @@ const MAX_JOBS_PER_WORKER = 2;
 
 interface PendingJob {
   key: string;
+  jobId: number;
   /** Set when the section changed again while the worker was busy. */
   stale: boolean;
 }
@@ -119,6 +120,38 @@ export class ChunkManager {
     this.dispatch();
   }
 
+  /**
+   * Unloads matching columns so the next ensure regenerates them with the
+   * current generator flags, then remeshes those columns and their neighbours.
+   */
+  regenerateWhere(test: (cx: number, cz: number) => boolean): void {
+    const targets: Array<{ cx: number; cz: number }> = [];
+    for (const chunk of [...this.world.chunks.values()]) {
+      if (!test(chunk.cx, chunk.cz)) continue;
+      targets.push({ cx: chunk.cx, cz: chunk.cz });
+      this.evictChunk(chunk.cx, chunk.cz);
+    }
+
+    const neighbors = new Set<string>();
+    for (const { cx, cz } of targets) {
+      this.world.ensureChunk(cx, cz);
+      for (let dz = -1; dz <= 1; dz++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          this.world.ensureChunk(cx + dx, cz + dz);
+          neighbors.add(chunkKey(cx + dx, cz + dz));
+        }
+      }
+    }
+
+    for (const key of neighbors) {
+      const [cx, cz] = key.split(',').map(Number);
+      this.meshedChunks.delete(key);
+      this.enqueueChunk(cx, cz);
+    }
+
+    this.dispatch();
+  }
+
   /** Tears down streamed meshes so a new run can generate the world from scratch. */
   reset(): void {
     this.discardBeforeJobId = this.nextJobId;
@@ -211,7 +244,7 @@ export class ChunkManager {
       this.fillVolume(volume, cx, cz, sy);
 
       const request: MeshRequest = { jobId: this.nextJobId++, key, volume };
-      this.pending.set(key, { key, stale: false });
+      this.pending.set(key, { key, jobId: request.jobId, stale: false });
       this.workerLoad[workerIndex] += 1;
       this.workers[workerIndex].postMessage(request, [volume.buffer]);
     }
@@ -268,12 +301,16 @@ export class ChunkManager {
     }
 
     const job = this.pending.get(response.key);
+    if (!job || job.jobId !== response.jobId) {
+      this.dispatch();
+      return;
+    }
     this.pending.delete(response.key);
 
     const [cx, cz, sy] = response.key.split(',').map(Number);
     if (this.world.getChunk(cx, cz)) {
       this.applyMesh(response, cx, cz, sy);
-      if (job?.stale) this.enqueueSection(cx, cz, sy);
+      if (job.stale) this.enqueueSection(cx, cz, sy);
     }
 
     this.dispatch();
@@ -355,6 +392,22 @@ export class ChunkManager {
       mesh.geometry.dispose();
     }
     map.clear();
+  }
+
+  private evictChunk(cx: number, cz: number): void {
+    for (let sy = 0; sy < SECTION_COUNT; sy++) {
+      const key = sectionKey(cx, cz, sy);
+      this.removeMesh(this.meshes, key);
+      this.removeMesh(this.waterMeshes, key);
+      this.pending.delete(key);
+      if (this.queued.has(key)) {
+        this.queued.delete(key);
+        const index = this.queue.indexOf(key);
+        if (index >= 0) this.queue.splice(index, 1);
+      }
+    }
+    this.meshedChunks.delete(chunkKey(cx, cz));
+    this.world.unloadChunk(cx, cz);
   }
 
   private unloadFar(cx: number, cz: number): void {

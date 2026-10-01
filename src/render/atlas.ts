@@ -214,6 +214,16 @@ const torchStick: Painter = (set, rng) => {
   }
 };
 
+function emblem(color: RGB, diamond: boolean): Painter {
+  return (set, rng) => {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
+      const glyph = diamond ? dx + dy < 6 : (y > 3 && y < 10 && x > 3 && x < 12) || (x > 6 && x < 9 && y < 13) || (y === 13 && x > 3 && x < 12);
+      set(x, y, jitter(glyph ? color : [40, 44, 59], rng, 12));
+    }
+  };
+}
+
 const PAINTERS: Record<Tile, Painter> = {
   [Tile.Stone]: fill([128, 128, 132], 22),
   [Tile.Dirt]: fill([134, 96, 67], 28),
@@ -246,6 +256,24 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.BirchLogSide]: birchLogSide,
   [Tile.BirchLogTop]: birchLogTop,
   [Tile.BirchLeaves]: birchLeaves,
+  [Tile.White]: fill([226,228,222], 10),
+  [Tile.Red]: fill([195,65,60], 10),
+  [Tile.Orange]: fill([225,133,52], 10),
+  [Tile.Yellow]: fill([233,205,67], 10),
+  [Tile.Green]: fill([82,156,99], 10),
+  [Tile.Blue]: fill([68,125,207], 10),
+  [Tile.Purple]: fill([140,88,187], 10),
+  [Tile.Pink]: fill([229,145,183], 10),
+  [Tile.Glass]: (set) => {
+    // Cutout glass: clear center and a visible frame, without transparency sorting.
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      if (x === 0 || y === 0 || x === S - 1 || y === S - 1 || (x + y === 9 && x > 2 && x < 7)) set(x, y, [181, 225, 238]);
+    }
+  },
+  [Tile.SentinelTrophy]: emblem([244, 201, 71], false),
+  [Tile.WardenTrophy]: emblem([126, 221, 245], true),
+  [Tile.SentinelBanner]: combine(fill([67, 113, 87], 10), emblem([204, 175, 73], false)),
+  [Tile.WardenLantern]: combine(fill([93, 162, 193], 10), emblem([170, 230, 245], true)),
 };
 
 export interface BlockAtlas {

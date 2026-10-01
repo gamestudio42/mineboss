@@ -57,7 +57,7 @@ export class BossArena {
 
   /** The altar only responds while the player is standing in the arena. */
   canSummon(position: THREE.Vector3): boolean {
-    if (this.active || this.defeated) return false;
+    if (this.active) return false;
     return (
       distanceToArenaCenter(position.x, position.z) < ARENA.radius &&
       position.y > ARENA.floorY - 2 &&
@@ -111,11 +111,11 @@ export class BossArena {
    */
   reset(context: EntityContext): void {
     for (const entity of context.entities.entities) {
-      if (entity.team === 'boss') context.entities.remove(entity);
+      if (entity.team === 'boss' && entity.clearedOnDeath) context.entities.remove(entity);
     }
     context.entities.flushRemoved();
     this.boss = null;
-    if (!this.defeated) this.rebuildAltar(context.world);
+    if (context.world.generator.shrineUnlocked) this.rebuildAltar(context.world);
   }
 
   /** Rebuilds the 5x5 obsidian plinth, 3x3 runes and the crystal cap. */
@@ -124,11 +124,11 @@ export class BossArena {
       for (let dx = -2; dx <= 2; dx++) {
         const x = ALTAR.x + dx;
         const z = ALTAR.z + dz;
-        world.setBlock(x, ARENA.floorY + 1, z, Block.Obsidian);
+        world.restoreStructure(x, ARENA.floorY + 1, z, Block.Obsidian);
 
         const inner = Math.abs(dx) <= 1 && Math.abs(dz) <= 1;
-        world.setBlock(x, ARENA.floorY + 2, z, inner ? Block.RunicStone : Block.Air);
-        world.setBlock(
+        world.restoreStructure(x, ARENA.floorY + 2, z, inner ? Block.RunicStone : Block.Air);
+        world.restoreStructure(
           x,
           ARENA.floorY + 3,
           z,
@@ -139,8 +139,8 @@ export class BossArena {
   }
 
   guideStage(position: THREE.Vector3): GuideStage {
-    if (this.defeated) return 'done';
     if (this.active) return 'fight';
+    if (this.defeated) return 'done';
     if (isInsideArena(position.x, position.y, position.z)) return 'altar';
     if (this.nearStairs(position)) return 'stairs';
     return 'surface';
@@ -166,19 +166,19 @@ export class BossArena {
     switch (this.guideStage(position)) {
       case 'surface':
         return this.ruinFound
-          ? 'Follow the shrine — or the compass'
-          : 'A ruin sits west — or follow the shrine north';
+          ? 'Siga a bússola até o santuário'
+          : 'Encontre a ruína a oeste ou o santuário ao norte';
       case 'stairs':
-        return 'Descend the stairs into the dark';
+        return 'Desça as escadas até o Guardião';
       case 'altar':
-        return 'Right click the runic altar';
+        return 'Botão direito no altar: enfrentar o Guardião';
       case 'fight':
-        return 'Stagger it, then strike — eat to recover';
+        return 'Bata quando ele estiver vulnerável. Coma para recuperar vida';
       case 'done':
-        if (this.cacheClaimed) return 'The depths are yours — New game for another descent';
+        if (this.cacheClaimed) return 'Explore, construa ou volte ao altar para lutar de novo';
         return Math.hypot(position.x - CACHE.x, position.z - CACHE.z) < 6
-          ? 'The cairn offers a cache — walk closer'
-          : 'A cairn waits east — or New game for another descent';
+          ? 'Chegue perto para pegar os materiais'
+          : 'Há uma recompensa a leste — siga a bússola';
       default:
         return null;
     }
@@ -210,10 +210,10 @@ export class BossArena {
     const horizontal = Math.hypot(dx, dz);
     const depth = Math.round(position.y - target.y);
 
-    if (horizontal < 6 && Math.abs(depth) < 4) return 'The altar is right here';
+    if (horizontal < 6 && Math.abs(depth) < 4) return 'O altar está aqui';
 
-    const compass = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'east' : 'west') : dz > 0 ? 'south' : 'north';
-    const depthText = depth > 2 ? `${depth} blocks below` : depth < -2 ? `${-depth} blocks above` : 'at your level';
+    const compass = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'leste' : 'oeste') : dz > 0 ? 'sul' : 'norte';
+    const depthText = depth > 2 ? `${depth} blocos abaixo` : depth < -2 ? `${-depth} blocos acima` : 'na mesma altura';
     return `Altar: ${Math.round(horizontal)}m ${compass}, ${depthText}`;
   }
 

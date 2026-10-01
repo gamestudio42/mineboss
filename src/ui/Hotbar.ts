@@ -61,7 +61,7 @@ export class Hotbar {
         if (block !== null) this.drawIcon(view.context, block);
       }
 
-      const label = slot.count > 1 ? String(slot.count) : '';
+      const label = inventory.unlimited && block !== null ? '∞' : slot.count > 1 ? String(slot.count) : '';
       if (view.count.textContent !== label) view.count.textContent = label;
     }
   }

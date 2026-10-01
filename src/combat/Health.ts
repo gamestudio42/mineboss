@@ -1,6 +1,7 @@
 /** Hit points with an invulnerability window, shared by the player and mobs. */
 export class Health {
   current: number;
+  immune = false;
   invulnerability = 0;
 
   onDamage: ((amount: number) => void) | null = null;
@@ -28,7 +29,7 @@ export class Health {
 
   /** Returns true when the hit was applied rather than absorbed by i-frames. */
   damage(amount: number, options: { bypassInvulnerability?: boolean } = {}): boolean {
-    if (this.dead || amount <= 0) return false;
+    if (this.immune || this.dead || amount <= 0) return false;
     if (this.invulnerability > 0 && !options.bypassInvulnerability) return false;
 
     this.current = Math.max(0, this.current - amount);
@@ -41,7 +42,7 @@ export class Health {
 
   /** Returns the amount actually restored. */
   heal(amount: number): number {
-    if (this.dead || amount <= 0) return 0;
+    if (this.immune || this.dead || amount <= 0) return 0;
     const before = this.current;
     this.current = Math.min(this.max, this.current + amount);
     return this.current - before;
