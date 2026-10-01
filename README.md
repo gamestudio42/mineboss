@@ -1,154 +1,96 @@
-# Mineboss
+# MineBoss
 
-A voxel sandbox in the browser with two boss fights. Dig through a
-procedurally generated world, wake **The Ruin Sentinel** at the west camp,
-then descend to the obsidian altar and face **The Deep Warden**.
+Jogo de blocos para construir, explorar e enfrentar dois chefões opcionais.
+Interface em português, com Aventura e OneBlock e um save separado por modo.
 
-Built with TypeScript, three.js and Vite. No binary assets: the block textures
-are painted procedurally onto a canvas at startup and every sound is
-synthesised with the Web Audio API.
+## Jogar
 
-## Running
-
-```bash
+```sh
 pnpm install
-pnpm dev      # http://localhost:5173
+pnpm dev
 ```
 
-```bash
-pnpm build    # type check + production bundle in dist/
-pnpm preview  # serve the production bundle
+Abra http://localhost:5173/ num navegador com WebGL2. Use Node compatível com Vite 8 (20.19+ ou 22.12+).
+A porta é fixa: se estiver ocupada, o servidor avisa em vez de abrir outro endereço com saves diferentes.
+
+- **Aventura / Construção livre:** catálogo visual com materiais ilimitados e voo. Abra com B. O inventário de Sobrevivência fica guardado ao trocar de estilo.
+- **Aventura / Sobrevivência:** explore o terreno, colete recursos, faça ferramentas e construa sua base.
+- **OneBlock:** escolha o ritmo ao criar uma partida. No Curto, a ruína aparece aos 90 blocos e o santuário aos 140; no Clássico, aos 360 e 560. Saves antigos mantêm o ritmo Clássico. Metas opcionais de ampliar a ilha e iniciar um abrigo dão materiais uma única vez.
+
+O menu Esc destaca continuar, blocos/mochila, ajuda e, quando disponível, visitar
+os chefões. **Marcar minha base** guarda um chão seguro; **Voltar à base** retorna à construção depois de explorar ou lutar. Em **Mais opções**, altere o estilo da Aventura, dificuldade,
+proteção de borda e guia, além de importar ou exportar o mundo.
+A dificuldade Tranquila é o padrão: menos dano dos monstros e mais tempo nos
+avisos dos chefões. No OneBlock, também há menos inimigos e não há lava surpresa.
+O núcleo sempre é sólido e avisa antes de gerar um monstrinho.
+
+## Controles
+
+- WASD: andar. Espaço: pular/nadar para cima. Shift: correr/mergulhar.
+- Botão esquerdo: clique para remover na Construção livre; segure para minerar na Sobrevivência; clique ou segure para atacar. Botão direito: colocar/usar.
+- 1–9 ou roda do mouse: selecionar material.
+- B: catálogo na Construção livre; mochila com excedentes na Sobrevivência.
+- H: primeiros passos; a ajuda completa reúne controles e receitas.
+- F: ligar/desligar voo na Construção livre. Espaço sobe e Ctrl desce. Shift acelera.
+- Z: desfazer a última edição na Construção livre, fora das lutas.
+- C: criar tochas, cama, martelos e armaduras na Sobrevivência, fora das lutas.
+- Q: soltar um bloco. Esc: pausar e salvar.
+
+A proteção de borda impede caminhar para fora do apoio. Pular permite sair da
+borda. Ela pode ser desligada pelo menu; não impede empurrões enquanto no ar.
+
+## Chefões e recompensas
+
+Use **Treinar com segurança** para praticar onda, círculo e golpe sem perder vida.
+**Visitar o Sentinela** e **Visitar o Guardião** abrem uma confirmação antes de transportar.
+Você também pode explorar até a estátua na ruína e o altar subterrâneo.
+Cada luta exige confirmação. Na Construção livre, voo e invulnerabilidade
+ficam suspensos durante a batalha e voltam ao vencer, sair ou morrer.
+
+Pule as ondas, saia dos círculos e ataque quando aparecer **BATA AGORA!**.
+Morrer mantém os itens, verifica um ponto seguro de retorno e concede cinco
+segundos de proteção contra golpes. O menu permite sair da batalha.
+
+Cada chefão concede um troféu único e materiais na primeira vitória, além de desbloquear uma decoração temática: emblema do Sentinela ou lanterna do Guardião.
+Os troféus conquistados também aparecem em Decoração no catálogo. As batalhas
+podem ser repetidas pela estátua/altar. Ataques e restaurações de estruturas
+preservam os blocos colocados pelo jogador.
+
+## Materiais e saves
+
+O catálogo inclui oito cores e vidro com janelas transparentes. As categorias
+destacam o material selecionado; a barra criativa é guardada separadamente da
+mochila de Sobrevivência. Tutorial visual e ideias de casa, ponte e castelo são opcionais.
+
+Os materiais excedentes vão para uma mochila, em vez de desaparecer quando os
+nove espaços ficam cheios. B permite trocar o material do espaço selecionado
+por um da mochila. Todos são salvos, inclusive o inventário separado da
+Sobrevivência durante a Construção livre.
+
+O aviso no canto indica sucesso ou falha ao salvar no navegador. No menu,
+**Exportar mundo** baixa uma cópia JSON e **Importar mundo** valida o arquivo
+antes de pedir confirmação para substituir apenas o modo correspondente.
+Arquivos acima de 20 MB ou 300 mil edições são recusados. Saves locais antigos
+v1/v2/v3/v4 são lidos sem apagar a chave original. O formato atual é v5.
+Uma cópia anterior válida por modo pode ser recuperada pelo menu. O checkpoint
+é atualizado aproximadamente a cada minuto ou ao trocar de mundo; não é um
+histórico completo. Save principal corrompido usa a cópia válida automaticamente.
+Recarregar durante combate/treino volta à posição anterior ao encontro, sem
+boss ativo, preservando base, inventários, estilo, voo, guia e prêmios confirmados.
+Os saves pertencem à origem do site: trocar host/porta usa outro armazenamento.
+
+## Verificação técnica
+
+```sh
+pnpm test
+pnpm build
 ```
 
-Requires Node 20+ and a WebGL2 capable browser.
+Testes cobrem inventário, receitas, desfazer, vidro, saves v1–v5, recuperação,
+base obstruída, controles, treino, ambos os chefões, morte, saída, recarga e OneBlock.
+Consulte [TESTING.md](TESTING.md) para a evidência e os limites da validação atual.
+A validação de diversão e dificuldade com a criança deve ser feita em uma
+sessão acompanhada; testes automatizados não substituem essa avaliação.
 
-## Controls
-
-| Input | Action |
-| --- | --- |
-| `W` `A` `S` `D` | Move |
-| `Space` | Jump; rise while swimming |
-| `Shift` | Sprint; sink while swimming |
-| Left click | Mine a block, or attack when aiming at an enemy |
-| Right click | Place, eat, smith, craft torches or a bedroll, rest on a bedroll, or activate the statue / altar |
-| `1`–`9`, mouse wheel | Select a hotbar slot |
-| `Q` | Toss the selected block in front of you |
-| `Esc` | Pause (volume, look sensitivity, continue save, new game) |
-
-## Finding the fight
-
-Pale **birch** stands among the darker oaks. A ruined cobble camp sits west
-of spawn — a courtyard, a cracked statue, ore, a spare bedroll and a torch.
-The compass points there first. Right click the statue to wake **The Ruin
-Sentinel**, a shorter fight that teaches the stagger window. After it falls
-the compass swings north to the shrine.
-
-A runic shrine of obsidian and glowstone stands north of spawn. After the
-ruin, a compass on the HUD points to it. Descend the spiral stairs — they open into the arena
-through the north wall, so you never have to mine the shell or fall 40 blocks.
-
-A **bedroll** comes in the starting pack. Place it and right click it to set
-your spawn before you find the stairs. Four planks, while looking at air,
-craft another.
-
-The first time you enter the chamber, your respawn moves to the doorway. Right
-click the runic altar in the centre to wake **The Deep Warden**. If you die
-during the fight the Warden sleeps again; walk back to the altar and activate
-it once more. Your pack stays with you. Pause, death and victory all offer
-**New game**, which regenerates the world and returns you to the surface spawn.
-
-Mushrooms grow on cave floors and restore two hearts. Crystal ore restores
-four. Select the stack and right click — it works while looking at air or the
-Warden, so you can eat in the middle of the fight. You cannot eat at full
-health, and food is never placed as a block.
-
-Right click coal ore to bind four torches. Place them to light a tunnel — the
-miner's lamp only follows you, so a trail of torches is what keeps a cave
-readable when you turn around.
-
-Right click three iron ore to bind an iron hammer — it breaks blocks much
-faster. Four more iron, after the hammer is already iron, bind **iron plates**
-that cut the Warden's hits. Three gold ore makes a gold hammer that hits far
-harder; four more gold bind **gold plates**, a stronger vest. The breastplate
-sits at the bottom of the first-person view and flashes when it takes a blow;
-the first time, the HUD spells it out. Hammer, plates and inventory stay
-through death. New game returns you to the starting hammer and a fresh
-hotbar. The victory recap lists the vest you wore.
-
-The selected block sits in your off-hand. `Q` tosses one copy onto the ground
-ahead, which is how you clear a full hotbar.
-
-A short recap after victory lists the run time, deaths, hammer and blocks
-mined. The best run is stored in the browser so later descents can beat it.
-The hotbar shows the current hammer and a line for the selected slot. The
-seed sits in the top-left of the HUD.
-
-Pause writes a **Continue** save: seed, position, inventory, hammer, altar
-and statue state and a log of edited blocks. The title screen offers Continue
-when a descent is waiting. New game rolls a new seed.
-
-Valleys below sea level hold shallow water you can swim through. Diving
-tints the view and muffles the air. After the Warden falls, the compass
-points east to a glowstone cairn; walking up to it grants a cache and
-moves your respawn there.
-
-Every heavy attack ends in a **stagger**: the golem's back cores open up, a
-burst leaves its chest, it takes double damage and it cannot retaliate. The
-first window spells it out on the HUD. That is where the fights are won.
-Shockwaves only hit grounded targets, so jumping over the crest avoids them.
-
-| Encounter | Where | Notes |
-| --- | --- | --- |
-| The Ruin Sentinel | West courtyard statue | Two phases, wood-hammer friendly, no victory screen |
-| The Deep Warden | Underground altar | Three phases, ends the run |
-
-| Warden phase | Trigger | New behaviour |
-| --- | --- | --- |
-| I | Start | Ground slam with a shockwave, charging dash |
-| II | 66% health | Telegraphed boulders, a small pack of minions — both still stagger |
-| III | 33% health | Erupting lava pillars, faster and angrier |
-
-| Sentinel phase | Trigger | New behaviour |
-| --- | --- | --- |
-| I | Start | Smaller slam and charge, long stagger |
-| II | 50% health | Thrown stone shards that do not break terrain |
-
-## How it works
-
-```
-src/
-  core/      Game loop, renderer and scene setup, input with pointer lock
-  world/     Chunk storage, terrain generation, meshing, voxel raycast
-  physics/   Swept AABB collision against the voxel grid
-  player/    Movement, mining and placing, melee combat, inventory
-  combat/    Health, damage and knockback, projectiles
-  entities/  Entity system and the boss encounter
-  render/    Procedural texture atlas, particles, first person view model
-  ui/        HUD, hotbar, boss bar, overlays
-  audio/     Synthesised sound effects and looping cave / surface / boss beds
-```
-
-A few decisions worth knowing about:
-
-- **Chunks** are 16 x 128 x 16 columns of `Uint8Array`, split into eight
-  sections of 16. Editing a block only dirties the section it touches, so a
-  remesh costs one 16<sup>3</sup> volume instead of a whole column.
-- **Meshing runs in a worker pool.** The main thread copies a padded 18<sup>3</sup>
-  volume into a recycled buffer, transfers it, and gets geometry buffers back.
-  Faces touching an opaque neighbour are culled and every vertex carries baked
-  ambient occlusion in its colour.
-- **Emissive blocks** (lava, glowstone, crystal, runic stone) are emitted into a
-  second geometry group drawn with an unlit material, so they stay bright in the
-  dark. A point light follows the camera as a miner's lamp.
-- **Terrain** comes from layered simplex noise: a 2D height field, two 3D fields
-  intersected into tunnel caves, a third for deep chambers, and threshold bands
-  for ore veins. The arena is carved last so caves can never breach it.
-- **Collision** resolves one axis at a time and retries blocked horizontal moves
-  from one step higher (just over a full block), which is what lets you walk
-  the shrine stairs without jumping.
-
-## Not included
-
-Multiplayer, a crafting table, and biome variety are out of scope for this
-build. Fly (`F`) and the frame overlay (`F3`) still exist for development;
-they are not listed as player controls.
+TypeScript, three.js e Vite; texturas em canvas, áudio sintetizado e malhas
+voxel processadas em workers. Não há multiplayer nesta versão.
