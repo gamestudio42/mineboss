@@ -93,6 +93,16 @@ export class VoxelBody {
   private moveAxis(world: World, axis: 0 | 1 | 2, delta: number): void {
     if (delta === 0) return;
 
+    // Sample the whole path, including long falls during a slow frame. A
+    // destination-only overlap can skip a thin platform or wall entirely.
+    const steps = Math.ceil(Math.abs(delta) / 0.45);
+    for (let step = 0; step < steps; step++) {
+      if (this.moveAxisStep(world, axis, delta / steps)) break;
+    }
+  }
+
+  private moveAxisStep(world: World, axis: 0 | 1 | 2, delta: number): boolean {
+
     const position = this.position;
     if (axis === 0) position.x += delta;
     else if (axis === 1) position.y += delta;
@@ -120,7 +130,7 @@ export class VoxelBody {
       }
     }
 
-    if (!found) return;
+    if (!found) return false;
 
     if (axis === 0) {
       position.x = delta > 0 ? hit - half - EPS : hit + 1 + half + EPS;
@@ -136,6 +146,7 @@ export class VoxelBody {
       this.velocity.y = 0;
       this.onGround = true;
     }
+    return true;
   }
 
   intersectsWorld(world: World): boolean {

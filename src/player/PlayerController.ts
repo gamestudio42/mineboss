@@ -5,6 +5,7 @@ import { BASE_LOOK_SENSITIVITY } from '../core/Settings.ts';
 import { clamp, damp } from '../core/math.ts';
 import { getBlockDef, isWater, isSolid } from '../world/blocks.ts';
 import type { World } from '../world/World.ts';
+import { WORLD_HEIGHT } from '../world/Chunk.ts';
 import type { Player } from './Player.ts';
 
 const PITCH_LIMIT = Math.PI / 2 - 0.001;
@@ -21,7 +22,6 @@ const TERMINAL_VELOCITY = 60;
 const SWIM_SPEED = 3.2;
 const SWIM_LIFT = 5.4;
 const SWIM_GRAVITY = 6;
-
 /** Blocks of free fall that are absorbed before damage starts. */
 const SAFE_FALL = 4;
 const FALL_DAMAGE_PER_BLOCK = 0.9;
@@ -33,8 +33,12 @@ export class PlayerController {
   private readonly eye = new THREE.Vector3();
   private bobPhase = 0;
   private bobAmount = 0;
+  /** Keep the edge guard during a descent so momentum cannot skip its safe landing. */
+  private guardedDescentY: number | null = null;
   /** Multiplier around the default look speed, driven by the pause sliders. */
   lookScale = 1;
+  reducedMotion = false;
+  edgeBlocked = false;
 
   constructor(
     private readonly player: Player,
@@ -55,6 +59,7 @@ export class PlayerController {
 
   update(dt: number, input: Input): void {
     const player = this.player;
+    this.edgeBlocked = false;
 
     if (player.creative && input.wasPressed('KeyF')) {
       player.flying = !player.flying;
@@ -101,21 +106,40 @@ export class PlayerController {
 
     const wasAirborne = !player.body.onGround;
     const peakBefore = player.body.fallPeak;
+    // Creative players cannot take fall damage, so any safe floor is reachable.
+    // Survival accepts the same drop distance as the fall-damage calculation.
+    const maxProtectedDrop = player.creative ? WORLD_HEIGHT : SAFE_FALL;
 
-    if (player.edgeProtection && player.body.onGround && !player.flying && player.velocity.y <= 0) {
+    if (player.body.onGround || player.flying || swimming || !player.edgeProtection || player.velocity.y > 0 ||
+        (this.guardedDescentY !== null && (player.position.y > this.guardedDescentY + 0.05 ||
+          player.position.y < this.guardedDescentY - maxProtectedDrop - 0.05))) {
+      this.guardedDescentY = null;
+    }
+    const protectEdge = player.edgeProtection && !player.flying && !swimming && player.velocity.y <= 0 &&
+      (player.body.onGround || this.guardedDescentY !== null);
+    const descentStartY = player.position.y;
+    if (protectEdge) {
+      const floorY = Math.floor(player.position.y - 0.1);
+      const lowestFloor = Math.max(0, Math.floor((this.guardedDescentY ?? player.position.y) - 0.1) - maxProtectedDrop);
       const supported = (x: number, z: number): boolean => {
         for (const dx of [-0.25, 0.25]) for (const dz of [-0.25, 0.25]) {
-          const id = this.world.getBlock(Math.floor(x + dx), Math.floor(player.position.y - 0.1), Math.floor(z + dz));
-          if (isSolid(id) && getBlockDef(id).contactDamage === 0) return true;
+          for (let y = floorY; y >= lowestFloor; y--) {
+            const id = this.world.getBlock(Math.floor(x + dx), y, Math.floor(z + dz));
+            // A safe block underneath lava must not make that column walkable.
+            if (getBlockDef(id).contactDamage > 0) break;
+            if (isSolid(id)) return true;
+          }
         }
         return false;
       };
       const nx = player.position.x + player.velocity.x * dt;
       const nz = player.position.z + player.velocity.z * dt;
-      if (!supported(nx, player.position.z)) player.velocity.x = 0;
-      if (!supported(player.position.x + player.velocity.x * dt, nz)) player.velocity.z = 0;
+      if (Math.abs(player.velocity.x) > 0.001 && !supported(nx, player.position.z)) { player.velocity.x = 0; this.edgeBlocked = true; }
+      if (Math.abs(player.velocity.z) > 0.001 && !supported(player.position.x + player.velocity.x * dt, nz)) { player.velocity.z = 0; this.edgeBlocked = true; }
     }
     player.body.move(this.world, dt);
+    if (protectEdge && !wasAirborne && !player.body.onGround) this.guardedDescentY = descentStartY;
+    if (player.body.onGround) this.guardedDescentY = null;
 
     if (swimming) player.body.fallPeak = player.position.y;
     else if (wasAirborne && player.body.onGround && !player.flying) {
@@ -158,8 +182,8 @@ export class PlayerController {
     this.bobPhase += dt * speed * 1.9;
     this.bobAmount = damp(this.bobAmount, walking ? Math.min(speed / SPRINT_SPEED, 1) : 0, 8, dt);
 
-    const bobY = Math.sin(this.bobPhase * 2) * 0.045 * this.bobAmount;
-    const bobX = Math.cos(this.bobPhase) * 0.035 * this.bobAmount;
+    const bobY = this.reducedMotion ? 0 : Math.sin(this.bobPhase * 2) * 0.045 * this.bobAmount;
+    const bobX = this.reducedMotion ? 0 : Math.cos(this.bobPhase) * 0.035 * this.bobAmount;
 
     player.getEyePosition(this.eye);
     this.camera.position.set(this.eye.x + bobX, this.eye.y + bobY, this.eye.z);
