@@ -1,7 +1,15 @@
 # MineBoss
 
+[![CI](https://github.com/marcelsavegnago/mineboss/actions/workflows/ci.yml/badge.svg)](https://github.com/marcelsavegnago/mineboss/actions/workflows/ci.yml)
+
 Jogo de blocos para construir, explorar e enfrentar dois chefões opcionais.
 Interface em português, com Aventura e OneBlock e um save separado por modo.
+
+## Jogar online
+
+https://marcelsavegnago.github.io/mineboss/
+
+O save do site é outro do `localhost`: cada origem do navegador guarda a partida separada.
 
 ## Jogar
 
