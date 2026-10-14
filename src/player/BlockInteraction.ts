@@ -18,6 +18,7 @@ import {
 } from '../world/blocks.ts';
 import { raycastVoxels, type VoxelHit } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
+import { WORLD_HEIGHT } from '../world/Chunk.ts';
 import {
   isUpgradeOre,
 } from './Hammer.ts';
@@ -36,6 +37,12 @@ export interface InteractionResult {
 export class BlockInteraction {
   target: VoxelHit | null = null;
   progress = 0;
+  previewEnabled = true;
+  placementHint = '';
+  private readonly preview = new THREE.Mesh(
+    new THREE.BoxGeometry(1.005, 1.005, 1.005),
+    new THREE.MeshBasicMaterial({ color: 0x91edc3, transparent: true, opacity: 0.32, depthWrite: false }),
+  );
 
   onAltarActivated: (() => void) | null = null;
   onStatueActivated: (() => void) | null = null;
@@ -83,6 +90,8 @@ export class BlockInteraction {
     );
     this.crack.visible = false;
     scene.add(this.crack);
+    this.preview.visible = false;
+    scene.add(this.preview);
   }
 
   update(dt: number, input: Input, entityBlocksAim: boolean): InteractionResult {
@@ -294,9 +303,10 @@ export class BlockInteraction {
       if (dest !== Block.Air && dest !== Block.Water) continue;
       if (this.intersectsPlayer(x, y, z)) continue;
 
-      const block = this.player.inventory.takeSelected(1);
-      if (block === null) return false;
-      this.editBlock(x, y, z, block);
+      const block = slot.block;
+      if (!this.editBlock(x, y, z, block)) continue;
+      this.player.inventory.takeSelected(1);
+      this.onBlockPlaced?.();
       this.player.startSwing();
       this.sfx.play('place');
       return true;
@@ -360,6 +370,7 @@ export class BlockInteraction {
   }
 
   private updateVisuals(): void {
+    this.updatePreview();
     // A zero distance hit means the camera is inside the block, and the
     // highlight box would smear its edges across the whole screen.
     if (!this.target || this.target.distance < 0.15) {
@@ -376,5 +387,26 @@ export class BlockInteraction {
     this.crack.visible = this.progress > 0.02;
     this.crack.position.copy(center);
     material.opacity = this.progress * 0.6;
+  }
+
+  private updatePreview(): void {
+    this.preview.visible = false;
+    this.placementHint = '';
+    const hit = this.target;
+    const slot = this.player.inventory.selectedSlot;
+    const block = slot.block;
+    if (!this.previewEnabled || !hit || block === null || slot.count <= 0 ||
+        isConsumable(block) || isUpgradeOre(block) || isTorchFuel(block) ||
+        this.aimingAltar || this.aimingStatue || this.aimingBed) return;
+    const x = hit.x + hit.nx, y = hit.y + hit.ny, z = hit.z + hit.nz;
+    const destination = this.world.getBlock(x, y, z);
+    if (y < 0 || y >= WORLD_HEIGHT) this.placementHint = 'Limite do mundo: escolha outro lugar';
+    else if (!this.world.getChunk(x >> 4, z >> 4)) this.placementHint = 'Espere o terreno carregar';
+    else if (this.intersectsPlayer(x, y, z)) this.placementHint = 'Afaste-se um pouco para colocar aqui';
+    else if (destination !== Block.Air && destination !== Block.Water) this.placementHint = 'Este espaço está ocupado';
+    this.preview.material.color.setHex(this.placementHint ? 0xff8a73 : 0x91edc3);
+    this.preview.material.opacity = this.placementHint ? 0.1 : 0.25;
+    this.preview.position.set(x + 0.5, y + 0.5, z + 0.5);
+    this.preview.visible = true;
   }
 }

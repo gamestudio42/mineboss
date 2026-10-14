@@ -74,7 +74,7 @@ export class Input {
     this.mouseDX = this.mouseDY = this.wheelDelta = 0;
   }
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.code === 'F3' || event.code === 'Tab') event.preventDefault();
+    if (this.locked && (event.code === 'F3' || event.code === 'Tab')) event.preventDefault();
     if (event.repeat) return;
     this.held.add(event.code);
     this.pressed.add(event.code);
