@@ -17,6 +17,7 @@ const MAX_PARTICLES = 900;
  * sparks and the boss impacts. Dead particles are parked far below the world.
  */
 export class ParticleSystem {
+  density = 1;
   private readonly positions = new Float32Array(MAX_PARTICLES * 3);
   private readonly colors = new Float32Array(MAX_PARTICLES * 3);
   private readonly velocities = new Float32Array(MAX_PARTICLES * 3);
@@ -55,7 +56,7 @@ export class ParticleSystem {
   }
 
   burst(position: THREE.Vector3, options: BurstOptions = {}): void {
-    const count = options.count ?? 12;
+    const count = Math.ceil((options.count ?? 12) * this.density);
     const speed = options.speed ?? 3;
     const spread = options.spread ?? 0.25;
     const life = options.life ?? 0.8;

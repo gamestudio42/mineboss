@@ -50,6 +50,7 @@ function slotHint(block: number | null, count: number): string {
 
 /** All in-game HUD widgets: hearts, hotbar, hint line, boss bar and debug. */
 export class Hud {
+  reducedEffects = false;
   readonly bossBar: BossHealthBar;
   readonly compass: Compass;
   readonly debug: DebugOverlay;
@@ -118,21 +119,21 @@ export class Hud {
 
   flashDamage(intensity = 1): void {
     this.flash.classList.remove('heal', 'plate');
-    this.flash.style.opacity = String(Math.min(0.9, 0.35 + intensity * 0.2));
+    this.flash.style.opacity = String(this.reducedEffects ? 0.12 : Math.min(0.9, 0.35 + intensity * 0.2));
     this.flashTimer = 0.35;
   }
 
   flashHeal(): void {
     this.flash.classList.remove('plate');
     this.flash.classList.add('heal');
-    this.flash.style.opacity = '0.55';
+    this.flash.style.opacity = this.reducedEffects ? '0.1' : '0.55';
     this.flashTimer = 0.35;
   }
 
   flashPlates(): void {
     this.flash.classList.remove('heal');
     this.flash.classList.add('plate');
-    this.flash.style.opacity = '0.5';
+    this.flash.style.opacity = this.reducedEffects ? '0.1' : '0.5';
     this.flashTimer = 0.28;
   }
 
@@ -186,7 +187,7 @@ export class Hud {
     }
 
     const slot = inventory.selectedSlot;
-    const hint = inventory.unlimited && slot.block !== null ? `${getBlockDef(slot.block).name} ∞ — botão direito: colocar · B: outros blocos` : slotHint(slot.block, slot.count);
+    const hint = inventory.unlimited && slot.block !== null ? `${getBlockDef(slot.block).name} ∞` : slotHint(slot.block, slot.count);
     if (hint === this.lastHint) return;
     this.lastHint = hint;
     this.slotHintRoot.textContent = hint;

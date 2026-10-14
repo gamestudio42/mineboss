@@ -66,6 +66,13 @@ export class Shockwave extends Entity {
     }
   }
 
+  approaching(player: { x: number; y: number; z: number }): boolean {
+    if (this.removed || this.hitPlayerAlready || Math.abs(player.y - this.position.y) > 3) return false;
+    const distance = Math.hypot(player.x - this.position.x, player.z - this.position.z);
+    const remaining = distance - this.radius - 1.3;
+    return distance < this.options.maxRadius && remaining >= -0.2 && remaining / this.options.speed <= 0.65;
+  }
+
   override onRemoved(): void {
     this.ring.geometry.dispose();
     this.ring.material.dispose();

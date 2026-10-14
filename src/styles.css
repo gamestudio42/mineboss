@@ -589,3 +589,58 @@ kbd {
 #overlay-panel:has(.play-extras:not(:empty)) #overlay-actions { flex-direction: row; justify-content: center; flex-wrap: wrap; }
 #overlay-panel:has(.block-grid) { padding: 24px; }
 #overlay-panel:has(.block-grid) #overlay-text { margin-bottom: 16px; }
+
+/* Child-facing menus keep the main choices large; details stay in submenus. */
+#overlay-panel { width: min(620px, 94vw); border-radius: 20px; padding: clamp(20px, 3vw, 36px); }
+#overlay-panel .title { font-size: clamp(25px, 4vw, 38px); letter-spacing: 2px; }
+#overlay-actions { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+#overlay-actions button { min-height: 48px; }
+#overlay button:focus-visible, #settings input:focus-visible, #settings select:focus-visible { outline: 3px solid #ffe299; outline-offset: 4px; }
+.play-extras:has(.menu-card) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.play-extras .menu-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 118px; font-size: 18px; font-weight: 650; background: #203b49; border-color: #527d87; }
+.menu-icon { font-size: 34px; line-height: 1.2; }
+.menu-card small { font-size: 13px; font-weight: 400; color: #d8e5e7; }
+.play-extras button:disabled { opacity: .48; cursor: default; }
+.play-extras button:disabled:hover { outline: none; background: #25394c; }
+.setting { font-size: 14px; }
+.setting select { padding: 10px; border-radius: 8px; border: 1px solid #6e94a5; background: #203341; color: #fff; font: inherit; }
+.setting-check input { width: 19px; height: 19px; accent-color: #ffc46b; }
+.build-idea { width: 100%; margin: 0; padding: 8px; background: #203541; border-radius: 14px; }
+.build-idea svg { display: block; width: min(100%, 370px); max-height: 33vh; margin: auto; }
+.build-idea figcaption { font-size: 13px; color: #d4e1e4; padding: 8px; }
+#action-label { top: auto; bottom: 175px; max-width: min(90vw, 560px); display: flex; align-items: center; justify-content: center; gap: 10px; padding: 9px 14px; border-radius: 12px; background: #142630db; font-weight: 650; font-size: 16px; border: 1px solid #658481; }
+#action-label kbd { font-size: 13px; padding: 5px 8px; margin: 0; white-space: nowrap; }
+.cue-icon { font-size: 24px; color: #adead0; }
+#action-label[data-kind='warning'] { border-color: #ffcf7a; }
+#action-label[data-kind='warning'] .cue-icon { color: #ffcf7a; }
+#action-label[data-kind='attack'] { border-color: #a4ec9b; background: #1e442ee8; }
+#hud:has(#hint.show) #action-label[data-kind='build'] { visibility: hidden; }
+#hint { top: auto; bottom: 230px; max-width: 80vw; background: #142630db; border-radius: 10px; padding: 8px 12px; }
+#objective { max-width: min(80vw, 580px); font-size: 14px; }
+#seed-label { display: none; }
+#phase-label { top: 16px; }
+#play-help { top: 40px; }
+#flight-status { top: 64px; max-width: 280px; }
+#slot-hint { font-size: 13px; opacity: .9; }
+.calm-effects .boss-bar-vulnerable { animation: none; }
+.calm-effects *, .calm-effects *::before, .calm-effects *::after { scroll-behavior: auto !important; }
+@media (max-height: 660px) {
+  #overlay-panel { max-height: 95vh; padding: 18px; }
+  .play-extras .menu-card { min-height: 82px; gap: 4px; }
+  .menu-icon { font-size: 26px; }
+  #bottom-bar { bottom: 10px; gap: 4px; }
+  #action-label { bottom: 145px; font-size: 14px; }
+  #hint { bottom: 195px; }
+  #build-lesson { top: 102px; }
+}
+@media (max-width: 600px) {
+  #overlay-actions button { padding: 10px 15px; }
+  .play-extras .menu-card { font-size: 16px; }
+  .slot { width: 9vw; max-width: 44px; height: 42px; }
+  #play-help, #flight-status { font-size: 11px; }
+  #save-status { font-size: 10px; }
+}
+.play-extras:has(.menu-card) > button:not(.menu-card) { grid-column: 1 / -1; }
+.play-extras:has(.build-idea) { display: flex; justify-content: center; }
+.play-extras:has(.build-idea) .menu-card { flex-direction: row; min-height: 48px; font-size: 16px; }
+.play-extras:has(.build-idea) .menu-icon { font-size: 24px; }

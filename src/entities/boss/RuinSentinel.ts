@@ -139,6 +139,7 @@ export class RuinSentinel extends Entity {
   }
 
   override onRemoved(): void {
+    this.model.dispose();
     this.landingTelegraph.object3D.removeFromParent();
     this.telegraph.dispose();
     this.landingTelegraph.dispose();

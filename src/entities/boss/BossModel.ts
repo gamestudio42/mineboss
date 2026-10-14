@@ -109,6 +109,15 @@ export class BossModel {
     return arm;
   }
 
+  dispose(): void {
+    this.root.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.geometry.dispose();
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose();
+    });
+    this.aura.dispose();
+  }
+
   private buildLeg(side: number): THREE.Group {
     const leg = new THREE.Group();
     leg.position.set(side * 0.65, 1.9, 0);

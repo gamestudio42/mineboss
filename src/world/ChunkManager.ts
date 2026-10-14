@@ -25,6 +25,7 @@ interface PendingJob {
  * mesher worker pool and keeps the resulting meshes in the scene.
  */
 export class ChunkManager {
+  private renderDistance = RENDER_DISTANCE;
   private readonly workers: Worker[] = [];
   private readonly workerLoad: number[] = [];
   private readonly meshes = new Map<string, THREE.Mesh>();
@@ -78,6 +79,12 @@ export class ChunkManager {
 
   get loadedChunks(): number {
     return this.world.chunks.size;
+  }
+
+  setRenderDistance(distance: number): void {
+    if (distance === this.renderDistance) return;
+    this.renderDistance = Math.max(2, Math.min(RENDER_DISTANCE, distance));
+    this.lastChunkX = this.lastChunkZ = Number.NaN;
   }
 
   /** Generates and meshes everything around a point, used before the first frame. */
@@ -176,6 +183,7 @@ export class ChunkManager {
     let budget = MAX_GENERATED_PER_FRAME;
 
     for (const { dx, dz } of this.offsets) {
+      if (Math.hypot(dx, dz) > this.renderDistance + GENERATE_MARGIN) break;
       if (budget === 0) return;
       const x = cx + dx;
       const z = cz + dz;
@@ -187,7 +195,7 @@ export class ChunkManager {
 
   private meshAround(cx: number, cz: number): void {
     for (const { dx, dz, distance } of this.offsets) {
-      if (distance > RENDER_DISTANCE) break;
+      if (distance > this.renderDistance) break;
       this.enqueueChunk(cx + dx, cz + dz);
     }
   }
@@ -411,7 +419,7 @@ export class ChunkManager {
   }
 
   private unloadFar(cx: number, cz: number): void {
-    const limit = RENDER_DISTANCE + UNLOAD_MARGIN;
+    const limit = this.renderDistance + UNLOAD_MARGIN;
 
     for (const chunk of [...this.world.chunks.values()]) {
       if (Math.hypot(chunk.cx - cx, chunk.cz - cz) <= limit) continue;

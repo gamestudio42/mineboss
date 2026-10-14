@@ -70,6 +70,9 @@
             <button id="overlay-secondary" class="hidden" type="button">Nova partida</button>
           </div>
           <div id="settings" class="hidden">
+            <label class="setting"><span>Qualidade da imagem</span><select id="setting-quality"><option value="light">Leve</option><option value="balanced">Equilibrada</option><option value="high">Caprichada</option></select></label>
+            <label class="setting setting-check"><input id="setting-motion" type="checkbox" /><span>Câmera tranquila (sem balanço e tremor)</span></label>
+            <label class="setting setting-check"><input id="setting-effects" type="checkbox" /><span>Efeitos suaves (menos partículas e flashes)</span></label>
             <label class="setting">
               <span>Volume <strong id="setting-volume-value">45%</strong></span>
               <input id="setting-volume" type="range" min="0" max="100" value="45" />

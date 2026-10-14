@@ -1,4 +1,4 @@
-import { saveSettings, type StoredSettings } from '../core/Settings.ts';
+import { DEFAULT_SETTINGS, saveSettings, type StoredSettings } from '../core/Settings.ts';
 
 export interface OverlayContent {
   title: string;
@@ -7,6 +7,7 @@ export interface OverlayContent {
   secondary?: string;
   showControls?: boolean;
   showSettings?: boolean;
+  onEscape?: () => void;
 }
 
 /** Full screen panel used for the title screen, pause, death and victory. */
@@ -23,13 +24,17 @@ export class Overlay {
   private readonly sensitivity: HTMLInputElement;
   private readonly volumeValue: HTMLElement;
   private readonly sensitivityValue: HTMLElement;
+  private readonly reducedMotion: HTMLInputElement;
+  private readonly reducedEffects: HTMLInputElement;
+  private readonly quality: HTMLSelectElement;
 
   private readonly extras = document.createElement('div');
   private readonly back = document.createElement('button');
 
   private action: (() => void) | null = null;
   private secondaryAction: (() => void) | null = null;
-  private current: StoredSettings = { volume: 0.45, muted: false, sensitivity: 1 };
+  private current: StoredSettings = { ...DEFAULT_SETTINGS };
+  private escapeAction: (() => void) | null = null;
 
   onSettingsChange: ((settings: StoredSettings) => void) | null = null;
 
@@ -46,6 +51,13 @@ export class Overlay {
     this.sensitivity = document.getElementById('setting-sensitivity') as HTMLInputElement;
     this.volumeValue = document.getElementById('setting-volume-value') as HTMLElement;
     this.sensitivityValue = document.getElementById('setting-sensitivity-value') as HTMLElement;
+    this.reducedMotion = document.getElementById('setting-motion') as HTMLInputElement;
+    this.reducedEffects = document.getElementById('setting-effects') as HTMLInputElement;
+    this.quality = document.getElementById('setting-quality') as HTMLSelectElement;
+    this.root.setAttribute('role', 'dialog');
+    this.root.setAttribute('aria-modal', 'true');
+    this.title.id = 'overlay-title';
+    this.root.setAttribute('aria-labelledby', this.title.id);
 
     this.extras.className = 'play-extras';
     this.controls.before(this.extras);
@@ -57,6 +69,21 @@ export class Overlay {
     this.volume.addEventListener('input', () => this.commit());
     this.sensitivity.addEventListener('input', () => this.commit());
     this.mute.addEventListener('change', () => this.commit());
+    this.reducedMotion.addEventListener('change', () => this.commit());
+    this.reducedEffects.addEventListener('change', () => this.commit());
+    this.quality.addEventListener('change', () => this.commit());
+    window.addEventListener('keydown', event => {
+      if (!this.visible) return;
+      if (event.code === 'Escape') {
+        event.preventDefault(); event.stopImmediatePropagation(); this.escapeAction?.();
+      } else if (event.code === 'Tab') {
+        const controls = [...this.root.querySelectorAll<HTMLElement>('button, input, select')]
+          .filter(element => !element.closest('.hidden') && !element.hasAttribute('disabled'));
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    });
   }
 
   get visible(): boolean {
@@ -81,19 +108,32 @@ export class Overlay {
     this.settings.classList.toggle('hidden', content.showSettings !== true);
     this.action = action;
     this.secondaryAction = secondaryAction ?? null;
+    this.escapeAction = content.onEscape ?? secondaryAction ?? action;
     this.syncInputs();
     this.root.classList.remove('hidden');
+    this.button.focus({ preventScroll: true });
   }
 
   setBackAction(action: () => void): void {
     this.back.classList.remove('hidden');
     this.back.onclick = action;
+    this.escapeAction = action;
   }
 
-  addAction(label: string, action: () => void): void {
+  addAction(label: string, action: () => void, options: { icon?: string; description?: string; disabled?: boolean } = {}): void {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = label;
+    button.disabled = options.disabled === true;
+    if (options.icon) {
+      button.classList.add('menu-card');
+      const icon = document.createElement('span'); icon.className = 'menu-icon';
+      icon.textContent = options.icon; icon.setAttribute('aria-hidden', 'true'); button.prepend(icon);
+    }
+    if (options.description) {
+      const description = document.createElement('small'); description.textContent = options.description;
+      button.append(description);
+    }
     button.onclick = action;
     this.extras.append(button);
   }
@@ -101,6 +141,7 @@ export class Overlay {
   addContent(node: HTMLElement): void { this.extras.append(node); }
 
   hide(): void {
+    if (this.root.contains(document.activeElement)) (document.activeElement as HTMLElement)?.blur();
     this.root.classList.add('hidden');
   }
 
@@ -108,6 +149,9 @@ export class Overlay {
     this.volume.value = String(Math.round(this.current.volume * 100));
     this.mute.checked = this.current.muted;
     this.sensitivity.value = String(Math.round(this.current.sensitivity * 100));
+    this.reducedMotion.checked = this.current.reducedMotion;
+    this.reducedEffects.checked = this.current.reducedEffects;
+    this.quality.value = this.current.quality;
     this.refreshLabels();
   }
 
@@ -116,6 +160,9 @@ export class Overlay {
       volume: Number(this.volume.value) / 100,
       muted: this.mute.checked,
       sensitivity: Number(this.sensitivity.value) / 100,
+      reducedMotion: this.reducedMotion.checked,
+      reducedEffects: this.reducedEffects.checked,
+      quality: this.quality.value as StoredSettings['quality'],
     };
     this.refreshLabels();
     saveSettings(this.current);

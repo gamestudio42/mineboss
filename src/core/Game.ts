@@ -48,7 +48,10 @@ import { blockGrid, CATALOG_GROUPS } from '../ui/BlockCatalog.ts';
 import { getBlockDef, isSolid } from '../world/blocks.ts';
 import { ENTRANCE_SPAWN } from '../world/arena.ts';
 import { loadSave, loadPreviousSave, parseSave, saveRun, SAVE_VERSION, type SavedRun } from './Save.ts';
-import { loadSettings, type StoredSettings } from './Settings.ts';
+import { loadSettings, QUALITY, type StoredSettings } from './Settings.ts';
+import { buildIdeaPanel, BUILD_IDEAS } from '../ui/BuildIdeas.ts';
+import { combatCue, showActionCue } from '../ui/CombatCue.ts';
+import { Shockwave } from '../entities/boss/attacks/Shockwave.ts';
 import { clamp, damp, wrapAngle } from './math.ts';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
@@ -117,6 +120,7 @@ export class Game {
   private readonly hud: Hud;
   private readonly overlay = new Overlay();
 
+  private reducedMotion = false;
   private elapsed = 0;
   private trauma = 0;
   private stepDistance = 0;
@@ -384,8 +388,11 @@ export class Game {
     this.overlay.show({
       title: 'MINEBOSS',
       text: 'Escolha seu mundo. Cada modo guarda uma partida separada.\nAventura: explore o mundo aberto. OneBlock: construa no vazio.',
-      button: 'Aventura', secondary: 'OneBlock', showSettings: true, showControls: false,
+      button: '🌳 Aventura', secondary: '🏝 OneBlock', showControls: false, onEscape: () => {},
     }, () => this.showModeMenu('adventure'), () => this.showModeMenu('oneblock'));
+    this.overlay.addAction('Som e conforto', () => {
+      this.overlay.show({ title: 'Som e conforto', text: 'Ajuste a imagem, a câmera e o som.', button: 'Voltar', showControls: false, showSettings: true, onEscape: () => this.showMenu() }, () => this.showMenu());
+    }, { icon: '⚙' });
   }
 
   private showModeMenu(mode: GameMode): void {
@@ -400,8 +407,7 @@ export class Game {
       else this.chooseStyle(mode);
     }, () => save ? this.confirmNewGame(mode) : this.showMenu());
     this.overlay.setBackAction(() => this.showMenu());
-    this.overlay.addAction('Importar mundo', () => this.importWorld());
-    if (loadPreviousSave(mode)) this.overlay.addAction('Recuperar cópia anterior', () => this.confirmRecovery(mode));
+    this.overlay.addAction('Cuidar dos mundos', () => this.showWorldOptions(mode), { icon: '💾' });
     if (save?.updatedAt) {
       const stamp = document.createElement('p'); stamp.textContent = `Salvo em ${new Date(save.updatedAt).toLocaleString('pt-BR')}`; this.overlay.addContent(stamp);
     }
@@ -424,7 +430,7 @@ export class Game {
     } else if (this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked) {
       this.hud.showHint('Use o direito para colocar terra e ampliar a ilha.', 5);
     } else if (this.player.creative) {
-      this.hud.showHint('B: escolha blocos. Esc: sua base, ideias e chefões.', 4);
+      this.hud.showHint('B: escolha blocos. Esc: construir, base e chefões.', 4);
     } else if (!this.arena.ruinFound) {
       this.hud.showHint('Encontre o Sentinela: siga a bússola ou use Visitar no menu', 4.2);
     } else if (!this.player.creative && !this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
@@ -443,7 +449,8 @@ export class Game {
     const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
     this.overlay.show(
       {
-        title: 'Pausa',
+        title: 'Vamos brincar?',
+        onEscape: () => this.startPlaying(),
         text: fighting ? 'Continue ou saia da batalha.' : this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked ? 'Seu bloco infinito está esperando.' : 'Continue construindo ou visite o chefão quando quiser.',
         button: 'Continuar',
         secondary: 'Modos de jogo',
@@ -650,7 +657,8 @@ export class Game {
     if (this.input.wasPressed('KeyB') && !this.practice) { this.openCatalog(); return; }
     if (this.input.wasPressed('KeyC') && !this.player.creative && !this.arena.active && !this.ruin.active && !this.practice) { this.showRecipes(); return; }
     if (this.input.wasPressed('KeyH')) { this.showHelp(); return; }
-    if (this.input.wasPressed('KeyZ')) this.undoBuild();
+    if (this.input.wasPressed('KeyZ')) this.undoBuild(this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'));
+    if (this.input.wasPressed('KeyY')) this.undoBuild(true);
     this.elapsed += dt;
 
     this.handleHotbarInput();
@@ -667,6 +675,7 @@ export class Game {
       this.player.health.damage(this.player.health.max, { bypassInvulnerability: true });
     }
     this.combat.update(dt, this.input);
+    this.interaction.previewEnabled = !this.arena.active && !this.ruin.active && !this.practice;
     const interaction = this.practice ? { brokeBlock: false } : this.interaction.update(dt, this.input, this.combat.aimed !== null);
     if (this.state !== 'playing') return;
     if (interaction.brokeBlock) {
@@ -701,7 +710,7 @@ export class Game {
       ? 0
       : Math.hypot(this.player.velocity.x, this.player.velocity.z);
     this.viewModel.setTier(this.player.hammerTier);
-    this.viewModel.update(dt, this.player.swing, SWING_DURATION, walkSpeed);
+    this.viewModel.update(dt, this.player.swing, SWING_DURATION, this.reducedMotion ? 0 : walkSpeed);
     this.updateHud(dt);
     this.updateSave(dt);
 
@@ -736,7 +745,7 @@ export class Game {
     document.getElementById('flight-status')!.textContent = this.player.creative ? (this.player.flying ? 'Voando · Espaço sobe · Ctrl desce · Shift acelera · F pousa' : 'No chão · Espaço pula · F voa') : '';
     document.getElementById('play-help')!.textContent = fighting
       ? 'Espaço: pular · Esquerdo: atacar · Esc: pausar'
-      : this.player.creative ? 'B: blocos · Z: desfazer · H: ajuda · Esc: menu'
+      : this.player.creative ? 'B: blocos · Z: desfazer · Y: refazer · Esc: menu'
       : 'B: mochila · C: criar · H: ajuda · Esc: menu';
     const held = this.player.inventory.selectedSlot;
     this.viewModel.setHeld(held.count > 0 ? held.block : null);
@@ -759,23 +768,36 @@ export class Game {
     this.sfx.setVolume(settings.volume);
     this.sfx.setMuted(settings.muted);
     this.controller.lookScale = settings.sensitivity;
+    this.reducedMotion = this.controller.reducedMotion = settings.reducedMotion;
+    this.hud.reducedEffects = settings.reducedEffects;
+    const quality = QUALITY[settings.quality];
+    this.chunks.setRenderDistance(quality.distance);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatio));
+    this.particles.density = settings.reducedEffects ? Math.min(.2, quality.particles) : quality.particles;
+    this.torchLights.limit = quality.lights;
+    document.documentElement.classList.toggle('calm-effects', settings.reducedMotion || settings.reducedEffects);
+    this.resize();
   }
 
   private updateCrosshair(): void {
     const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
     const target = this.interaction.target;
     const aimingCore = this.mode === 'oneblock' && target !== null && isOneBlockCell(target.x, target.y, target.z);
-    document.getElementById('action-label')!.textContent = this.combat.aimed
-      ? 'Botão esquerdo: bater'
-      : fighting ? 'Pule e desvie · espere BATA AGORA!'
-      : this.interaction.aimingAltar || this.interaction.aimingStatue ? 'Botão direito: enfrentar chefão'
-      : this.interaction.aimingBed ? 'Botão direito: descansar'
-      : this.practice ? this.practice.objective
-      : aimingCore ? 'Segure esquerdo: quebrar o bloco infinito'
-      : this.interaction.holdingTorchFuel || this.interaction.holdingUpgradeOre ? 'C: criar itens'
-      : target ? 'Esquerdo: remover · Direito: colocar / usar'
-      : this.mode === 'oneblock' ? 'Olhe para baixo: esquerdo quebra o bloco'
-      : this.player.creative ? 'B: escolher materiais' : 'Explore e construa';
+    const boss = this.arena.boss ?? this.ruin.boss;
+    const incoming = this.entities.entities.some(entity => entity instanceof Shockwave && entity.approaching(this.player.position));
+    const cue = combatCue(boss && !boss.removed ? boss.stateName : undefined, this.practice?.stage, incoming);
+    if (cue) showActionCue(cue);
+    else if (this.controller.edgeBlocked) showActionCue({ icon: '✋', key: 'Espaço', text: 'Proteção de borda: queda à frente', kind: 'warning' });
+    else if (this.interaction.placementHint) showActionCue({ icon: '!', key: '', text: this.interaction.placementHint, kind: 'warning' });
+    else if (this.buildLesson) showActionCue(null);
+    else if (this.combat.aimed) showActionCue({ icon: '🔨', key: 'Esquerdo', text: 'Bater', kind: 'attack' });
+    else if (this.interaction.aimingAltar || this.interaction.aimingStatue) showActionCue({ icon: '👑', key: 'Direito', text: 'Visitar chefão', kind: 'build' });
+    else if (this.interaction.aimingBed) showActionCue({ icon: '☾', key: 'Direito', text: 'Descansar', kind: 'build' });
+    else if (this.interaction.holdingConsumable) showActionCue({ icon: '♥', key: 'Direito', text: 'Comer', kind: 'build' });
+    else if (aimingCore) showActionCue({ icon: '🔨', key: 'Esquerdo', text: 'Segure para pegar blocos', kind: 'build' });
+    else if (this.interaction.holdingTorchFuel || this.interaction.holdingUpgradeOre) showActionCue({ icon: '🔨', key: 'C', text: 'Criar itens', kind: 'build' });
+    else if (target) showActionCue({ icon: '🧱', key: 'Direito', text: 'Colocar · esquerdo remove', kind: 'build' });
+    else showActionCue(null);
     if (this.combat.aimed) this.hud.setCrosshair('attack');
     else if (fighting) this.hud.setCrosshair('idle');
     else if (this.interaction.aimingAltar || this.interaction.aimingStatue) this.hud.setCrosshair('altar');
@@ -790,7 +812,7 @@ export class Game {
 
   private updateGuide(): void {
     const position = this.player.position;
-    if (this.practice) { this.hud.setObjective(this.practice.objective); this.hud.compass.update(false,0,''); return; }
+    if (this.practice) { this.hud.setObjective(null); this.hud.compass.update(false,0,''); return; }
     if (this.player.creative && !this.ruin.active && !this.arena.active) {
       this.hud.setObjective(this.guidance ? 'Construa do seu jeito · Esc: sua base e chefões' : null);
       this.hud.compass.update(false, 0, '');
@@ -803,13 +825,13 @@ export class Game {
     }
 
     if (this.ruin.active) {
-      this.hud.setObjective('Pule a onda! Bata quando o chefão ficar vulnerável');
+      this.hud.setObjective(null);
       this.hud.compass.update(false, 0, '');
       return;
     }
 
     if (this.arena.active) {
-      this.hud.setObjective(this.arena.objectiveText(position));
+      this.hud.setObjective(null);
       this.hud.compass.update(false, 0, '');
       return;
     }
@@ -896,6 +918,7 @@ export class Game {
   }
 
   private applyShake(dt: number): void {
+    if (this.reducedMotion) { this.trauma = 0; return; }
     if (this.trauma <= 0) return;
 
     this.trauma = Math.max(0, this.trauma - dt * 1.4);
@@ -935,7 +958,7 @@ export class Game {
     this.hud.setUnderwater(submerged);
 
     const sprinting = this.state === 'playing' && this.player.sprinting && !this.player.swimming && !this.player.flying;
-    const targetFov = sprinting ? SPRINT_FOV : BASE_FOV;
+    const targetFov = sprinting && !this.reducedMotion ? SPRINT_FOV : BASE_FOV;
     if (Math.abs(this.camera.fov - targetFov) > 0.05) {
       this.camera.fov = damp(this.camera.fov, targetFov, 10, dt);
       this.camera.updateProjectionMatrix();
@@ -1259,33 +1282,58 @@ export class Game {
 
   private addPlayActions(): void {
     if (this.practice) {
-      this.overlay.addAction('Sair do treino', () => this.stopPractice());
-      this.overlay.addAction('Como brincar', () => this.showHelp());
+      this.overlay.addAction('Sair do treino', () => this.stopPractice(), { icon: '🏠' });
+      this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?' });
       return;
     }
-    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    const fighting = this.arena.active || this.ruin.active;
     if (fighting) {
       this.overlay.addAction('Sair da batalha', () => {
         this.arena.reset(this.context); this.ruin.reset(this.context);
         this.finishFight(); this.goHome(); this.startPlaying();
-      });
-    } else if (this.world.generator.ruinUnlocked) {
-      this.overlay.addAction('Treinar com segurança', () => this.startPractice());
-      this.overlay.addAction('Visitar o Sentinela', () => {
-        this.confirmFight(true);
-      });
+      }, { icon: '🏠', description: 'Voltar com seus itens' });
+    } else {
+      this.overlay.addAction(this.player.creative ? 'Construir' : 'Mochila e criação', () => this.showBuildingTools(), { icon: '🧱', description: 'Blocos e ideias' });
+      this.overlay.addAction('Chefões', () => this.showBossMenu(), { icon: '👑', description: 'Treinar ou enfrentar' });
+      this.overlay.addAction('Minha base', () => this.showHomeMenu(), { icon: '🏠', description: 'Seu lugar no mundo' });
     }
-    if (!fighting && this.world.generator.shrineUnlocked) this.overlay.addAction('Visitar o Guardião', () => this.confirmFight(false));
-    if (!fighting) {
-      this.overlay.addAction('Voltar à base', () => { this.goHome(); this.startPlaying(); });
-      this.overlay.addAction('Marcar minha base', () => this.markHome());
-      if (this.mode === 'oneblock') this.overlay.addAction('Ideias para a ilha', () => this.showIslandGoals());
-      if (!this.player.creative) this.overlay.addAction('Criar itens', () => this.showRecipes());
-      if (this.player.creative) this.overlay.addAction('Desfazer último bloco', () => { this.undoBuild(); this.startPlaying(); });
-    }
-    this.overlay.addAction(this.player.creative ? 'Escolher blocos' : 'Abrir mochila', () => this.openCatalog());
-    this.overlay.addAction('Como brincar', () => this.showHelp());
+    this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?', description: 'Uma ajuda rápida' });
     this.overlay.addAction('Mais opções', () => this.showMoreOptions());
+  }
+
+  private showBuildingTools(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: this.player.creative ? 'Vamos construir!' : 'Mochila e criação', text: this.player.creative ? 'O contorno verde mostra onde colocar. Z desfaz; Y refaz.' : 'Escolha seus materiais ou crie itens.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    this.overlay.addAction(this.player.creative ? 'Escolher blocos' : 'Abrir mochila', () => this.openCatalog(), { icon: '🧱' });
+    if (this.player.creative) {
+      this.overlay.addAction('Ideias para construir', () => this.showBuildIdeas(), { icon: '🏰' });
+      this.overlay.addAction('Desfazer', () => { this.undoBuild(); this.showBuildingTools(); }, { icon: '↶', disabled: !this.buildHistory.canUndo });
+      this.overlay.addAction('Refazer', () => { this.undoBuild(true); this.showBuildingTools(); }, { icon: '↷', disabled: !this.buildHistory.canRedo });
+    } else this.overlay.addAction('Criar itens', () => this.showRecipes(), { icon: '🔨' });
+    if (this.mode === 'oneblock') this.overlay.addAction('Ideias para a ilha', () => this.showIslandGoals(), { icon: '🏝' });
+  }
+
+  private showBossMenu(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: 'Chefões', text: 'Você escolhe quando enfrentar. O treino não tira vida.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    if (this.world.generator.ruinUnlocked) {
+      this.overlay.addAction('Treinar com segurança', () => this.startPractice(), { icon: '🎯', description: 'Pular, desviar e bater' });
+      this.overlay.addAction('Visitar o Sentinela', () => this.confirmFight(true), { icon: '🗿', description: 'Chefão das ruínas' });
+    } else this.overlay.addAction('Sentinela', () => {}, { icon: '🔒', description: `${this.oneBlock.broken}/${this.oneBlock.ruinAt} blocos`, disabled: true });
+    if (this.world.generator.shrineUnlocked) this.overlay.addAction('Visitar o Guardião', () => this.confirmFight(false), { icon: '💎', description: 'Chefão do santuário' });
+  }
+
+  private showHomeMenu(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: 'Minha base', text: 'Volte para casa ou escolha um novo lugar para ela.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    this.overlay.addAction('Voltar à base', () => { this.goHome(); this.startPlaying(); }, { icon: '🏠' });
+    this.overlay.addAction('Marcar minha base', () => this.markHome(), { icon: '📍', description: 'Usar o chão onde estou' });
+  }
+
+  private showWorldOptions(mode: GameMode): void {
+    this.overlay.show({ title: 'Cuidar dos mundos', text: 'Peça ajuda a um adulto para trocar ou recuperar seu mundo.', button: 'Voltar', showControls: false, onEscape: () => this.showModeMenu(mode) }, () => this.showModeMenu(mode));
+    this.overlay.addAction('Importar mundo', () => this.importWorld());
+    if (loadPreviousSave(mode)) this.overlay.addAction('Recuperar cópia anterior', () => this.confirmRecovery(mode));
   }
 
   private showMoreOptions(): void {
@@ -1361,14 +1409,21 @@ export class Game {
 
   private showBuildIdeas(): void {
     this.stopForPanel();
-    this.overlay.show({ title: 'O que vamos construir?', text: 'Escolha uma ideia ou invente a sua. Não precisa completar nenhuma missão.', button: 'Escolher materiais', secondary: 'Voltar ao jogo', showControls: false }, () => this.openCatalog(), () => this.startPlaying());
-    for (const [name, idea] of [
-      ['Casa colorida', 'Faça um chão, quatro paredes e janelas. Deixe um espaço para entrar!'],
-      ['Ponte', 'Ligue dois lugares com tábuas. Coloque bordas para não cair.'],
-      ['Castelo', 'Construa uma torre, um portão aberto e um lugar para o seu troféu.'],
-    ]) this.overlay.addAction(name, () => {
-      this.overlay.show({ title: name, text: idea, button: 'Escolher materiais', secondary: 'Outra ideia', showControls: false }, () => this.openCatalog(), () => this.showBuildIdeas());
-    });
+    this.overlay.show({ title: 'O que vamos construir?', text: 'Veja uma ideia por etapas e construa do seu jeito.', button: 'Voltar ao jogo', secondary: 'Construir', showControls: false }, () => this.startPlaying(), () => this.showBuildingTools());
+    for (const idea of BUILD_IDEAS) this.overlay.addAction(idea.name, () => this.showBuildIdea(idea.id, 0), { icon: idea.icon, description: `${idea.steps.length} etapas com figuras` });
+  }
+
+  private showBuildIdea(id: string, step: number): void {
+    const idea = BUILD_IDEAS.find(item => item.id === id)!;
+    this.overlay.show({ title: idea.name, text: `${step + 1}/${idea.steps.length} · ${idea.steps[step]}`, button: step < idea.steps.length - 1 ? 'Próxima etapa' : 'Escolher materiais', secondary: 'Outras ideias', showControls: false, onEscape: () => this.showBuildIdeas() },
+      () => step < idea.steps.length - 1 ? this.showBuildIdea(id, step + 1) : this.openCatalog(), () => this.showBuildIdeas());
+    this.overlay.addContent(buildIdeaPanel(idea, step));
+    if (step > 0) this.overlay.addAction('Etapa anterior', () => this.showBuildIdea(id, step - 1));
+    this.overlay.addAction('Usar estes materiais', () => {
+      if (!this.player.creative) return;
+      idea.materials.forEach((block, i) => Object.assign(this.player.inventory.slots[i], { block, count: 64 }));
+      this.player.inventory.select(0); this.startPlaying();
+    }, { icon: '🧱' });
   }
 
   private showHelp(): void {
@@ -1380,7 +1435,7 @@ export class Game {
         : '1. Use o esquerdo para pegar blocos.\n2. Use o direito para colocar ou usar.\n3. Aperte B para abrir a mochila.';
     const bossTip = this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked
       ? `O Sentinela aparece depois de ${this.oneBlock.ruinAt} blocos quebrados.`
-      : 'Para o chefão: Esc > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!';
+      : 'Para o chefão: Esc > Chefões > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!';
     this.overlay.show({ title: 'Como brincar', text: `${firstSteps}\n\nPara andar: W A S D e mouse.\n${bossTip}`, button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     if (this.player.creative) {
       this.overlay.addAction('Praticar construção', () => { this.tutorialDone = false; this.buildLesson = 0; this.openCatalog(); });
@@ -1499,11 +1554,11 @@ export class Game {
     this.controller.update(0.0001, this.input);
   }
 
-  private undoBuild(): void {
+  private undoBuild(redo = false): void {
     if (!this.player.creative || this.arena.active || this.ruin.active) return;
-    const ok = this.buildHistory.undo(this.world, (x,y,z) => this.interaction.intersectsPlayer(x,y,z));
+    const ok = this.buildHistory[redo ? 'redo' : 'undo'](this.world, (x,y,z) => this.interaction.intersectsPlayer(x,y,z));
     if (ok && this.buildLesson === 2) this.buildLesson = 1;
-    this.hud.showHint(ok ? 'Última edição desfeita.' : 'Não há edição segura para desfazer. Afaste-se do bloco e tente de novo.', 3);
+    this.hud.showHint(ok ? (redo ? 'Bloco refeito! Y refaz mais.' : 'Bloco desfeito! Z desfaz mais; Y refaz.') : 'Nenhuma ação disponível aqui. Se há um bloco em você, afaste-se e tente de novo.', 3);
   }
 
   private ensureSafeSpawn(): void {

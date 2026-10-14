@@ -10,6 +10,7 @@ const REACH = 26;
  * The terrain material is Lambert, so these actually light the cave walls.
  */
 export class TorchLights {
+  limit = MAX_LIGHTS;
   private readonly lights: THREE.PointLight[] = [];
   private readonly scratch: Array<{ x: number; y: number; z: number; distance: number }> = [];
 
@@ -35,7 +36,7 @@ export class TorchLights {
 
     for (let i = 0; i < this.lights.length; i++) {
       const light = this.lights[i];
-      const torch = this.scratch[i];
+      const torch = i < this.limit ? this.scratch[i] : undefined;
       if (!torch) {
         light.intensity = 0;
         light.visible = false;
