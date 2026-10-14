@@ -107,8 +107,8 @@ test('pointer-lock errors are visible and losing focus clears held and pressed i
  }finally{global.window=oldW;global.document=oldD;}
 });
 test('visiting Sentinel opens confirmation without moving or replacing spawn',()=>{
- const g=game();g.world.generator.ruinUnlocked=true;g.player.position.set(10,73,12);g.player.spawn.set(10,73,12);const actions=new Map();g.overlay={addAction:(label,fn)=>actions.set(label,fn)};let asked=false;g.confirmFight=()=>{asked=true;};
- g.addPlayActions();actions.get('Visitar o Sentinela')();assert.equal(asked,true);assert.deepEqual(g.player.position.toArray(),[10,73,12]);assert.deepEqual(g.player.spawn.toArray(),[10,73,12]);
+ const g=game();g.world.generator.ruinUnlocked=true;g.player.position.set(10,73,12);g.player.spawn.set(10,73,12);const actions=new Map();g.overlay={show(){},addAction:(label,fn)=>actions.set(label,fn)};g.stopForPanel=()=>{};let asked=false;g.confirmFight=()=>{asked=true;};
+ g.addPlayActions();actions.get('Chefões')();actions.get('Visitar o Sentinela')();assert.equal(asked,true);assert.deepEqual(g.player.position.toArray(),[10,73,12]);assert.deepEqual(g.player.spawn.toArray(),[10,73,12]);
 });
 
 test('frequent autosaves keep a meaningful checkpoint and refresh it after a minute',()=>{

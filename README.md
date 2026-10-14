@@ -17,8 +17,8 @@ A porta é fixa: se estiver ocupada, o servidor avisa em vez de abrir outro ende
 - **Aventura / Sobrevivência:** explore o terreno, colete recursos, faça ferramentas e construa sua base.
 - **OneBlock:** escolha o ritmo ao criar uma partida. No Curto, a ruína aparece aos 90 blocos e o santuário aos 140; no Clássico, aos 360 e 560. Saves antigos mantêm o ritmo Clássico. Metas opcionais de ampliar a ilha e iniciar um abrigo dão materiais uma única vez.
 
-O menu Esc destaca continuar, blocos/mochila, ajuda e, quando disponível, visitar
-os chefões. **Marcar minha base** guarda um chão seguro; **Voltar à base** retorna à construção depois de explorar ou lutar. Em **Mais opções**, altere o estilo da Aventura, dificuldade,
+O menu Esc destaca **Construir**, **Chefões**, **Minha base** e **Como brincar**,
+com figuras grandes. Tab/Shift+Tab navegam pelos botões, Enter ativa e Esc volta. **Marcar minha base** guarda um chão seguro; **Voltar à base** retorna à construção depois de explorar ou lutar. Em **Mais opções**, altere o estilo da Aventura, dificuldade,
 proteção de borda e guia, além de importar ou exportar o mundo.
 A dificuldade Tranquila é o padrão: menos dano dos monstros e mais tempo nos
 avisos dos chefões. No OneBlock, também há menos inimigos e não há lava surpresa.
@@ -32,22 +32,28 @@ O núcleo sempre é sólido e avisa antes de gerar um monstrinho.
 - B: catálogo na Construção livre; mochila com excedentes na Sobrevivência.
 - H: primeiros passos; a ajuda completa reúne controles e receitas.
 - F: ligar/desligar voo na Construção livre. Espaço sobe e Ctrl desce. Shift acelera.
-- Z: desfazer a última edição na Construção livre, fora das lutas.
+- Z: desfazer; Y ou Shift+Z: refazer, na Construção livre e fora das lutas.
+  Até 50 edições por sessão; uma nova edição descarta o refazer.
 - C: criar tochas, cama, martelos e armaduras na Sobrevivência, fora das lutas.
 - Q: soltar um bloco. Esc: pausar e salvar.
 
-A proteção de borda impede caminhar para fora do apoio. Pular permite sair da
-borda. Ela pode ser desligada pelo menu; não impede empurrões enquanto no ar.
+A proteção de borda permite entrar em buracos andando: na Construção livre,
+procura um chão sólido seguro em qualquer profundidade do mundo; na
+Sobrevivência, aceita descidas de até quatro blocos, sem dano de queda.
+Vazio e colunas com lava continuam bloqueados. Pular permite sair da borda.
+A proteção pode ser desligada pelo menu; não impede empurrões durante um salto.
 
 ## Chefões e recompensas
 
-Use **Treinar com segurança** para praticar onda, círculo e golpe sem perder vida.
+Abra **Esc > Chefões > Treinar com segurança** para praticar onda, círculo e golpe sem perder vida.
 **Visitar o Sentinela** e **Visitar o Guardião** abrem uma confirmação antes de transportar.
 Você também pode explorar até a estátua na ruína e o altar subterrâneo.
 Cada luta exige confirmação. Na Construção livre, voo e invulnerabilidade
 ficam suspensos durante a batalha e voltam ao vencer, sair ou morrer.
 
 Pule as ondas, saia dos círculos e ataque quando aparecer **BATA AGORA!**.
+As orientações usam figura, tecla e uma ação por vez; a onda próxima tem
+prioridade sobre o aviso para atacar. Comida recupera vida com o botão direito.
 Morrer mantém os itens, verifica um ponto seguro de retorno e concede cinco
 segundos de proteção contra golpes. O menu permite sair da batalha.
 
@@ -60,7 +66,10 @@ preservam os blocos colocados pelo jogador.
 
 O catálogo inclui oito cores e vidro com janelas transparentes. As categorias
 destacam o material selecionado; a barra criativa é guardada separadamente da
-mochila de Sobrevivência. Tutorial visual e ideias de casa, ponte e castelo são opcionais.
+mochila de Sobrevivência. Tutorial visual e ideias ilustradas de casa, ponte e castelo são opcionais.
+Cada ideia tem três etapas e um botão para colocar seus materiais na barra,
+sem construir automaticamente no mundo. A prévia translúcida mostra onde
+o próximo bloco vai ficar; uma posição inválida mostra o motivo.
 
 Os materiais excedentes vão para uma mochila, em vez de desaparecer quando os
 nove espaços ficam cheios. B permite trocar o material do espaço selecionado
@@ -78,6 +87,15 @@ histórico completo. Save principal corrompido usa a cópia válida automaticame
 Recarregar durante combate/treino volta à posição anterior ao encontro, sem
 boss ativo, preservando base, inventários, estilo, voo, guia e prêmios confirmados.
 Os saves pertencem à origem do site: trocar host/porta usa outro armazenamento.
+
+## Conforto e qualidade
+
+**Som e conforto**, na abertura, e **Mais opções**, na pausa, oferecem:
+
+- Câmera tranquila: remove balanço ao andar, tremor de impactos e ampliação ao correr.
+- Efeitos suaves: reduz partículas, flashes de dano/cura/armadura e pulsação da barra.
+- Qualidade Leve, Equilibrada (padrão) ou Caprichada: ajusta distância do terreno,
+  resolução, partículas e luzes de tochas. As preferências ficam neste navegador.
 
 ## Verificação técnica
 

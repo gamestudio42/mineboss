@@ -1,5 +1,54 @@
 # Validação — 30/09/2026
 
+## Rodada mais recente: controles, construção e conforto
+
+- `pnpm test`: **96 testes passaram**; `pnpm build` e `git diff --check` passaram.
+- Corrigida colisão em quedas longas com frames de 100 ms: 76 alturas iniciais
+  sobre uma plataforma de um bloco, a 60, 30 e 10 FPS simulados. Testados também
+  movimentos rápidos contra parede e teto, além de todos os casos de degraus/buracos.
+- Q só consome após colocar: limite superior e região ainda não carregada.
+- Histórico de 50 ações com desfazer/refazer, colisão, proveniência, edição nova,
+  alteração externa e células protegidas. Histórico não faz parte do save.
+- Prévia de colocação válida/inválida sem editar o mundo; aviso da proteção de
+  borda e câmera sem balanço; configurações antigas/inválidas e persistência.
+- Aviso de onda próxima tem prioridade sobre vulnerabilidade e termina após a
+  passagem. Geometrias e materiais dos dois chefões são liberados ao removê-los.
+- Novo combate automatizado sem imunidade, teletransporte durante a luta ou cura
+  artificial: controlador, esquiva, melee e consumo reais, seed/RNG 42, Tranquila.
+  Sentinela: martelo de madeira, sem armadura, 23 s, 15 acertos, sem dano recebido.
+  Guardião: ferro/armadura de ferro, 54 s, 34 acertos, 16,2 de dano recebido,
+  três cogumelos consumidos e 15,8 de vida restante. Tempos de simulação acelerada;
+  isso não mede habilidade humana nem facilidade para a criança.
+
+### Interface e renderização
+
+No Chrome em `127.0.0.1:5175`, a entrada normal confirmou Tab e Esc nos menus.
+A captura real ainda retornou a tela de recuperação; não foi declarada corrigida.
+O cenário `/tests/browser/` usa as classes reais, WebGL e workers com storage
+exclusivamente em memória e captura simulada. Ele não carrega nem salva mundos
+reais e não faz parte do build de produção.
+
+Nesse cenário foram conferidos: colocar com botão direito no canvas, Z desfazer,
+Y refazer, prévia inválida com motivo, pausa/volta, categorias, três etapas da casa,
+botões de desfazer/refazer disponíveis conforme histórico e opções de qualidade,
+câmera e efeitos. A pausa coube em 1024×640; opções extensas têm rolagem.
+Evidências: [menu](docs/validation/menu-infantil.jpg) e
+[ideias de construção](docs/validation/ideias-construcao.jpg).
+
+O ensaio de estresse foi interrompido: a aba automatizada entregou apenas 94 quadros
+em 89 segundos, com intervalos próximos a 1 s. Registrou 88 edições, 110 chunks,
+194 geometrias e troca de Leve para Equilibrada, sem erro JavaScript observado.
+Esses dados **não são benchmark de FPS** nem comprovação de ausência de vazamentos;
+a atualização irregular da aba inviabilizou uma medição representativa.
+O botão “Estresse 5 min” fica disponível no cenário para repetir no navegador normal.
+
+Permanecem as verificações humanas descritas adiante: captura real no navegador da
+família, sessão contínua e observação da criança. O build atual emite somente o
+aviso de tamanho do pacote principal (732,46 kB / 192,58 kB gzip).
+
+## Histórico das rodadas anteriores
+
+
 Implementação das cinco etapas entregue. A validação técnica abaixo passou;
 a aceitação completa de jogabilidade ainda depende de resolver/verificar a
 captura do mouse no navegador de uso e observar a criança jogando. O plano
@@ -102,3 +151,41 @@ de câmera e combate no navegador nem as duas vitórias por jogo manual.
   de combate manual. A prévia não depende da captura de mouse.
 - Evidência: [martelo de ferro na prévia](docs/validation/martelo-ferro.jpg).
   Os arquivos temporários da prévia e do modelo antigo foram removidos.
+
+## Descida de degraus — 30/09/2026
+
+Reproduzido com `PlayerController`, `VoxelBody` e `World` reais: a proteção de
+borda verificava apoio apenas no nível atual. Na pista com um degrau de um
+bloco, o personagem parou em x=2,241, y=91 sem pular; com salto, chegou a
+x=5,948, y=90. Dos 19 novos testes, 14 falharam antes da correção.
+
+Na primeira correção, a proteção passou a aceitar chão seguro até um bloco abaixo. Durante a descida
+por gravidade, mantém a verificação de apoio para não atravessar uma plataforma
+estreita correndo e cair no vazio. Saltos, voo e natação liberam esse controle;
+um retorno/teleporte para outra altura descarta a descida anterior.
+
+Após a correção, os 19 cenários passaram: quatro direções em Sobrevivência e
+Construção livre, diagonal, escada sucessiva, corrida em plataforma estreita
+com passos de simulação de 1/120, 1/60, 1/30 e 1/10 s, vazio, queda de dois
+blocos, lava, salto e subida automática. A suíte completa passou **67 testes**,
+e o build de produção passou. A verificação desta correção foi por simulação
+da física real; não foi uma sessão manual no navegador.
+
+## Entrada em buracos — 30/09/2026
+
+O relato seguinte mostrou que a regra de um bloco ainda impedia entrar em
+buracos mais fundos. Nove novos cenários de entrada falharam com essa regra.
+Ela foi substituída: na Construção livre, qualquer piso sólido seguro dentro
+da altura do mundo permite a descida; na Sobrevivência, o limite corresponde
+aos quatro blocos sem dano de queda. A busca para na lava e não aceita vazio.
+
+Foram usados buracos fechados com paredes e piso reais, incluindo profundidades
+de 2, 3 e 4 blocos em ambos os estilos, 8 e 16 no criativo e abertura de um único
+bloco de largura. A descida de 32 blocos também foi verificada com passos de
+simulação de 1/30 e 1/10 s. O personagem chegou ao fundo sem usar Espaço.
+Permanecem cobertos degraus, diagonais, plataforma estreita, salto e subida.
+
+Os testes de proteção confirmam bloqueio de queda com dano na Sobrevivência,
+vazio nos dois estilos e lava mesmo quando existe pedra abaixo dela. A suíte
+completa passou **81 testes**, e o build passou. São testes com as classes reais
+de física e terreno; não representam uma sessão manual no navegador.
