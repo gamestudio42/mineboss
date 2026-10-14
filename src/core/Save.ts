@@ -71,6 +71,7 @@ export interface SavedRun {
     cacheClaimed?: boolean;
     ruinFound?: boolean;
     ruinDefeated?: boolean;
+    beaconDefeated?: boolean;
   };
   oneBlock: SavedOneBlock;
   edits: SavedEdit[];
@@ -124,10 +125,11 @@ export function parseSave(raw: string, mode?: GameMode): SavedRun | null {
       if (parsed[key] !== undefined && typeof parsed[key] !== 'boolean') return null;
     }
     if (typeof parsed.arena.defeated !== 'boolean' || typeof parsed.arena.discovered !== 'boolean') return null;
+    if (parsed.arena.beaconDefeated !== undefined && typeof parsed.arena.beaconDefeated !== 'boolean') return null;
     if (!count(parsed.oneBlock.broken) || parsed.oneBlock.broken > 1_000_000_000 || !count(parsed.oneBlock.phase)) return null;
     if (parsed.oneBlock.pace !== undefined && !['classic','quick'].includes(parsed.oneBlock.pace)) return null;
     if (parsed.oneBlock.goals !== undefined && (!Array.isArray(parsed.oneBlock.goals) || parsed.oneBlock.goals.some(goal => !['platform','shelter'].includes(goal)))) return null;
-    if (parsed.trophies !== undefined && (!Array.isArray(parsed.trophies) || parsed.trophies.some(id => id !== 26 && id !== 27))) return null;
+    if (parsed.trophies !== undefined && (!Array.isArray(parsed.trophies) || parsed.trophies.some(id => id !== 26 && id !== 27 && id !== 42))) return null;
     if (parsed.edits.length > 300_000) return null;
     for (const edit of parsed.edits) {
       if (!edit || ![edit.x, edit.y, edit.z].every(n => coord(n) && Number.isInteger(n))) return null;

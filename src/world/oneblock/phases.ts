@@ -9,6 +9,7 @@ export const PHASE_MOB_CAP = 4;
 export type PhaseId =
   | 'plains'
   | 'woods'
+  | 'garden'
   | 'underground'
   | 'wastes'
   | 'ore'
@@ -19,7 +20,7 @@ export type PhaseId =
 export type OneBlockPace = 'classic' | 'quick';
 export function paceScale(pace: OneBlockPace): number { return pace === 'quick' ? 4 : 1; }
 
-export type StructureUnlock = 'ruin' | 'shrine';
+export type StructureUnlock = 'ruin' | 'shrine' | 'beacon';
 
 export interface WeightedBlock {
   id: Block;
@@ -48,40 +49,71 @@ export interface PhaseDef {
 export const PHASES: readonly PhaseDef[] = [
   {
     id: 'plains',
-    extras: [{ id: Block.Mushroom, chance: 0.12 }],
     name: 'Planície',
-    length: 80,
+    // Lengths stay divisible by 4 so the quick pace (÷4) keeps integer thresholds.
+    length: 40,
     mobChance: 0,
     mobTint: 0x6b8f4e,
+    extras: [
+      { id: Block.Planks, chance: 0.22 },
+      { id: Block.Mushroom, chance: 0.18 },
+    ],
     blocks: [
-      { id: Block.Grass, weight: 36 },
-      { id: Block.Dirt, weight: 28 },
+      { id: Block.Grass, weight: 30 },
+      { id: Block.Dirt, weight: 22 },
       { id: Block.Log, weight: 16 },
-      { id: Block.Leaves, weight: 8 },
-      { id: Block.Dirt, weight: 12 },
+      { id: Block.Planks, weight: 18 },
+      { id: Block.Leaves, weight: 6 },
     ],
   },
   {
     id: 'woods',
     name: 'Floresta',
-    length: 80,
-    mobChance: 0.02,
+    length: 40,
+    mobChance: 0,
     mobTint: 0x5a4030,
+    extras: [
+      { id: Block.Planks, chance: 0.25 },
+      { id: Block.Mushroom, chance: 0.16 },
+    ],
     blocks: [
-      { id: Block.Log, weight: 28 },
-      { id: Block.BirchLog, weight: 18 },
-      { id: Block.Planks, weight: 16 },
-      { id: Block.Dirt, weight: 20 },
-      { id: Block.Leaves, weight: 10 },
-      { id: Block.BirchLeaves, weight: 8 },
+      { id: Block.Log, weight: 24 },
+      { id: Block.BirchLog, weight: 16 },
+      { id: Block.Planks, weight: 28 },
+      { id: Block.Dirt, weight: 14 },
+      { id: Block.Leaves, weight: 6 },
+      { id: Block.BirchLeaves, weight: 4 },
+    ],
+  },
+  {
+    id: 'garden',
+    name: 'Jardim',
+    length: 40,
+    mobChance: 0,
+    mobTint: 0x6b8f4e,
+    extras: [
+      { id: Block.Chest, chance: 0.1, neighbor: true },
+      { id: Block.Mushroom, chance: 0.12 },
+    ],
+    blocks: [
+      { id: Block.Moss, weight: 30 },
+      { id: Block.Grass, weight: 16 },
+      { id: Block.Dirt, weight: 14 },
+      { id: Block.Flower, weight: 16 },
+      { id: Block.Log, weight: 12 },
+      { id: Block.Leaves, weight: 4 },
     ],
   },
   {
     id: 'underground',
     name: 'Cavernas',
     length: 120,
-    mobChance: 0.03,
+    mobChance: 0,
     mobTint: 0x6a6e78,
+    extras: [
+      { id: Block.CoalOre, chance: 0.18 },
+      { id: Block.Chest, chance: 0.07, neighbor: true },
+    ],
     blocks: [
       { id: Block.Stone, weight: 32 },
       { id: Block.Cobblestone, weight: 24 },
@@ -95,8 +127,12 @@ export const PHASES: readonly PhaseDef[] = [
     id: 'wastes',
     name: 'Deserto',
     length: 80,
-    mobChance: 0.035,
+    mobChance: 0,
     mobTint: 0xc4a36a,
+    extras: [
+      { id: Block.CoalOre, chance: 0.1 },
+      { id: Block.Chest, chance: 0.05, neighbor: true },
+    ],
     blocks: [
       { id: Block.Sand, weight: 40 },
       { id: Block.Gravel, weight: 22 },
@@ -112,6 +148,10 @@ export const PHASES: readonly PhaseDef[] = [
     mobChance: 0.045,
     mobTint: 0x8a9aaa,
     unlock: 'ruin',
+    extras: [
+      { id: Block.IronOre, chance: 0.15 },
+      { id: Block.Chest, chance: 0.08, neighbor: true },
+    ],
     blocks: [
       { id: Block.Stone, weight: 28 },
       { id: Block.IronOre, weight: 24 },
@@ -129,6 +169,7 @@ export const PHASES: readonly PhaseDef[] = [
     extras: [
       { id: Block.Lava, chance: 0.08, neighbor: true },
       { id: Block.Water, chance: 0.04, neighbor: true },
+      { id: Block.Chest, chance: 0.06, neighbor: true },
     ],
     blocks: [
       { id: Block.DarkBrick, weight: 28 },
@@ -146,7 +187,10 @@ export const PHASES: readonly PhaseDef[] = [
     mobChance: 0.08,
     mobTint: 0x4a3870,
     unlock: 'shrine',
-    extras: [{ id: Block.CrystalOre, chance: 0.05 }],
+    extras: [
+      { id: Block.CrystalOre, chance: 0.05 },
+      { id: Block.Chest, chance: 0.07, neighbor: true },
+    ],
     blocks: [
       { id: Block.Obsidian, weight: 24 },
       { id: Block.RunicStone, weight: 16 },
@@ -160,9 +204,13 @@ export const PHASES: readonly PhaseDef[] = [
     id: 'after',
     name: 'Exploração livre',
     length: 0,
+    unlock: 'beacon',
     mobChance: 0.07,
     mobTint: 0xc9a227,
-    extras: [{ id: Block.Mushroom, chance: 0.06 }],
+    extras: [
+      { id: Block.Mushroom, chance: 0.06 },
+      { id: Block.Chest, chance: 0.04, neighbor: true },
+    ],
     blocks: [
       { id: Block.Stone, weight: 16 },
       { id: Block.Dirt, weight: 10 },
@@ -204,15 +252,62 @@ export function phaseAt(broken: number, pace: OneBlockPace = 'classic'): { phase
   return { phase: PHASES[last], index: last, local: count - PHASE_START[last] };
 }
 
-export function unlocksForBroken(broken: number, pace: OneBlockPace = 'classic'): { ruin: boolean; shrine: boolean } {
+/** Breaks required before the phase that unlocks a structure. */
+export function unlockBreaks(kind: StructureUnlock, pace: OneBlockPace = 'classic'): number {
+  let total = 0;
+  for (const phase of PHASES) {
+    if (phase.unlock === kind) return total / paceScale(pace);
+    total += phase.length;
+  }
+  return total / paceScale(pace);
+}
+
+export interface ChestItem {
+  id: Block;
+  count: number;
+}
+
+/** Rolled when a chest is opened. Depends on the current phase, not on block metadata. */
+export function chestLoot(phaseIndex: number): ChestItem[] {
+  if (phaseIndex <= 2) {
+    return [
+      { id: Block.Dirt, count: 6 },
+      { id: Block.Planks, count: 6 },
+      { id: Block.Mushroom, count: 2 },
+    ];
+  }
+  if (phaseIndex <= 4) {
+    return [
+      { id: Block.Cobblestone, count: 8 },
+      { id: Block.CoalOre, count: 3 },
+      { id: Block.Planks, count: 4 },
+    ];
+  }
+  if (phaseIndex === 5) {
+    return [
+      { id: Block.IronOre, count: 3 },
+      { id: Block.CoalOre, count: 4 },
+      { id: Block.Planks, count: 4 },
+    ];
+  }
+  return [
+    { id: Block.GoldOre, count: 2 },
+    { id: Block.Glowstone, count: 2 },
+    { id: Block.Mushroom, count: 2 },
+  ];
+}
+
+export function unlocksForBroken(broken: number, pace: OneBlockPace = 'classic'): { ruin: boolean; shrine: boolean; beacon: boolean } {
   const { index } = phaseAt(broken, pace);
   let ruin = false;
   let shrine = false;
+  let beacon = false;
   for (let i = 0; i <= index; i++) {
     if (PHASES[i].unlock === 'ruin') ruin = true;
     if (PHASES[i].unlock === 'shrine') shrine = true;
+    if (PHASES[i].unlock === 'beacon') beacon = true;
   }
-  return { ruin, shrine };
+  return { ruin, shrine, beacon };
 }
 
 export function pickWeighted(blocks: readonly WeightedBlock[], roll: number): Block {

@@ -10,6 +10,7 @@ import {
   getBlockDef,
   isBed,
   isBedMaterial,
+  isChest,
   isConsumable,
   isTorchFuel,
 } from '../world/blocks.ts';
@@ -43,6 +44,7 @@ function slotHint(block: number | null, count: number): string {
   const name = getBlockDef(block).name;
   if (isConsumable(block)) return name + ' · direito: comer';
   if (isBed(block)) return name + ' · coloque e clique para descansar';
+  if (isChest(block)) return name + ' · coloque e clique com o direito para abrir';
   if (isTorchFuel(block) || block === 11 || block === 12) return name + ' · C: criar itens';
   if (isBedMaterial(block)) return name + ' · direito: colocar · C: criar cama';
   return name + ' · direito: colocar';

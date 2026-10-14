@@ -4,6 +4,7 @@ import { Sfx } from '../audio/Sfx.ts';
 import { BossPractice } from '../entities/boss/BossPractice.ts';
 import { BossArena } from '../entities/boss/BossArena.ts';
 import { RuinEncounter } from '../entities/boss/RuinEncounter.ts';
+import { GroveEncounter } from '../entities/boss/GroveEncounter.ts';
 import { EntityManager } from '../entities/EntityManager.ts';
 import type { EntityContext } from '../entities/Entity.ts';
 import { recipePanel } from '../ui/RecipePanel.ts';
@@ -29,15 +30,17 @@ import {
   ENTRANCE,
   RUIN_COURTYARD,
   RUIN_STATUE,
+  GROVE,
   chunkTouchesArena,
   chunkTouchesCache,
   chunkTouchesEntrance,
+  chunkTouchesGrove,
   chunkTouchesRuin,
 } from '../world/arena.ts';
 import { Block, isWater } from '../world/blocks.ts';
 import { ChunkManager } from '../world/ChunkManager.ts';
 import { OneBlock } from '../world/oneblock/OneBlock.ts';
-import { ISLAND_Y, VOID_KILL_Y, isOneBlockCell } from '../world/oneblock/phases.ts';
+import { ISLAND_Y, VOID_KILL_Y, chestLoot, isOneBlockCell, unlockBreaks } from '../world/oneblock/phases.ts';
 import { TerrainGenerator } from '../world/terrain/generator.ts';
 import { World } from '../world/World.ts';
 import { Input } from './Input.ts';
@@ -104,6 +107,7 @@ export class Game {
   private readonly viewModel: ViewModel;
   private readonly arena: BossArena;
   private readonly ruin: RuinEncounter;
+  private readonly grove: GroveEncounter;
   private survival: SavedRun['survival'];
   private practice: BossPractice | null = null;
   private fightCreative = false;
@@ -243,6 +247,28 @@ export class Game {
       onShake: (intensity) => this.shake(intensity),
       onStagger: () => this.hintStagger(),
     });
+    this.grove = new GroveEncounter(this.entities, {
+      onSummon: (name) => {
+        this.hud.bossBar.show(name);
+        this.hud.bossBar.setPhase('Fase I');
+        this.sfx.play('roar');
+      },
+      onPhase: (_phase, label) => {
+        this.hud.bossBar.setPhase(label);
+        this.hud.showHint(`${label}: brotos vão sair do chão. Bata quando ele ficar vulnerável.`, 3.2);
+      },
+      onDefeated: () => {
+        this.rewardBoss(Block.BeaconTrophy);
+        this.finishFight();
+        this.grove.rebuildBeacon(this.world);
+        this.showBossVictory('Faroleiro vencido!');
+        this.hud.bossBar.hide();
+        this.hud.showHint('Você venceu o Faroleiro! A lanterna do farol está nos materiais', 4.2);
+        this.saveSoon = true;
+      },
+      onShake: (intensity) => this.shake(intensity),
+      onStagger: () => this.hintStagger(),
+    });
 
     this.context = {
       dt: 0,
@@ -277,12 +303,13 @@ export class Game {
         if (earned.length) { this.hud.showHint('Você conseguiu! Novos materiais na mochila.', 5); this.saveSoon = true; }
       }
     };
-    this.interaction.onBuildEdit = edit => { if (this.player.creative && !this.arena.active && !this.ruin.active) this.buildHistory.record(edit); };
+    this.interaction.onBuildEdit = edit => { if (this.player.creative && !this.inEncounter) this.buildHistory.record(edit); };
     this.player.inventory.onOverflow = () => this.hud.showHint('Barra cheia: material guardado na mochila. Aperte B.', 4);
     this.oneBlock.onWarning = () => this.hud.showHint('⚠ Um monstrinho está chegando! Afaste-se do bloco.', 3);
     window.addEventListener('pagehide', () => { if (this.state !== 'menu') this.persistSave({ atSpawn: this.player.dead }); });
     this.interaction.onAltarActivated = () => this.tryStartFight();
     this.interaction.onStatueActivated = () => this.tryStartRuinFight();
+    this.interaction.onBeaconActivated = () => this.tryStartGroveFight();
     this.interaction.onOneBlockMined = () => this.handleOneBlockMined();
     this.interaction.onConsumed = (healed) => {
       if (healed <= 0) {
@@ -319,6 +346,13 @@ export class Game {
       if (this.hintedBed) return;
       this.hintedBed = true;
       this.hud.showHint('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
+    };
+    this.interaction.onChestOpened = () => {
+      const loot = chestLoot(this.mode === 'oneblock' ? this.oneBlock.phaseIndex : 0);
+      for (const item of loot) this.player.inventory.add(item.id, item.count);
+      const names = loot.map(item => `${item.count} ${getBlockDef(item.id).name}`).join(', ');
+      this.hud.showHint(`O baú trouxe ${names}.`, 3.6);
+      this.saveSoon = true;
     };
     this.interaction.onSpawnSet = () => {
       this.hud.showHint('Você vai voltar aqui ao renascer', 2.6);
@@ -425,7 +459,7 @@ export class Game {
     this.state = 'playing';
     this.input.requestLock();
     document.getElementById('mouse-prompt')!.classList.toggle('hidden', this.input.locked);
-    if (this.arena.active || this.ruin.active || this.practice) {
+    if (this.inEncounter || this.practice) {
       this.hud.hideHint();
     } else if (this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked) {
       this.hud.showHint('Use o direito para colocar terra e ampliar a ilha.', 5);
@@ -446,7 +480,7 @@ export class Game {
     this.state = 'paused';
     document.getElementById('mouse-prompt')!.classList.add('hidden');
     this.input.releaseLock();
-    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    const fighting = this.inEncounter || Boolean(this.practice);
     this.overlay.show(
       {
         title: 'Vamos brincar?',
@@ -471,10 +505,12 @@ export class Game {
     this.input.releaseLock();
     this.hud.bossBar.hide();
     const sentinelFight = this.ruin.active;
+    const groveFight = this.grove.active;
     const voided = this.voidFall;
     this.voidFall = false;
     this.arena.reset(this.context);
     this.ruin.reset(this.context);
+    this.grove.reset(this.context);
     this.entities.clear();
     this.oneBlock.cancelWarning();
     this.finishFight();
@@ -484,7 +520,7 @@ export class Game {
     this.overlay.show(
       {
         title: 'Vamos tentar de novo?',
-        text: this.deathText(sentinelFight, voided),
+        text: this.deathText(sentinelFight, groveFight, voided),
         button: 'Renascer',
         secondary: 'Modos de jogo',
         showControls: false,
@@ -499,6 +535,9 @@ export class Game {
         }
         if (this.world.generator.ruinUnlocked && !this.ruin.defeated) {
           this.ruin.rebuildStatue(this.context.world);
+        }
+        if (this.world.generator.beaconUnlocked && !this.grove.defeated) {
+          this.grove.rebuildBeacon(this.context.world);
         }
         if (this.arena.discovered) {
           this.player.yaw = Math.atan2(
@@ -589,6 +628,7 @@ export class Game {
     this.entities.clear();
     this.arena.beginNewRun();
     this.ruin.beginNewRun();
+    this.grove.beginNewRun();
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();
@@ -606,14 +646,23 @@ export class Game {
     this.startPlaying();
   }
 
+  private get inEncounter(): boolean {
+    return this.arena.active || this.ruin.active || this.grove.active;
+  }
+
   private tryStartFight(): void {
-    if (this.arena.active || this.ruin.active || !this.world.generator.shrineUnlocked || !this.arena.canSummon(this.player.position)) return;
+    if (this.inEncounter || !this.world.generator.shrineUnlocked || !this.arena.canSummon(this.player.position)) return;
     this.confirmFight(false);
   }
 
   private tryStartRuinFight(): void {
-    if (this.arena.active || this.ruin.active || !this.world.generator.ruinUnlocked || !this.ruin.canSummon(this.player.position)) return;
+    if (this.inEncounter || !this.world.generator.ruinUnlocked || !this.ruin.canSummon(this.player.position)) return;
     this.confirmFight(true);
+  }
+
+  private tryStartGroveFight(): void {
+    if (this.inEncounter || !this.world.generator.beaconUnlocked || !this.grove.canSummon(this.player.position)) return;
+    this.confirmBeaconFight();
   }
 
   private hintStagger(): void {
@@ -621,12 +670,15 @@ export class Game {
     this.hud.showHint('BATA AGORA! O chefão está vulnerável!', 3.4);
   }
 
-  private deathText(sentinelFight: boolean, voided: boolean): string {
-    if (voided && !sentinelFight) {
+  private deathText(sentinelFight: boolean, groveFight: boolean, voided: boolean): string {
+    if (voided && !sentinelFight && !groveFight) {
       return 'Você caiu! Seus itens estão guardados. Renasça e amplie sua ilha.';
     }
     if (sentinelFight) {
       return 'Seus itens continuam com você. Renasça perto e tente o Sentinela de novo quando quiser.';
+    }
+    if (groveFight) {
+      return 'Seus itens continuam com você. Renasça perto e tente o Faroleiro de novo quando quiser.';
     }
     if (this.arena.defeated) {
       return 'Seus itens estão seguros. Renasça para continuar.';
@@ -655,7 +707,7 @@ export class Game {
   private updateWorld(dt: number): void {
     if (this.input.wasPressed('Escape')) { this.pause(); return; }
     if (this.input.wasPressed('KeyB') && !this.practice) { this.openCatalog(); return; }
-    if (this.input.wasPressed('KeyC') && !this.player.creative && !this.arena.active && !this.ruin.active && !this.practice) { this.showRecipes(); return; }
+    if (this.input.wasPressed('KeyC') && !this.player.creative && !this.inEncounter && !this.practice) { this.showRecipes(); return; }
     if (this.input.wasPressed('KeyH')) { this.showHelp(); return; }
     if (this.input.wasPressed('KeyZ')) this.undoBuild(this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'));
     if (this.input.wasPressed('KeyY')) this.undoBuild(true);
@@ -675,7 +727,7 @@ export class Game {
       this.player.health.damage(this.player.health.max, { bypassInvulnerability: true });
     }
     this.combat.update(dt, this.input);
-    this.interaction.previewEnabled = !this.arena.active && !this.ruin.active && !this.practice;
+    this.interaction.previewEnabled = !this.inEncounter && !this.practice;
     const interaction = this.practice ? { brokeBlock: false } : this.interaction.update(dt, this.input, this.combat.aimed !== null);
     if (this.state !== 'playing') return;
     if (interaction.brokeBlock) {
@@ -739,8 +791,15 @@ export class Game {
     );
     this.viewModel.setPlates(this.player.plates);
     this.hud.setSeed(this.seed);
-    this.hud.setPhase(this.mode === 'oneblock' ? `${this.oneBlock.label} · ${!this.oneBlock.ruinUnlocked ? 'Ruína: ' + this.oneBlock.broken + '/' + this.oneBlock.ruinAt : !this.oneBlock.shrineUnlocked ? 'Santuário: ' + this.oneBlock.broken + '/' + this.oneBlock.shrineAt : 'Ilhas liberadas'}` : this.player.creative ? 'Aventura · Construção livre ∞' : 'Aventura · Sobrevivência');
-    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    const oneBlockMark = !this.oneBlock.ruinUnlocked
+      ? `Ruína: ${this.oneBlock.broken}/${this.oneBlock.ruinAt}`
+      : !this.oneBlock.shrineUnlocked
+        ? `Santuário: ${this.oneBlock.broken}/${this.oneBlock.shrineAt}`
+        : !this.oneBlock.beaconUnlocked
+          ? `Farol: ${this.oneBlock.broken}/${this.oneBlock.beaconAt}`
+          : 'Ilhas liberadas';
+    this.hud.setPhase(this.mode === 'oneblock' ? `${this.oneBlock.label} · ${oneBlockMark}` : this.player.creative ? 'Aventura · Construção livre ∞' : 'Aventura · Sobrevivência');
+    const fighting = this.inEncounter || Boolean(this.practice);
     updateBuildLesson(fighting ? 0 : this.buildLesson);
     document.getElementById('flight-status')!.textContent = this.player.creative ? (this.player.flying ? 'Voando · Espaço sobe · Ctrl desce · Shift acelera · F pousa' : 'No chão · Espaço pula · F voa') : '';
     document.getElementById('play-help')!.textContent = fighting
@@ -750,12 +809,12 @@ export class Game {
     const held = this.player.inventory.selectedSlot;
     this.viewModel.setHeld(held.count > 0 ? held.block : null);
 
-    const boss = this.arena.boss ?? this.ruin.boss;
+    const boss = this.arena.boss ?? this.ruin.boss ?? this.grove.boss;
     if (boss && !boss.removed) {
       this.hud.bossBar.update(boss.health?.fraction ?? 0);
       this.hud.bossBar.setVulnerable(boss.stateName === 'stagger');
     } else if (this.arena.defeated || this.ruin.defeated) {
-      if (!this.arena.active && !this.ruin.active) this.hud.bossBar.hide();
+      if (!this.inEncounter) this.hud.bossBar.hide();
     }
 
     this.updateCrosshair();
@@ -780,10 +839,10 @@ export class Game {
   }
 
   private updateCrosshair(): void {
-    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    const fighting = this.inEncounter || Boolean(this.practice);
     const target = this.interaction.target;
     const aimingCore = this.mode === 'oneblock' && target !== null && isOneBlockCell(target.x, target.y, target.z);
-    const boss = this.arena.boss ?? this.ruin.boss;
+    const boss = this.arena.boss ?? this.ruin.boss ?? this.grove.boss;
     const incoming = this.entities.entities.some(entity => entity instanceof Shockwave && entity.approaching(this.player.position));
     const cue = combatCue(boss && !boss.removed ? boss.stateName : undefined, this.practice?.stage, incoming);
     if (cue) showActionCue(cue);
@@ -791,8 +850,9 @@ export class Game {
     else if (this.interaction.placementHint) showActionCue({ icon: '!', key: '', text: this.interaction.placementHint, kind: 'warning' });
     else if (this.buildLesson) showActionCue(null);
     else if (this.combat.aimed) showActionCue({ icon: '🔨', key: 'Esquerdo', text: 'Bater', kind: 'attack' });
-    else if (this.interaction.aimingAltar || this.interaction.aimingStatue) showActionCue({ icon: '👑', key: 'Direito', text: 'Visitar chefão', kind: 'build' });
+    else if (this.interaction.aimingAltar || this.interaction.aimingStatue || this.interaction.aimingBeacon) showActionCue({ icon: '👑', key: 'Direito', text: 'Visitar chefão', kind: 'build' });
     else if (this.interaction.aimingBed) showActionCue({ icon: '☾', key: 'Direito', text: 'Descansar', kind: 'build' });
+    else if (this.interaction.aimingChest) showActionCue({ icon: '📦', key: 'Direito', text: 'Abrir baú', kind: 'build' });
     else if (this.interaction.holdingConsumable) showActionCue({ icon: '♥', key: 'Direito', text: 'Comer', kind: 'build' });
     else if (aimingCore) showActionCue({ icon: '🔨', key: 'Esquerdo', text: 'Segure para pegar blocos', kind: 'build' });
     else if (this.interaction.holdingTorchFuel || this.interaction.holdingUpgradeOre) showActionCue({ icon: '🔨', key: 'C', text: 'Criar itens', kind: 'build' });
@@ -800,10 +860,11 @@ export class Game {
     else showActionCue(null);
     if (this.combat.aimed) this.hud.setCrosshair('attack');
     else if (fighting) this.hud.setCrosshair('idle');
-    else if (this.interaction.aimingAltar || this.interaction.aimingStatue) this.hud.setCrosshair('altar');
+    else if (this.interaction.aimingAltar || this.interaction.aimingStatue || this.interaction.aimingBeacon) this.hud.setCrosshair('altar');
     else if (this.interaction.holdingConsumable) this.hud.setCrosshair('heal');
     else if (this.interaction.holdingUpgradeOre) this.hud.setCrosshair('smith');
     else if (this.interaction.aimingBed) this.hud.setCrosshair('rest');
+    else if (this.interaction.aimingChest) this.hud.setCrosshair('craft');
     else if (this.interaction.holdingTorchFuel) this.hud.setCrosshair('craft');
     else if (this.interaction.holdingBedMaterial && !this.interaction.target) this.hud.setCrosshair('craft');
     else if (this.interaction.target) this.hud.setCrosshair('block');
@@ -813,24 +874,18 @@ export class Game {
   private updateGuide(): void {
     const position = this.player.position;
     if (this.practice) { this.hud.setObjective(null); this.hud.compass.update(false,0,''); return; }
-    if (this.player.creative && !this.ruin.active && !this.arena.active) {
+    if (this.player.creative && !this.inEncounter) {
       this.hud.setObjective(this.guidance ? 'Construa do seu jeito · Esc: sua base e chefões' : null);
       this.hud.compass.update(false, 0, '');
       return;
     }
-    if (!this.guidance && !this.ruin.active && !this.arena.active) {
+    if (!this.guidance && !this.inEncounter) {
       this.hud.setObjective('Construa do seu jeito · B: blocos e mochila');
       this.hud.compass.update(false, 0, '');
       return;
     }
 
-    if (this.ruin.active) {
-      this.hud.setObjective(null);
-      this.hud.compass.update(false, 0, '');
-      return;
-    }
-
-    if (this.arena.active) {
+    if (this.inEncounter) {
       this.hud.setObjective(null);
       this.hud.compass.update(false, 0, '');
       return;
@@ -841,6 +896,12 @@ export class Game {
         this.arena.ruinFound ? 'Botão direito na estátua: enfrentar o Sentinela' : 'Encontre o Sentinela: siga a bússola ou use Visitar no menu',
       );
       this.pointCompass(position, RUIN_STATUE.x + 0.5, position.y, RUIN_STATUE.z + 0.5);
+      return;
+    }
+
+    if ((this.mode === 'adventure' || this.oneBlock.beaconUnlocked) && this.ruin.defeated && this.arena.defeated && !this.grove.defeated) {
+      this.hud.setObjective('O farol está ao sul. Botão direito na luz para enfrentar o Faroleiro');
+      this.pointCompass(position, GROVE.x + 0.5, position.y, GROVE.z + 0.5);
       return;
     }
 
@@ -948,7 +1009,7 @@ export class Game {
     this.lamp.intensity = submerged ? 22 : 34 * (1 - t);
     this.lamp.color.setHex(submerged ? 0x7ec8ff : 0xffd7a3);
 
-    const fighting = this.arena.active || this.ruin.active ? 1 : 0;
+    const fighting = this.inEncounter ? 1 : 0;
     const drown = submerged ? 0.35 : 1;
     this.sfx.setAmbience(
       t * (1 - fighting * 0.35) * drown,
@@ -1102,6 +1163,7 @@ export class Game {
         cacheClaimed: this.arena.cacheClaimed,
         ruinFound: this.arena.ruinFound,
         ruinDefeated: this.ruin.defeated,
+        beaconDefeated: this.grove.defeated,
       },
       oneBlock: this.oneBlock.snapshot(),
       edits: this.world.exportEdits(),
@@ -1151,11 +1213,13 @@ export class Game {
     this.entities.clear();
     this.arena.beginNewRun();
     this.ruin.beginNewRun();
+    this.grove.beginNewRun();
     this.arena.defeated = save.arena.defeated;
     this.arena.discovered = save.arena.discovered;
     this.arena.cacheClaimed = save.arena.cacheClaimed === true;
     this.arena.ruinFound = save.arena.ruinFound === true;
     this.ruin.defeated = save.arena.ruinDefeated === true;
+    this.grove.defeated = save.arena.beaconDefeated === true;
     this.particles.clear();
     this.torchLights.clear();
     this.chunks.reset();
@@ -1260,7 +1324,13 @@ export class Game {
 
   private chooseStyle(mode: GameMode): void {
     if (mode === 'oneblock') {
-      this.overlay.show({ title: 'Ritmo do OneBlock', text: 'Curto: ruína em 90 blocos e santuário em 140. Clássico: 360 e 560. Seus mundos antigos mantêm o ritmo original.', button: 'Ritmo curto', secondary: 'Ritmo clássico', showControls: false }, () => this.newGame(mode, 'quick'), () => this.newGame(mode, 'classic'));
+      const quickRuin = unlockBreaks('ruin', 'quick');
+      const quickShrine = unlockBreaks('shrine', 'quick');
+      const classicRuin = unlockBreaks('ruin', 'classic');
+      const classicShrine = unlockBreaks('shrine', 'classic');
+      const quickBeacon = unlockBreaks('beacon', 'quick');
+      const classicBeacon = unlockBreaks('beacon', 'classic');
+      this.overlay.show({ title: 'Ritmo do OneBlock', text: `Curto: ruína em ${quickRuin}, santuário em ${quickShrine} e farol em ${quickBeacon}. Clássico: ${classicRuin}, ${classicShrine} e ${classicBeacon}. Seus mundos antigos mantêm o ritmo original.`, button: 'Ritmo curto', secondary: 'Ritmo clássico', showControls: false }, () => this.newGame(mode, 'quick'), () => this.newGame(mode, 'classic'));
       this.overlay.setBackAction(() => this.showModeMenu(mode)); return;
     }
     this.overlay.show({ title: 'Como quer brincar?', text: 'Construção livre: blocos sem fim e voo. Sobrevivência: colete materiais. Você pode trocar depois, no mesmo mundo.', button: 'Construção livre ∞', secondary: 'Sobrevivência', showControls: false },
@@ -1286,10 +1356,10 @@ export class Game {
       this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?' });
       return;
     }
-    const fighting = this.arena.active || this.ruin.active;
+    const fighting = this.inEncounter;
     if (fighting) {
       this.overlay.addAction('Sair da batalha', () => {
-        this.arena.reset(this.context); this.ruin.reset(this.context);
+        this.arena.reset(this.context); this.ruin.reset(this.context); this.grove.reset(this.context);
         this.finishFight(); this.goHome(); this.startPlaying();
       }, { icon: '🏠', description: 'Voltar com seus itens' });
     } else {
@@ -1321,6 +1391,8 @@ export class Game {
       this.overlay.addAction('Visitar o Sentinela', () => this.confirmFight(true), { icon: '🗿', description: 'Chefão das ruínas' });
     } else this.overlay.addAction('Sentinela', () => {}, { icon: '🔒', description: `${this.oneBlock.broken}/${this.oneBlock.ruinAt} blocos`, disabled: true });
     if (this.world.generator.shrineUnlocked) this.overlay.addAction('Visitar o Guardião', () => this.confirmFight(false), { icon: '💎', description: 'Chefão do santuário' });
+    if (this.world.generator.beaconUnlocked) this.overlay.addAction('Visitar o Faroleiro', () => this.confirmBeaconFight(), { icon: '🌿', description: 'Chefão do farol' });
+    else if (this.mode === 'oneblock' && this.oneBlock.shrineUnlocked) this.overlay.addAction('Faroleiro', () => {}, { icon: '🔒', description: `${this.oneBlock.broken}/${this.oneBlock.beaconAt} blocos`, disabled: true });
   }
 
   private showHomeMenu(): void {
@@ -1338,7 +1410,7 @@ export class Game {
 
   private showMoreOptions(): void {
     this.stopForPanel();
-    const fighting = this.arena.active || this.ruin.active || Boolean(this.practice);
+    const fighting = this.inEncounter || Boolean(this.practice);
     this.overlay.show({ title: 'Mais opções', text: 'Ajuste o jogo e cuide da sua partida.', button: 'Voltar à pausa', secondary: 'Continuar jogo', showSettings: true, showControls: false },
       () => this.showPaused(), () => this.startPlaying());
     if (!fighting) {
@@ -1366,6 +1438,7 @@ export class Game {
         blocks.push(...this.trophies);
         if (this.trophies.has(Block.SentinelTrophy)) blocks.push(Block.SentinelBanner);
         if (this.trophies.has(Block.WardenTrophy)) blocks.push(Block.WardenLantern);
+        if (this.trophies.has(Block.BeaconTrophy)) blocks.push(Block.BeaconLantern);
       }
       this.overlay.addContent(blockGrid(this.atlas, blocks.map(block => ({ block })), block => {
         Object.assign(this.player.inventory.selectedSlot, { block, count: 64 });
@@ -1429,7 +1502,7 @@ export class Game {
   private showHelp(): void {
     this.stopForPanel();
     const firstSteps = this.mode === 'oneblock'
-      ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure o botão esquerdo para quebrá-lo.\n3. Escolha terra na barra e use o direito para ampliar a ilha.'
+      ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure o botão esquerdo para quebrá-lo.\n3. Escolha terra na barra e use o direito para ampliar a ilha.\n4. Um baú ao lado abre com o botão direito.'
       : this.player.creative
         ? '1. Aperte B e escolha um bloco.\n2. Mire no chão e use o direito para colocar.\n3. Clique com o esquerdo para remover.'
         : '1. Use o esquerdo para pegar blocos.\n2. Use o direito para colocar ou usar.\n3. Aperte B para abrir a mochila.';
@@ -1493,12 +1566,31 @@ export class Game {
     }, () => this.startPlaying());
   }
 
+  private confirmBeaconFight(): void {
+    this.stopForPanel();
+    this.overlay.show({ title: 'Enfrentar o Faroleiro?', text: `Dificuldade ${this.player.gentle ? 'Tranquila' : 'Normal'}. Pule as ondas e saia dos círculos. Quando ele ficar vulnerável, bata!\nDurante a luta, voo e invulnerabilidade ficam desligados. Seus itens e construções são preservados.`, button: 'Enfrentar chefão', secondary: 'Agora não', showControls: false }, () => {
+      this.buildLesson = 0;
+      this.hud.hideHint();
+      this.fightReturn = { position: this.player.position.clone(), spawn: this.player.spawn.clone(), yaw: this.player.yaw, pitch: this.player.pitch, flying: this.player.flying };
+      this.buildHistory.clear();
+      this.fightCreative = this.player.creative;
+      this.setCreative(false);
+      this.player.setSpawn(GROVE.x + 6.5, this.world.generator.surfaceHeight(GROVE.x, GROVE.z) + 1, GROVE.z + 0.5);
+      this.ensureSafeSpawn(); this.player.respawn();
+      this.player.yaw = Math.PI / 2;
+      this.grove.summon(this.world);
+      this.hud.setObjective('Pule e desvie · bata quando aparecer BATA AGORA!');
+      this.hud.compass.update(false, 0, '');
+      this.sfx.play('summon'); this.startPlaying();
+    }, () => this.startPlaying());
+  }
+
   private finishFight(): void {
     this.hud.bossBar.hide();
     this.hud.hideHint();
     this.hud.setObjective(null);
     for (const entity of this.entities.entities) {
-      if (entity !== this.arena.boss && entity !== this.ruin.boss && entity.team === 'boss' && entity.clearedOnDeath) this.entities.remove(entity);
+      if (entity !== this.arena.boss && entity !== this.ruin.boss && entity !== this.grove.boss && entity.team === 'boss' && entity.clearedOnDeath) this.entities.remove(entity);
     }
     if (this.fightCreative) { this.fightCreative = false; this.setCreative(true); }
     this.player.health.immune = this.player.creative;
@@ -1514,7 +1606,8 @@ export class Game {
     if (this.trophies.has(block)) return;
     this.trophies.add(block);
     this.player.inventory.add(block, 1);
-    this.player.inventory.add(block === Block.SentinelTrophy ? Block.SentinelBanner : Block.WardenLantern, 8);
+    const decoration = block === Block.SentinelTrophy ? Block.SentinelBanner : block === Block.WardenTrophy ? Block.WardenLantern : Block.BeaconLantern;
+    this.player.inventory.add(decoration, 8);
     if (!this.player.creative) { this.player.inventory.add(Block.Glowstone, 16); this.player.inventory.add(Block.Planks, 32); }
     this.saveSoon = true;
   }
@@ -1541,7 +1634,7 @@ export class Game {
   }
 
   private goHome(): void {
-    if (this.arena.active || this.ruin.active || this.practice) return;
+    if (this.inEncounter || this.practice) return;
     const home = this.home ?? this.player.spawn;
     const spawn = this.player.spawn.clone();
     const flying = this.player.flying;
@@ -1555,7 +1648,7 @@ export class Game {
   }
 
   private undoBuild(redo = false): void {
-    if (!this.player.creative || this.arena.active || this.ruin.active) return;
+    if (!this.player.creative || this.inEncounter) return;
     const ok = this.buildHistory[redo ? 'redo' : 'undo'](this.world, (x,y,z) => this.interaction.intersectsPlayer(x,y,z));
     if (ok && this.buildLesson === 2) this.buildLesson = 1;
     this.hud.showHint(ok ? (redo ? 'Bloco refeito! Y refaz mais.' : 'Bloco desfeito! Z desfaz mais; Y refaz.') : 'Nenhuma ação disponível aqui. Se há um bloco em você, afaste-se e tente de novo.', 3);
@@ -1633,6 +1726,9 @@ export class Game {
         36,
       );
       this.hud.showHint('O santuário apareceu ao norte! Há um chefão lá embaixo', 4.8);
+    } else if (result.unlocked === 'beacon') {
+      this.revealStructure(chunkTouchesGrove, GROVE.x, GROVE.z, GROVE.radius + 4);
+      this.hud.showHint('Um farol apareceu ao sul! Siga a bússola até o Faroleiro', 4.5);
     }
     if (result.spawnedMob) this.sfx.play('roar');
     this.saveSoon = true;
@@ -1643,6 +1739,7 @@ export class Game {
       ruin: this.mode === 'adventure' || this.oneBlock.ruinUnlocked,
       shrine: this.mode === 'adventure' || this.oneBlock.shrineUnlocked,
       cache: this.mode === 'adventure' || this.arena.defeated,
+      beacon: this.mode === 'adventure' || this.oneBlock.beaconUnlocked,
     });
   }
 

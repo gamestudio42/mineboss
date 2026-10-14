@@ -12,10 +12,13 @@ import {
   chunkTouchesArena,
   chunkTouchesCache,
   chunkTouchesEntrance,
+  chunkTouchesGrove,
   chunkTouchesRuin,
   distanceToArenaCenter,
   distanceToRuinCourtyard,
+  GROVE,
 } from '../arena.ts';
+import { groveFloorY, stampGrove } from '../grove.ts';
 import { Block } from '../blocks.ts';
 import { CHUNK_SIZE, Chunk, WORLD_HEIGHT } from '../Chunk.ts';
 
@@ -60,6 +63,7 @@ export class AdventureGenerator {
     }
     if (chunkTouchesCache(chunk.cx, chunk.cz)) this.buildCache(chunk, baseX, baseZ);
     if (chunkTouchesRuin(chunk.cx, chunk.cz)) this.buildRuin(chunk, baseX, baseZ);
+    if (chunkTouchesGrove(chunk.cx, chunk.cz)) this.buildGrove(chunk, baseX, baseZ);
 
     chunk.generated = true;
   }
@@ -423,6 +427,17 @@ export class AdventureGenerator {
     chunk.set(x, ARENA.floorY + 1, z, Block.Obsidian);
     if (dx <= 1 && dz <= 1) chunk.set(x, ARENA.floorY + 2, z, Block.RunicStone);
     if (dx === 0 && dz === 0) chunk.set(x, ARENA.floorY + 3, z, Block.CrystalOre);
+  }
+
+  private buildGrove(chunk: Chunk, baseX: number, baseZ: number): void {
+    const floor = groveFloorY(this.surfaceHeight(GROVE.x, GROVE.z));
+    stampGrove(floor, (x, z) => this.surfaceHeight(x, z), (x, y, z, id) => {
+      const lx = x - baseX;
+      const lz = z - baseZ;
+      if (lx < 0 || lx >= CHUNK_SIZE || lz < 0 || lz >= CHUNK_SIZE) return;
+      if (y < 0 || y >= WORLD_HEIGHT) return;
+      chunk.set(lx, y, lz, id);
+    });
   }
 
   /** Courtyard, cracked statue and collapsed cobble hut west of spawn. */

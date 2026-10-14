@@ -224,6 +224,18 @@ function emblem(color: RGB, diamond: boolean): Painter {
   };
 }
 
+function chestFace(set: SetPixel): void {
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const plank: RGB = Math.floor(y / 4) % 2 === 0 ? [158, 110, 62] : [136, 90, 48];
+      const band = y > 6 && y < 9;
+      const latch = x > 6 && x < 10 && y > 4 && y < 11;
+      const rgb: RGB = band || latch ? [88, 58, 34] : plank;
+      set(x, y, rgb);
+    }
+  }
+}
+
 const PAINTERS: Record<Tile, Painter> = {
   [Tile.Stone]: fill([128, 128, 132], 22),
   [Tile.Dirt]: fill([134, 96, 67], 28),
@@ -274,6 +286,11 @@ const PAINTERS: Record<Tile, Painter> = {
   [Tile.WardenTrophy]: emblem([126, 221, 245], true),
   [Tile.SentinelBanner]: combine(fill([67, 113, 87], 10), emblem([204, 175, 73], false)),
   [Tile.WardenLantern]: combine(fill([93, 162, 193], 10), emblem([170, 230, 245], true)),
+  [Tile.Moss]: combine(fill([78, 122, 62], 22), speckles([108, 156, 74], 8, 2.1, 16)),
+  [Tile.Flower]: combine(fill([86, 140, 64], 16), speckles([232, 112, 146], 5, 1.7, 12), speckles([240, 214, 86], 3, 1.4, 10)),
+  [Tile.Chest]: chestFace,
+  [Tile.BeaconTrophy]: emblem([186, 214, 96], false),
+  [Tile.BeaconLantern]: combine(fill([92, 122, 64], 10), emblem([214, 230, 120], false)),
 };
 
 export interface BlockAtlas {

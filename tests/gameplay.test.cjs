@@ -8,14 +8,15 @@ const { Block,getBlockDef }=require('../src/world/blocks.ts');
 const { World }=require('../src/world/World.ts');
 const { TerrainGenerator }=require('../src/world/terrain/generator.ts');
 const { OneBlock }=require('../src/world/oneblock/OneBlock.ts');
-const { phaseAt,unlocksForBroken,pickWeighted }=require('../src/world/oneblock/phases.ts');
+const { phaseAt,unlocksForBroken,pickWeighted,unlockBreaks,PHASES,chestLoot }=require('../src/world/oneblock/phases.ts');
 const { EntityManager }=require('../src/entities/EntityManager.ts');
 const { BossPractice }=require('../src/entities/boss/BossPractice.ts');
 const { BossArena }=require('../src/entities/boss/BossArena.ts');
 const { RuinEncounter }=require('../src/entities/boss/RuinEncounter.ts');
+const { GroveEncounter }=require('../src/entities/boss/GroveEncounter.ts');
 const { RECIPES,craftRecipe,recipeStatus }=require('../src/player/Recipes.ts');
 const { hash2 }=require('../src/core/math.ts');
-const { RUIN_COURTYARD,ARENA }=require('../src/world/arena.ts');
+const { RUIN_COURTYARD,ARENA,GROVE }=require('../src/world/arena.ts');
 function setup() {
  const world=new World(new TerrainGenerator(42,'oneblock'));
  for(let x=-1;x<=1;x++)for(let z=-1;z<=1;z++)world.ensureChunk(x,z);
@@ -40,13 +41,22 @@ test('equipment recipes are atomic, require the right unlock and cannot downgrad
  p.creative=true;assert.ok(RECIPES.every(r=>recipeStatus(p,r)!==null));
 });
 test('quick and classic progression unlock both encounters at the advertised boundaries',()=>{
- for(const [pace,ruin,shrine] of [['classic',360,560],['quick',90,140]]){
+ for(const [pace,ruin,shrine] of [['classic',320,520],['quick',80,130]]){
+  assert.equal(unlockBreaks('ruin',pace),ruin);assert.equal(unlockBreaks('shrine',pace),shrine);
   assert.equal(unlocksForBroken(ruin-1,pace).ruin,false);assert.equal(unlocksForBroken(ruin,pace).ruin,true);
   assert.equal(unlocksForBroken(shrine-1,pace).shrine,false);assert.equal(unlocksForBroken(shrine,pace).shrine,true);
   const core=new OneBlock(42);core.load({broken:ruin,phase:0,pace});assert.equal(core.ruinUnlocked,true);assert.equal(core.shrineUnlocked,false);
   const copy=new OneBlock(42);copy.load(core.snapshot());assert.equal(copy.pace,pace);assert.equal(copy.broken,ruin);
  }
  const legacy=new OneBlock(42);legacy.load({broken:120,phase:2});assert.equal(legacy.pace,'classic');assert.equal(legacy.ruinUnlocked,false);
+ assert.equal(unlockBreaks('beacon','classic'),640);assert.equal(unlockBreaks('beacon','quick'),160);
+ assert.equal(unlocksForBroken(639,'classic').beacon,false);assert.equal(unlocksForBroken(640,'classic').beacon,true);
+ assert.equal(unlocksForBroken(159,'quick').beacon,false);assert.equal(unlocksForBroken(160,'quick').beacon,true);
+ const grove=new World(new TerrainGenerator(1,'oneblock'));
+ grove.generator.applyUnlocks({ruin:false,shrine:false,cache:false,beacon:true});
+ grove.ensureChunk(1,5);
+ assert.equal(grove.getBlock(GROVE.x,72,GROVE.z),Block.Moss);
+ assert.equal(grove.getBlock(GROVE.x,75,GROVE.z),Block.Glowstone);
 });
 test('island building rewards are optional and granted once, including after reload',()=>{
  const c=setup(),core=new OneBlock(42);
@@ -64,6 +74,47 @@ test('quick clicks place and remove a creative block through the raycast interac
  const action=new BlockInteraction(c.player,c.world,c.atlas,c.particles,c.sfx,new THREE.Scene());let edit;action.onBuildEdit=value=>edit=value;
  action.update(1/60,input(2),false);assert.equal(edit.after,Block.Blue);const placed={...edit};
  action.update(1/60,input(0),false);assert.equal(c.world.getBlock(placed.x,placed.y,placed.z),Block.Air);assert.equal(edit.before,Block.Blue);assert.equal(c.player.inventory.count(Block.Blue),64);
+});
+test('early phases stay peaceful, the core stays safe, and a chest opens once',()=>{
+ const ore=PHASES.findIndex(p=>p.id==='ore');
+ for(let i=0;i<ore;i++)assert.equal(PHASES[i].mobChance,0);
+ assert.ok(PHASES[ore].mobChance>0);
+ const garden=PHASES.find(p=>p.id==='garden');
+ assert.equal(garden.name,'Jardim');assert.equal(garden.length,40);
+ assert.ok(garden.extras.some(extra=>extra.id===Block.Chest&&extra.neighbor));
+ for(const phase of PHASES)assert.ok(!phase.blocks.some(entry=>entry.id===Block.Chest||entry.id===Block.Lava||entry.id===Block.Water));
+ assert.equal(getBlockDef(Block.Flower).heal,2);assert.equal(getBlockDef(Block.Moss).solid,true);
+ const c=setup(),core=new OneBlock(11);core.placeInitial(c.world);
+ const limit=unlockBreaks('ruin','classic');
+ for(let n=0;n<80;n++){
+  core.break(c.world,c.player,c.entities);
+  const id=c.world.getBlock(0,72,0);
+  assert.notEqual(id,Block.Air);assert.notEqual(id,Block.Lava);assert.notEqual(id,Block.Water);assert.notEqual(id,Block.Chest);
+ }
+ assert.equal(core.phase.id,'garden');
+ assert.ok(c.player.inventory.count(Block.Planks)+c.player.inventory.count(Block.Mushroom)>0);
+ for(let n=80;n<limit-1;n++){
+  core.break(c.world,c.player,c.entities);
+  const id=c.world.getBlock(0,72,0);
+  assert.notEqual(id,Block.Air);assert.notEqual(id,Block.Lava);assert.notEqual(id,Block.Water);assert.notEqual(id,Block.Chest);
+ }
+ core.update(10,c.world,c.entities,c.player);
+ assert.equal(c.entities.entities.filter(entity=>!entity.removed).length,0);
+ assert.equal(core.ruinUnlocked,false);
+ core.break(c.world,c.player,c.entities);assert.equal(core.ruinUnlocked,true);
+ for(let x=0;x<8;x++)for(let z=0;z<8;z++)c.world.setBlock(x,72,z,Block.Planks);
+ c.player.position.set(3.5,73,5.5);c.player.yaw=0;c.player.pitch=-.7;
+ const action=new BlockInteraction(c.player,c.world,c.atlas,c.particles,c.sfx,new THREE.Scene());
+ action.update(1/60,input(-1),false);
+ const hit=action.target;assert.ok(hit);assert.ok(!(hit.x===0&&hit.y===72&&hit.z===0));
+ const loot=chestLoot(2),before=c.player.inventory.count(Block.Dirt);
+ c.world.setBlock(hit.x,hit.y,hit.z,Block.Chest);
+ let opened=0;
+ action.onChestOpened=()=>{opened++;for(const item of loot)c.player.inventory.add(item.id,item.count);};
+ action.update(1/60,input(2),false);
+ assert.equal(opened,1);assert.equal(c.world.getBlock(hit.x,hit.y,hit.z),Block.Air);
+ assert.equal(c.player.inventory.count(Block.Dirt),before+loot.find(item=>item.id===Block.Dirt).count);
+ action.update(1,input(2),false);assert.equal(opened,1);
 });
 test('survival holding the left button mines continuously and preserves core solidity',()=>{
  const c=setup(),core=new OneBlock(42);c.player.position.set(.5,73,.5);c.player.pitch=-1.5;
@@ -93,14 +144,14 @@ test('melee cannot hit a target behind a solid wall',()=>{
  c.world.setBlock(2,74,0,Block.Air);combat.update(1/60,input(0));assert.ok(dummy.health.current<100);
 });
 test('both boss state machines complete via real melee in vulnerability windows and can restart',()=>{
- for(const kind of ['sentinel','warden']){
+ for(const kind of ['sentinel','warden','beacon']){
   const c=setup();c.world=new World(new TerrainGenerator(42,'adventure'));
-  const center=kind==='sentinel'?{x:RUIN_COURTYARD.centerX,z:RUIN_COURTYARD.centerZ}:{x:ARENA.centerX,z:ARENA.centerZ};
+  const center=kind==='sentinel'?{x:RUIN_COURTYARD.centerX,z:RUIN_COURTYARD.centerZ}:kind==='beacon'?{x:GROVE.x,z:GROVE.z}:{x:ARENA.centerX,z:ARENA.centerZ};
   for(let x=(center.x>>4)-3;x<=(center.x>>4)+3;x++)for(let z=(center.z>>4)-3;z<=(center.z>>4)+3;z++)c.world.ensureChunk(x,z);
   c.player.health.immune=true;c.player.gentle=true;c.player.hammerTier=2;let wins=0;
   const callbacks={onSummon(){},onPhase(){},onShake(){},onStagger(){},onDefeated(){wins++;},onVictory(){wins++;}};
-  const encounter=kind==='sentinel'?new RuinEncounter(c.entities,callbacks):new BossArena(c.entities,callbacks);
-  const boss=kind==='sentinel'?encounter.summon(c.world):encounter.summon();
+  const encounter=kind==='sentinel'?new RuinEncounter(c.entities,callbacks):kind==='beacon'?new GroveEncounter(c.entities,callbacks):new BossArena(c.entities,callbacks);
+  const boss=kind==='warden'?encounter.summon():encounter.summon(c.world);
   const combat=new PlayerCombat(c.player,c.entities,c.particles,c.sfx,c.world);let hits=0;combat.onHit=()=>hits++;
   for(let frame=0;frame<18000 && !wins;frame++){
    c.elapsed+=c.dt;
@@ -111,7 +162,7 @@ test('both boss state machines complete via real melee in vulnerability windows 
    encounter.update();
   }
   assert.equal(wins,1,kind);assert.ok(hits>0,kind);encounter.reset(c);
-  assert.equal(encounter.active,false);const again=kind==='sentinel'?encounter.summon(c.world):encounter.summon();assert.ok(again.health.current>0);
+  assert.equal(encounter.active,false);const again=kind==='warden'?encounter.summon():encounter.summon(c.world);assert.ok(again.health.current>0);
  }
 });
 test('30 simulated minutes of movement and building retain edits after unload and reload',()=>{
@@ -128,7 +179,7 @@ test('30 simulated minutes of movement and building retain edits after unload an
 });
 test('record deterministic mining workload for both OneBlock paces',()=>{
  const result={};
- for(const [pace,limit] of [['classic',560],['quick',140]]){
+ for(const [pace,limit] of [['classic',520],['quick',130]]){
   let seconds=0,block=Block.Grass;
   for(let n=1;n<=limit;n++){seconds+=getBlockDef(block).hardness;block=pickWeighted(phaseAt(n,pace).phase.blocks,hash2(n,11,42));}
   result[pace]={blocksToSanctuary:limit,uninterruptedMiningSeconds:Math.round(seconds)};

@@ -23,7 +23,7 @@ A porta é fixa: se estiver ocupada, o servidor avisa em vez de abrir outro ende
 
 - **Aventura / Construção livre:** catálogo visual com materiais ilimitados e voo. Abra com B. O inventário de Sobrevivência fica guardado ao trocar de estilo.
 - **Aventura / Sobrevivência:** explore o terreno, colete recursos, faça ferramentas e construa sua base.
-- **OneBlock:** escolha o ritmo ao criar uma partida. No Curto, a ruína aparece aos 90 blocos e o santuário aos 140; no Clássico, aos 360 e 560. Saves antigos mantêm o ritmo Clássico. Metas opcionais de ampliar a ilha e iniciar um abrigo dão materiais uma única vez.
+- **OneBlock:** escolha o ritmo ao criar uma partida. No Curto, a ruína aparece aos 80 blocos, o santuário aos 130 e o farol aos 160; no Clássico, aos 320, 520 e 640. Planície e Floresta são curtas, os monstros começam em Minérios, e a fase Jardim traz musgo, flores e baús. O Faroleiro é o terceiro chefão, na ilha ao sul. Saves antigos mantêm o ritmo Clássico. Metas opcionais de ampliar a ilha e iniciar um abrigo dão materiais uma única vez.
 
 O menu Esc destaca **Construir**, **Chefões**, **Minha base** e **Como brincar**,
 com figuras grandes. Tab/Shift+Tab navegam pelos botões, Enter ativa e Esc volta. **Marcar minha base** guarda um chão seguro; **Voltar à base** retorna à construção depois de explorar ou lutar. Em **Mais opções**, altere o estilo da Aventura, dificuldade,

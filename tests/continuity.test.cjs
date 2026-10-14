@@ -19,7 +19,7 @@ function world() { const w = new World(new TerrainGenerator(42,'oneblock')); for
 function run() { return {version:5,mode:'adventure',seed:42,elapsed:1,deaths:0,blocksMined:0,hintedConsumable:false,hintedUpgrade:false,hintedTorch:false,player:{x:.5,y:73,z:.5,spawnX:.5,spawnY:73,spawnZ:.5,yaw:0,pitch:0,health:20,hammer:0,selected:0,slots:Array.from({length:9},()=>({block:null,count:0}))},arena:{defeated:false,discovered:false},oneBlock:{broken:0,phase:0},edits:[]}; }
 function storage() { const data=new Map(); global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};return data; }
 function game() {
- const g=Object.create(Game.prototype);Object.assign(g,{mode:'adventure',player:new Player(),world:world(),trophies:new Set(),oneBlock:new OneBlock(42),arena:{active:false,defeated:false,discovered:false},ruin:{active:false,defeated:false},seed:42,elapsed:0,deaths:0,blocksMined:0,guidance:false,home:{x:2.5,y:73,z:2.5}});
+ const g=Object.create(Game.prototype);Object.assign(g,{mode:'adventure',player:new Player(),world:world(),trophies:new Set(),oneBlock:new OneBlock(42),arena:{active:false,defeated:false,discovered:false},ruin:{active:false,defeated:false},grove:{active:false,defeated:false},seed:42,elapsed:0,deaths:0,blocksMined:0,guidance:false,home:{x:2.5,y:73,z:2.5}});
  return g;
 }
 test('custom creative palette survives style and fight roundtrips with survival reserve intact',()=>{
@@ -129,12 +129,13 @@ function integratedGame(mode='adventure',creative=true) {
  const {EntityManager}=require('../src/entities/EntityManager.ts');
  const {BossArena}=require('../src/entities/boss/BossArena.ts');
  const {RuinEncounter}=require('../src/entities/boss/RuinEncounter.ts');
+ const {GroveEncounter}=require('../src/entities/boss/GroveEncounter.ts');
  const g=game();g.mode=mode;g.practice=null;g.fightReturn=null;g.fightCreative=false;
  g.world=new World(new TerrainGenerator(42,mode));g.entities=new EntityManager(new THREE.Scene());
  g.buildHistory=new BuildHistory();g.hud={bossBar:{hide(){}},hideHint(){},showHint(){},setObjective(){},compass:{update(){}}};
  g.overlay={actions:new Map(),show(content,primary,secondary){this.content=content;this.primary=primary;this.secondary=secondary;this.actions.clear();},addAction(label,action){this.actions.set(label,action);}};
  const callbacks={onSummon(){},onPhase(){},onShake(){},onStagger(){},onVictory(){},onDefeated(){}};
- g.arena=new BossArena(g.entities,callbacks);g.ruin=new RuinEncounter(g.entities,callbacks);
+ g.arena=new BossArena(g.entities,callbacks);g.ruin=new RuinEncounter(g.entities,callbacks);g.grove=new GroveEncounter(g.entities,callbacks);
  g.particles={clear(){},burst(){}};g.torchLights={clear(){}};g.sfx={play(){}};g.viewModel={setTier(){},setPlates(){}};
  g.input={releaseLock(){},wasPressed:()=>false,isDown:()=>false};
  g.chunks={reset(){},preload(x,z,r){for(let cx=Math.floor(x/16)-r;cx<=Math.floor(x/16)+r;cx++)for(let cz=Math.floor(z/16)-r;cz<=Math.floor(z/16)+r;cz++)g.world.ensureChunk(cx,cz);}};

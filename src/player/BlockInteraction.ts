@@ -5,7 +5,7 @@ import type { Sfx } from '../audio/Sfx.ts';
 import type { Input } from '../core/Input.ts';
 import type { BlockAtlas } from '../render/atlas.ts';
 import type { ParticleSystem } from '../render/Particles.ts';
-import { ALTAR, isRuinStatueColumn } from '../world/arena.ts';
+import { ALTAR, isGroveBeaconColumn, isRuinStatueColumn } from '../world/arena.ts';
 import { isOneBlockCell } from '../world/oneblock/phases.ts';
 import {
   Block,
@@ -13,6 +13,7 @@ import {
   getBlockDef,
   isBed,
   isBedMaterial,
+  isChest,
   isConsumable,
   isTorchFuel,
 } from '../world/blocks.ts';
@@ -46,12 +47,15 @@ export class BlockInteraction {
 
   onAltarActivated: (() => void) | null = null;
   onStatueActivated: (() => void) | null = null;
+  onBeaconActivated: (() => void) | null = null;
   /** Fired after a right-click eat attempt; amount is 0 when already full. */
   onConsumed: ((healed: number) => void) | null = null;
   onConsumableFound: ((name: string) => void) | null = null;
   onUpgradeFound: ((name: string) => void) | null = null;
   onTorchFuelFound: ((name: string) => void) | null = null;
   onBedFound: ((name: string) => void) | null = null;
+  /** Fired after a placed chest is opened and removed. */
+  onChestOpened: (() => void) | null = null;
   onBlockPlaced: (() => void) | null = null;
   onBuildEdit: ((edit: BuildEdit) => void) | null = null;
   onSpawnSet: (() => void) | null = null;
@@ -178,6 +182,10 @@ export class BlockInteraction {
     return this.target !== null && this.isStatueBlock(this.target);
   }
 
+  get aimingBeacon(): boolean {
+    return this.target !== null && this.isBeaconBlock(this.target);
+  }
+
   get holdingConsumable(): boolean {
     const block = this.player.inventory.selectedSlot.block;
     return block !== null && isConsumable(block);
@@ -202,6 +210,10 @@ export class BlockInteraction {
     return this.target !== null && isBed(this.target.block);
   }
 
+  get aimingChest(): boolean {
+    return this.target !== null && !this.player.creative && isChest(this.target.block) && !isOneBlockCell(this.target.x, this.target.y, this.target.z);
+  }
+
   /**
    * Right click wakes the altar, eats, upgrades the hammer, crafts torches or
    * places a block. Eating and crafting work while looking at air.
@@ -221,8 +233,24 @@ export class BlockInteraction {
       return;
     }
 
+    if (hit && this.isBeaconBlock(hit)) {
+      this.placeCooldown = PLACE_COOLDOWN;
+      this.player.startSwing();
+      this.onBeaconActivated?.();
+      return;
+    }
+
     if (hit && isBed(hit.block)) {
       this.restAt(hit);
+      return;
+    }
+
+    if (hit && this.aimingChest) {
+      this.placeCooldown = PLACE_COOLDOWN;
+      if (!this.editBlock(hit.x, hit.y, hit.z, Block.Air)) return;
+      this.onChestOpened?.();
+      this.player.startSwing();
+      this.sfx.play('place');
       return;
     }
 
@@ -338,6 +366,11 @@ export class BlockInteraction {
     return Math.abs(hit.x - ALTAR.x) <= 2 && Math.abs(hit.z - ALTAR.z) <= 2 && Math.abs(hit.y - ALTAR.y) <= 2;
   }
 
+  private isBeaconBlock(hit: VoxelHit): boolean {
+    if (!isGroveBeaconColumn(hit.x, hit.z)) return false;
+    return hit.block === Block.Glowstone || hit.block === Block.Moss;
+  }
+
   private isStatueBlock(hit: VoxelHit): boolean {
     if (!isRuinStatueColumn(hit.x, hit.z)) return false;
     return (
@@ -397,7 +430,7 @@ export class BlockInteraction {
     const block = slot.block;
     if (!this.previewEnabled || !hit || block === null || slot.count <= 0 ||
         isConsumable(block) || isUpgradeOre(block) || isTorchFuel(block) ||
-        this.aimingAltar || this.aimingStatue || this.aimingBed) return;
+        this.aimingAltar || this.aimingStatue || this.aimingBeacon || this.aimingBed || this.aimingChest) return;
     const x = hit.x + hit.nx, y = hit.y + hit.ny, z = hit.z + hit.nz;
     const destination = this.world.getBlock(x, y, z);
     if (y < 0 || y >= WORLD_HEIGHT) this.placementHint = 'Limite do mundo: escolha outro lugar';

@@ -11,11 +11,14 @@ import {
   chunkTouchesArena,
   chunkTouchesCache,
   chunkTouchesEntrance,
+  chunkTouchesGrove,
   chunkTouchesRuin,
   distanceToArenaCenter,
+  GROVE,
 } from '../arena.ts';
 import { Block } from '../blocks.ts';
 import { CHUNK_SIZE, Chunk, WORLD_HEIGHT } from '../Chunk.ts';
+import { groveFloorY, stampGrove } from '../grove.ts';
 import { ISLAND_Y, ONE_BLOCK_X, ONE_BLOCK_Z, startingOneBlock } from '../oneblock/phases.ts';
 
 export const SEA_LEVEL = 60;
@@ -25,12 +28,13 @@ export class TerrainGenerator {
   ruinUnlocked = false;
   shrineUnlocked = false;
   cacheUnlocked = false;
+  beaconUnlocked = false;
 
   private readonly adventure: AdventureGenerator | null;
 
   constructor(readonly seed: number, readonly mode: GameMode = 'adventure') {
     this.adventure = mode === 'adventure' ? new AdventureGenerator(seed) : null;
-    if (this.adventure) this.applyUnlocks({ ruin: true, shrine: true, cache: true });
+    if (this.adventure) this.applyUnlocks({ ruin: true, shrine: true, cache: true, beacon: true });
   }
 
   generate(chunk: Chunk): void {
@@ -47,6 +51,7 @@ export class TerrainGenerator {
     }
     if (this.cacheUnlocked && chunkTouchesCache(chunk.cx, chunk.cz)) this.buildCache(chunk, baseX, baseZ);
     if (this.ruinUnlocked && chunkTouchesRuin(chunk.cx, chunk.cz)) this.buildRuin(chunk, baseX, baseZ);
+    if (this.beaconUnlocked && chunkTouchesGrove(chunk.cx, chunk.cz)) this.buildGrove(chunk, baseX, baseZ);
 
     chunk.generated = true;
   }
@@ -56,10 +61,11 @@ export class TerrainGenerator {
     return this.adventure?.surfaceHeight(_wx, _wz) ?? ISLAND_Y;
   }
 
-  applyUnlocks(flags: { ruin: boolean; shrine: boolean; cache: boolean }): void {
+  applyUnlocks(flags: { ruin: boolean; shrine: boolean; cache: boolean; beacon: boolean }): void {
     this.ruinUnlocked = flags.ruin;
     this.shrineUnlocked = flags.shrine;
     this.cacheUnlocked = flags.cache;
+    this.beaconUnlocked = flags.beacon;
   }
 
   private placeOneBlock(chunk: Chunk, baseX: number, baseZ: number): void {
@@ -252,6 +258,11 @@ export class TerrainGenerator {
     chunk.set(x, ARENA.floorY + 1, z, Block.Obsidian);
     if (dx <= 1 && dz <= 1) chunk.set(x, ARENA.floorY + 2, z, Block.RunicStone);
     if (dx === 0 && dz === 0) chunk.set(x, ARENA.floorY + 3, z, Block.CrystalOre);
+  }
+
+  private buildGrove(chunk: Chunk, baseX: number, baseZ: number): void {
+    const floor = groveFloorY(this.surfaceHeight(GROVE.x, GROVE.z));
+    stampGrove(floor, (x, z) => this.surfaceHeight(x, z), (x, y, z, id) => this.setWorld(chunk, baseX, baseZ, x, y, z, id));
   }
 
   private buildRuin(chunk: Chunk, baseX: number, baseZ: number): void {

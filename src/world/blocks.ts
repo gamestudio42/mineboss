@@ -43,6 +43,11 @@ export enum Block {
   Glass = 36,
   SentinelBanner = 37,
   WardenLantern = 38,
+  Moss = 39,
+  Flower = 40,
+  Chest = 41,
+  BeaconTrophy = 42,
+  BeaconLantern = 43,
 }
 
 export enum Tile {
@@ -90,6 +95,11 @@ export enum Tile {
   WardenTrophy = 41,
   SentinelBanner = 42,
   WardenLantern = 43,
+  Moss = 44,
+  Flower = 45,
+  Chest = 46,
+  BeaconTrophy = 47,
+  BeaconLantern = 48,
 }
 
 export const ATLAS_TILE_PX = 16;
@@ -236,6 +246,11 @@ export const BLOCKS: readonly BlockDef[] = [
   def(Block.Glass, 'Vidro', [Tile.Glass, Tile.Glass, Tile.Glass], { opaque: false, hardness: 0.2 }),
   def(Block.SentinelBanner, 'Emblema do Sentinela', [Tile.SentinelBanner, Tile.SentinelBanner, Tile.DarkBrick], { glow: 0.3 }),
   def(Block.WardenLantern, 'Lanterna do Guardião', [Tile.WardenLantern, Tile.WardenLantern, Tile.DarkBrick], { glow: 1 }),
+  def(Block.Moss, 'Musgo', [Tile.Moss, Tile.Moss, Tile.Moss], { hardness: 0.3 }),
+  def(Block.Flower, 'Flor', [Tile.Flower, Tile.Flower, Tile.Flower], { hardness: 0.12, heal: 2 }),
+  def(Block.Chest, 'Baú', [Tile.Chest, Tile.Chest, Tile.Planks], { hardness: 0.35 }),
+  def(Block.BeaconTrophy, 'Troféu do Faroleiro', [Tile.BeaconTrophy, Tile.BeaconTrophy, Tile.Moss], { glow: 0.6 }),
+  def(Block.BeaconLantern, 'Lanterna do Farol', [Tile.BeaconLantern, Tile.BeaconLantern, Tile.Moss], { glow: 1 }),
 ].sort((a, b) => a.id - b.id);
 
 const BLOCK_COUNT = BLOCKS.length;
@@ -291,6 +306,8 @@ export const PLACEABLE_BLOCKS: readonly Block[] = [
   Block.DarkBrick,
   Block.Torch,
   Block.Bed,
+  Block.Moss,
+  Block.Chest,
 ];
 
 /** Right-click one coal ore to bind four torches. */
@@ -313,4 +330,8 @@ export function isBedMaterial(id: number): boolean {
 
 export function isBed(id: number): boolean {
   return id === Block.Bed;
+}
+
+export function isChest(id: number): boolean {
+  return id === Block.Chest;
 }

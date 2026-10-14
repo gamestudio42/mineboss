@@ -94,7 +94,7 @@ test('OneBlock warns before spawning, and gentle Ember never creates lava',()=>{
  const w=world(),p=new Player(),entities=new EntityManager(new THREE.Scene()),core=new OneBlock(42);let warnings=0;core.onWarning=()=>warnings++;
  core.broken=460;for(let i=0;i<99;i++)core.break(w,p,entities);
  assert.ok(warnings>0);assert.equal(entities.entities.length,0);
- for(const [x,z] of [[1,0],[-1,0],[0,1],[0,-1]])assert.notEqual(w.getBlock(x,72,z),Block.Lava);
+ for(const [x,z] of [[1,0],[-1,0],[0,1],[0,-1]]){assert.notEqual(w.getBlock(x,72,z),Block.Lava);w.setBlock(x,72,z,Block.Air);}
  core.update(1,w,entities);assert.equal(entities.entities.length,0);core.update(3,w,entities);assert.equal(entities.entities.length,0);
  w.setBlock(1,72,0,Block.Dirt);core.update(1,w,entities);assert.equal(entities.entities.length,1);
 });
@@ -114,7 +114,7 @@ test('ruin discovery hint waits until a boss fight ends',()=>{
 test('Sentinel victory restores creative play, grants one trophy and supports a repeat fight',()=>{
  const { RuinEncounter }=require('../src/entities/boss/RuinEncounter.ts');
  const g=Object.create(Game.prototype);g.mode='adventure';g.player=new Player();g.trophies=new Set();g.fightReturn=null;g.hud={bossBar:{hide(){}},cleared:0,hideHint(){this.cleared++},setObjective(){}};
- g.entities=new EntityManager(new THREE.Scene());g.arena={boss:null};g.world=world();g.world.generator.ruinUnlocked=true;
+ g.entities=new EntityManager(new THREE.Scene());g.arena={boss:null};g.grove={boss:null,active:false,defeated:false};g.world=world();g.world.generator.ruinUnlocked=true;
  for(let x=-5;x<=-3;x++)for(let z=0;z<=2;z++)g.world.ensureChunk(x,z);
  g.player.inventory.add(Block.Dirt,4);
  const ctx={dt:1/60,elapsed:0,player:g.player,world:g.world,entities:g.entities,particles:{burst(){}},sfx:{play(){}},atlas:{tileColors:[]}};

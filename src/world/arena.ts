@@ -131,6 +131,34 @@ export function chunkTouchesRuin(cx: number, cz: number): boolean {
   return distanceToRuinCourtyard(closestX, closestZ) <= reach;
 }
 
+/** South island where the Beacon Keeper is fought. Positive Z is south. */
+export const GROVE = {
+  x: 20,
+  z: 88,
+  radius: 12,
+} as const;
+
+export function distanceToGrove(x: number, z: number): number {
+  return Math.hypot(x - GROVE.x, z - GROVE.z);
+}
+
+export function isInsideGrove(x: number, z: number): boolean {
+  return distanceToGrove(x, z) < GROVE.radius - 0.5;
+}
+
+export function isGroveBeaconColumn(x: number, z: number): boolean {
+  return x === GROVE.x && z === GROVE.z;
+}
+
+export function chunkTouchesGrove(cx: number, cz: number): boolean {
+  const reach = GROVE.radius + 2;
+  const minX = cx * CHUNK_SIZE;
+  const minZ = cz * CHUNK_SIZE;
+  const closestX = Math.max(minX, Math.min(GROVE.x, minX + CHUNK_SIZE - 1));
+  const closestZ = Math.max(minZ, Math.min(GROVE.z, minZ + CHUNK_SIZE - 1));
+  return distanceToGrove(closestX, closestZ) <= reach;
+}
+
 export function chunkTouchesCache(cx: number, cz: number): boolean {
   const minX = cx * CHUNK_SIZE;
   const maxX = minX + CHUNK_SIZE - 1;

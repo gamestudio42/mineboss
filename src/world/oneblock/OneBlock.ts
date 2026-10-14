@@ -11,11 +11,11 @@ import {
   PHASE_MOB_CAP,
   isOneBlockCell,
   phaseAt,
-  paceScale,
   type OneBlockPace,
   phaseProgressLabel,
   pickWeighted,
   startingOneBlock,
+  unlockBreaks,
   unlocksForBroken,
   type PhaseDef,
   type StructureUnlock,
@@ -92,8 +92,14 @@ export class OneBlock {
     return unlocksForBroken(this.broken, this.pace).shrine;
   }
 
-  get ruinAt(): number { return 360 / paceScale(this.pace); }
-  get shrineAt(): number { return 560 / paceScale(this.pace); }
+  get ruinAt(): number { return unlockBreaks('ruin', this.pace); }
+  get shrineAt(): number { return unlockBreaks('shrine', this.pace); }
+
+  get beaconUnlocked(): boolean {
+    return unlocksForBroken(this.broken, this.pace).beacon;
+  }
+
+  get beaconAt(): number { return unlockBreaks('beacon', this.pace); }
 
   goalProgress(world: World): Array<{ id: string; label: string; current: number; target: number; reward: Block; count: number }> {
     let platform = 0, shelter = 0;
@@ -101,7 +107,7 @@ export class OneBlock {
       const [x,y,z] = key.split(',').map(Number);
       if (Math.abs(x) > 8 || Math.abs(z) > 8 || !isSolid(block) || getBlockDef(block).contactDamage) continue;
       if (y === ISLAND_Y && (x !== 0 || z !== 0)) platform++;
-      if (y > ISLAND_Y && y <= ISLAND_Y + 6 && [Block.Planks,Block.Log,Block.Cobblestone,Block.Glass].includes(block)) shelter++;
+      if (y > ISLAND_Y && y <= ISLAND_Y + 6 && [Block.Planks, Block.Log, Block.Cobblestone, Block.Glass, Block.Moss].includes(block)) shelter++;
     }
     return [
       { id: 'platform', label: 'Amplie a ilha: 8 blocos de chão', current: platform, target: 8, reward: Block.Planks, count: 16 },
@@ -139,8 +145,9 @@ export class OneBlock {
     this.applyExtras(world, player, phase);
 
     let unlocked: StructureUnlock | null = null;
-    if (after.ruin && !before.ruin) unlocked = 'ruin';
+    if (after.beacon && !before.beacon) unlocked = 'beacon';
     else if (after.shrine && !before.shrine) unlocked = 'shrine';
+    else if (after.ruin && !before.ruin) unlocked = 'ruin';
 
     const spawnedMob = this.trySpawnMob(world, entities, phase);
     return { next, unlocked, spawnedMob };
