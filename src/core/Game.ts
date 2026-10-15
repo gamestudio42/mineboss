@@ -16,11 +16,12 @@ import { BlockInteraction } from '../player/BlockInteraction.ts';
 import { HAMMER, HammerTier, PLATE_COST, PLATES, PlateTier, UPGRADE_COST } from '../player/Hammer.ts';
 import { Player, SWING_DURATION } from '../player/Player.ts';
 import { PlayerCombat } from '../player/PlayerCombat.ts';
-import { PlayerController } from '../player/PlayerController.ts';
+import { CameraView, PlayerController } from '../player/PlayerController.ts';
 import { createBlockAtlas } from '../render/atlas.ts';
 import { createTerrainMaterial, createWaterMaterial } from '../render/materials.ts';
 import { ParticleSystem } from '../render/Particles.ts';
 import { TorchLights } from '../render/TorchLights.ts';
+import { PlayerModel } from '../render/PlayerModel.ts';
 import { ViewModel } from '../render/ViewModel.ts';
 import { Hud } from '../ui/Hud.ts';
 import { Overlay } from '../ui/Overlay.ts';
@@ -105,6 +106,7 @@ export class Game {
   private readonly combat: PlayerCombat;
   private readonly interaction: BlockInteraction;
   private readonly viewModel: ViewModel;
+  private readonly playerModel: PlayerModel;
   private readonly arena: BossArena;
   private readonly ruin: RuinEncounter;
   private readonly grove: GroveEncounter;
@@ -200,6 +202,8 @@ export class Game {
     );
 
     this.viewModel = new ViewModel(this.camera, this.atlas);
+    this.playerModel = new PlayerModel(this.atlas);
+    this.scene.add(this.playerModel.root);
     this.hud = new Hud(this.atlas);
     this.combat.onHit = vulnerable => this.hud.showHint(vulnerable ? 'Acertou! Ele está vulnerável!' : 'Acertou!', 0.7);
     this.arena = new BossArena(this.entities, {
@@ -709,6 +713,7 @@ export class Game {
     if (this.input.wasPressed('KeyB') && !this.practice) { this.openCatalog(); return; }
     if (this.input.wasPressed('KeyC') && !this.player.creative && !this.inEncounter && !this.practice) { this.showRecipes(); return; }
     if (this.input.wasPressed('KeyH')) { this.showHelp(); return; }
+    if (this.input.wasPressed('KeyV')) this.cycleCameraView();
     if (this.input.wasPressed('KeyZ')) this.undoBuild(this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'));
     if (this.input.wasPressed('KeyY')) this.undoBuild(true);
     this.elapsed += dt;
@@ -762,7 +767,22 @@ export class Game {
       ? 0
       : Math.hypot(this.player.velocity.x, this.player.velocity.z);
     this.viewModel.setTier(this.player.hammerTier);
+    this.viewModel.setFirstPerson(this.controller.view === CameraView.First);
     this.viewModel.update(dt, this.player.swing, SWING_DURATION, this.reducedMotion ? 0 : walkSpeed);
+    this.playerModel.setVisible(this.controller.view !== CameraView.First);
+    this.playerModel.setTier(this.player.hammerTier);
+    this.playerModel.setPlates(this.player.plates);
+    this.playerModel.update(dt, {
+      x: this.player.position.x,
+      y: this.player.position.y,
+      z: this.player.position.z,
+      yaw: this.player.yaw,
+      moving: walkSpeed > 0.4 && this.player.body.onGround && !this.player.flying,
+      speed: walkSpeed,
+      swing: this.player.swing,
+      swingDuration: SWING_DURATION,
+      reducedMotion: this.reducedMotion,
+    });
     this.updateHud(dt);
     this.updateSave(dt);
 
@@ -807,7 +827,9 @@ export class Game {
       : this.player.creative ? 'B: blocos · Z: desfazer · Y: refazer · Esc: menu'
       : 'B: mochila · C: criar · H: ajuda · Esc: menu';
     const held = this.player.inventory.selectedSlot;
-    this.viewModel.setHeld(held.count > 0 ? held.block : null);
+    const heldBlock = held.count > 0 ? held.block : null;
+    this.viewModel.setHeld(heldBlock);
+    this.playerModel.setHeld(heldBlock);
 
     const boss = this.arena.boss ?? this.ruin.boss ?? this.grove.boss;
     if (boss && !boss.removed) {
@@ -1338,6 +1360,24 @@ export class Game {
     this.overlay.setBackAction(() => this.showModeMenu(mode));
   }
 
+  private cycleCameraView(fromMenu = false): void {
+    this.controller.cycleView();
+    const firstPerson = this.controller.view === CameraView.First;
+    this.viewModel.setFirstPerson(firstPerson);
+    this.playerModel.setVisible(!firstPerson);
+    if (fromMenu) {
+      this.state = 'playing';
+      this.pause();
+      return;
+    }
+    this.hud.showHint(this.cameraViewDescription(), 2.4);
+  }
+
+  private cameraViewDescription(): string {
+    if (this.controller.view === CameraView.Back) return 'Por trás: veja a armadura';
+    return 'Primeira pessoa';
+  }
+
   private showPaused(): void {
     this.state = 'playing';
     this.pause();
@@ -1353,6 +1393,7 @@ export class Game {
   private addPlayActions(): void {
     if (this.practice) {
       this.overlay.addAction('Sair do treino', () => this.stopPractice(), { icon: '🏠' });
+      this.overlay.addAction('Ver personagem', () => this.cycleCameraView(true), { icon: '🧍', description: this.cameraViewDescription() });
       this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?' });
       return;
     }
@@ -1367,6 +1408,7 @@ export class Game {
       this.overlay.addAction('Chefões', () => this.showBossMenu(), { icon: '👑', description: 'Treinar ou enfrentar' });
       this.overlay.addAction('Minha base', () => this.showHomeMenu(), { icon: '🏠', description: 'Seu lugar no mundo' });
     }
+    this.overlay.addAction('Ver personagem', () => this.cycleCameraView(true), { icon: '🧍', description: this.cameraViewDescription() });
     this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?', description: 'Uma ajuda rápida' });
     this.overlay.addAction('Mais opções', () => this.showMoreOptions());
   }
@@ -1509,7 +1551,7 @@ export class Game {
     const bossTip = this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked
       ? `O Sentinela aparece depois de ${this.oneBlock.ruinAt} blocos quebrados.`
       : 'Para o chefão: Esc > Chefões > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!';
-    this.overlay.show({ title: 'Como brincar', text: `${firstSteps}\n\nPara andar: W A S D e mouse.\n${bossTip}`, button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    this.overlay.show({ title: 'Como brincar', text: `${firstSteps}\n\nPara andar: W A S D e mouse.\nV mostra o personagem por trás. Aperte de novo para voltar.\n${bossTip}`, button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     if (this.player.creative) {
       this.overlay.addAction('Praticar construção', () => { this.tutorialDone = false; this.buildLesson = 0; this.openCatalog(); });
       this.overlay.addAction('Pular tutorial', () => { this.tutorialDone = true; this.buildLesson = 0; this.startPlaying(); });
@@ -1519,7 +1561,7 @@ export class Game {
 
   private showAdvancedHelp(): void {
     this.stopForPanel();
-    this.overlay.show({ title: 'Controles e receitas', text: 'F liga o voo na construção livre; Espaço sobe e Ctrl desce.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.', button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
+    this.overlay.show({ title: 'Controles e receitas', text: 'V mostra o personagem por trás. Aperte de novo para a primeira pessoa.\nF liga o voo na construção livre; Espaço sobe e Ctrl desce.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.', button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
   }
 
   private startPractice(): void {

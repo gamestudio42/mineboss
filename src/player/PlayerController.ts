@@ -4,9 +4,101 @@ import type { Input } from '../core/Input.ts';
 import { BASE_LOOK_SENSITIVITY } from '../core/Settings.ts';
 import { clamp, damp } from '../core/math.ts';
 import { getBlockDef, isWater, isSolid } from '../world/blocks.ts';
+import { raycastVoxels } from '../world/raycast.ts';
 import type { World } from '../world/World.ts';
 import { WORLD_HEIGHT } from '../world/Chunk.ts';
 import type { Player } from './Player.ts';
+
+/** First person, or behind the character so the suit stays visible while playing. */
+export const enum CameraView {
+  First = 0,
+  Back = 1,
+}
+
+/** Blocks from the eyes to the third-person camera, before a wall shortens it. */
+export const THIRD_PERSON_DISTANCE = 3.5;
+
+const CAMERA_CLEARANCE = 0.32;
+const MIN_CAMERA_DISTANCE = 0.55;
+const cameraOrigin = new THREE.Vector3();
+const cameraDirection = new THREE.Vector3();
+
+export interface CameraPose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+}
+
+export function nextCameraView(view: CameraView): CameraView {
+  return view === CameraView.First ? CameraView.Back : CameraView.First;
+}
+
+/**
+ * First person stays on the eyes. The back view sits behind the look direction
+ * and stops short of the first solid block so the camera does not enter a wall.
+ * Aiming does not use this pose.
+ */
+export function placePlayerCamera(
+  eyeX: number,
+  eyeY: number,
+  eyeZ: number,
+  yaw: number,
+  pitch: number,
+  view: CameraView,
+  bobX: number,
+  bobY: number,
+  world: World | null,
+): CameraPose {
+  if (view === CameraView.First) {
+    return { x: eyeX + bobX, y: eyeY + bobY, z: eyeZ, yaw, pitch };
+  }
+
+  const cosPitch = Math.cos(pitch);
+  const dirX = Math.sin(yaw) * cosPitch;
+  const dirY = -Math.sin(pitch);
+  const dirZ = Math.cos(yaw) * cosPitch;
+  const distance = world
+    ? cameraClearDistance(world, eyeX, eyeY, eyeZ, dirX, dirY, dirZ)
+    : THIRD_PERSON_DISTANCE;
+
+  return {
+    x: eyeX + dirX * distance,
+    y: eyeY + dirY * distance,
+    z: eyeZ + dirZ * distance,
+    yaw,
+    pitch,
+  };
+}
+
+/** Walks past air and non-solid blocks, then stops just before a solid one. */
+function cameraClearDistance(
+  world: World,
+  eyeX: number,
+  eyeY: number,
+  eyeZ: number,
+  dirX: number,
+  dirY: number,
+  dirZ: number,
+): number {
+  let traveled = 0;
+  let remaining = THIRD_PERSON_DISTANCE;
+  cameraOrigin.set(eyeX, eyeY, eyeZ);
+  cameraDirection.set(dirX, dirY, dirZ);
+  for (let step = 0; step < 6 && remaining > 0.05; step++) {
+    const hit = raycastVoxels(world, cameraOrigin, cameraDirection, remaining);
+    if (!hit) return THIRD_PERSON_DISTANCE;
+    if (isSolid(hit.block)) {
+      return Math.max(MIN_CAMERA_DISTANCE, traveled + hit.distance - CAMERA_CLEARANCE);
+    }
+    const advance = hit.distance + 0.05;
+    traveled += advance;
+    remaining -= advance;
+    cameraOrigin.addScaledVector(cameraDirection, advance);
+  }
+  return THIRD_PERSON_DISTANCE;
+}
 
 const PITCH_LIMIT = Math.PI / 2 - 0.001;
 
@@ -39,6 +131,12 @@ export class PlayerController {
   lookScale = 1;
   reducedMotion = false;
   edgeBlocked = false;
+  view = CameraView.First;
+
+  cycleView(): CameraView {
+    this.view = nextCameraView(this.view);
+    return this.view;
+  }
 
   constructor(
     private readonly player: Player,
@@ -182,11 +280,26 @@ export class PlayerController {
     this.bobPhase += dt * speed * 1.9;
     this.bobAmount = damp(this.bobAmount, walking ? Math.min(speed / SPRINT_SPEED, 1) : 0, 8, dt);
 
-    const bobY = this.reducedMotion ? 0 : Math.sin(this.bobPhase * 2) * 0.045 * this.bobAmount;
-    const bobX = this.reducedMotion ? 0 : Math.cos(this.bobPhase) * 0.035 * this.bobAmount;
+    const bobY = this.reducedMotion || this.view !== CameraView.First
+      ? 0
+      : Math.sin(this.bobPhase * 2) * 0.045 * this.bobAmount;
+    const bobX = this.reducedMotion || this.view !== CameraView.First
+      ? 0
+      : Math.cos(this.bobPhase) * 0.035 * this.bobAmount;
 
     player.getEyePosition(this.eye);
-    this.camera.position.set(this.eye.x + bobX, this.eye.y + bobY, this.eye.z);
-    this.camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+    const pose = placePlayerCamera(
+      this.eye.x,
+      this.eye.y,
+      this.eye.z,
+      player.yaw,
+      player.pitch,
+      this.view,
+      bobX,
+      bobY,
+      this.view === CameraView.First ? null : this.world,
+    );
+    this.camera.position.set(pose.x, pose.y, pose.z);
+    this.camera.rotation.set(pose.pitch, pose.yaw, 0, 'YXZ');
   }
 }

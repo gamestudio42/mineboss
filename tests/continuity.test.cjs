@@ -19,7 +19,7 @@ function world() { const w = new World(new TerrainGenerator(42,'oneblock')); for
 function run() { return {version:5,mode:'adventure',seed:42,elapsed:1,deaths:0,blocksMined:0,hintedConsumable:false,hintedUpgrade:false,hintedTorch:false,player:{x:.5,y:73,z:.5,spawnX:.5,spawnY:73,spawnZ:.5,yaw:0,pitch:0,health:20,hammer:0,selected:0,slots:Array.from({length:9},()=>({block:null,count:0}))},arena:{defeated:false,discovered:false},oneBlock:{broken:0,phase:0},edits:[]}; }
 function storage() { const data=new Map(); global.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)};return data; }
 function game() {
- const g=Object.create(Game.prototype);Object.assign(g,{mode:'adventure',player:new Player(),world:world(),trophies:new Set(),oneBlock:new OneBlock(42),arena:{active:false,defeated:false,discovered:false},ruin:{active:false,defeated:false},grove:{active:false,defeated:false},seed:42,elapsed:0,deaths:0,blocksMined:0,guidance:false,home:{x:2.5,y:73,z:2.5}});
+ const g=Object.create(Game.prototype);Object.assign(g,{mode:'adventure',player:new Player(),world:world(),trophies:new Set(),oneBlock:new OneBlock(42),arena:{active:false,defeated:false,discovered:false},ruin:{active:false,defeated:false},grove:{active:false,defeated:false},controller:{view:0},seed:42,elapsed:0,deaths:0,blocksMined:0,guidance:false,home:{x:2.5,y:73,z:2.5}});
  return g;
 }
 test('custom creative palette survives style and fight roundtrips with survival reserve intact',()=>{

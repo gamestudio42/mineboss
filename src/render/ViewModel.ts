@@ -129,6 +129,7 @@ export class ViewModel {
   private tier = HammerTier.Wood;
   private plates = PlateTier.None;
   private heldBlock: number | null = null;
+  private firstPerson = true;
   private vestFlash: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> | null = null;
 
   constructor(private readonly camera: THREE.PerspectiveCamera, atlas: BlockAtlas) {
@@ -164,8 +165,16 @@ export class ViewModel {
     }
   }
 
+  /** The body in the world replaces the floating hammer and vest. */
+  setFirstPerson(enabled: boolean): void {
+    if (enabled === this.firstPerson) return;
+    this.firstPerson = enabled;
+    this.applyVisibility();
+  }
+
   /** Clear world depth once, then let tool parts occlude each other correctly. */
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene): void {
+    if (!this.firstPerson) return;
     const mask = this.camera.layers.mask;
     const autoClear = renderer.autoClear;
     const autoReset = renderer.info.autoReset;
@@ -188,14 +197,14 @@ export class ViewModel {
   setHeld(block: number | null): void {
     if (block === this.heldBlock) return;
     this.heldBlock = block;
-    this.heldRoot.visible = block !== null;
+    this.applyVisibility();
     if (block !== null) paintBlockUvs(this.heldMesh.geometry, block);
   }
 
   setPlates(tier: PlateTier): void {
     if (tier === this.plates) return;
     this.plates = tier;
-    this.vestRoot.visible = tier !== PlateTier.None;
+    this.applyVisibility();
     if (tier === PlateTier.None) return;
     const palette = PLATE_METAL[tier];
     for (const [mesh, role] of this.vestMetal) {
@@ -209,6 +218,12 @@ export class ViewModel {
     this.tier = tier;
     this.hammer.geometry.dispose();
     this.hammer.geometry = createHammerGeometry(tier);
+  }
+
+  private applyVisibility(): void {
+    this.root.visible = this.firstPerson;
+    this.heldRoot.visible = this.firstPerson && this.heldBlock !== null;
+    this.vestRoot.visible = this.firstPerson && this.plates !== PlateTier.None;
   }
 
   /** Chunky breastplate at the bottom of the first-person view. */
