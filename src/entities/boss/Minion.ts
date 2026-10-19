@@ -4,6 +4,15 @@ import { hitPlayer } from '../../combat/DamageSystem.ts';
 import { Health } from '../../combat/Health.ts';
 import { damp } from '../../core/math.ts';
 import { Entity, type EntityContext } from '../Entity.ts';
+import { steerAround } from './steer.ts';
+
+let nextFlank: 1 | -1 = 1;
+
+function takeFlank(): 1 | -1 {
+  const flank = nextFlank;
+  nextFlank = (nextFlank === 1 ? -1 : 1);
+  return flank;
+}
 
 const SPEED = 3.4;
 const GRAVITY = 26;
@@ -23,12 +32,14 @@ export interface MinionOptions {
   eyeColor?: number;
   health?: number;
   clearedOnDeath?: boolean;
+  flank?: 1 | -1;
 }
 
 /** Small golem summoned by the boss: walks at the player and punches. */
 export class Minion extends Entity {
   private cooldown = 0;
   private life: number;
+  private readonly flank: 1 | -1;
   private readonly body3D: THREE.Group;
 
   constructor(x: number, y: number, z: number, options: MinionOptions = {}) {
@@ -36,6 +47,7 @@ export class Minion extends Entity {
     this.position.set(x, y, z);
     this.life = options.lifetime ?? LIFETIME;
     this.clearedOnDeath = options.clearedOnDeath ?? true;
+    this.flank = options.flank ?? takeFlank();
     this.health = new Health(options.health ?? 18, 0.2);
 
     const body = options.color ?? 0x4b4459;
@@ -90,8 +102,15 @@ export class Minion extends Entity {
     let wishZ = 0;
 
     if (distance > STOP_RANGE) {
-      wishX = dx / distance;
-      wishZ = dz / distance;
+      const steered = steerAround(
+        this.position,
+        dx / distance,
+        dz / distance,
+        (x, y, z) => world.getBlock(x, y, z),
+        this.flank,
+      );
+      wishX = steered.x;
+      wishZ = steered.z;
     } else if (distance > 1e-3 && distance < PERSONAL_SPACE) {
       // Back off instead of pressing into the camera; melee still reaches.
       const strength = (PERSONAL_SPACE - distance) / PERSONAL_SPACE;
