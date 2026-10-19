@@ -9,7 +9,6 @@ import {
   ONE_BLOCK_X,
   ONE_BLOCK_Z,
   PHASE_MOB_CAP,
-  isOneBlockCell,
   phaseAt,
   type OneBlockPace,
   phaseProgressLabel,
@@ -239,5 +238,3 @@ export class OneBlock {
     return null;
   }
 }
-
-export { isOneBlockCell };

@@ -125,7 +125,9 @@ export function parseSave(raw: string, mode?: GameMode): SavedRun | null {
       if (parsed[key] !== undefined && typeof parsed[key] !== 'boolean') return null;
     }
     if (typeof parsed.arena.defeated !== 'boolean' || typeof parsed.arena.discovered !== 'boolean') return null;
-    if (parsed.arena.beaconDefeated !== undefined && typeof parsed.arena.beaconDefeated !== 'boolean') return null;
+    for (const key of ['cacheClaimed', 'ruinFound', 'ruinDefeated', 'beaconDefeated'] as const) {
+      if (parsed.arena[key] !== undefined && typeof parsed.arena[key] !== 'boolean') return null;
+    }
     if (!count(parsed.oneBlock.broken) || parsed.oneBlock.broken > 1_000_000_000 || !count(parsed.oneBlock.phase)) return null;
     if (parsed.oneBlock.pace !== undefined && !['classic','quick'].includes(parsed.oneBlock.pace)) return null;
     if (parsed.oneBlock.goals !== undefined && (!Array.isArray(parsed.oneBlock.goals) || parsed.oneBlock.goals.some(goal => !['platform','shelter'].includes(goal)))) return null;
@@ -173,16 +175,4 @@ export function saveRun(run: SavedRun): boolean {
   } catch {
     return false;
   }
-}
-
-export function clearSave(mode: GameMode = 'adventure'): void {
-  try {
-    localStorage.removeItem(`${STORAGE_KEY}.${mode}`);
-  } catch {
-    // Ignore quota / private-mode failures.
-  }
-}
-
-export function hasSave(): boolean {
-  return loadSave() !== null;
 }

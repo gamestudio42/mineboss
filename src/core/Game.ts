@@ -746,6 +746,7 @@ export class Game {
     if (this.state !== 'playing') return;
     this.arena.update();
     this.ruin.update();
+    this.grove.update();
     if (this.world.generator.shrineUnlocked && !this.player.creative) this.arena.tryDiscover(this.player);
     this.tryDiscoverRuin();
     this.tryClaimCache();
@@ -1561,7 +1562,7 @@ export class Game {
 
   private showAdvancedHelp(): void {
     this.stopForPanel();
-    this.overlay.show({ title: 'Controles e receitas', text: 'V mostra o personagem por trás. Aperte de novo para a primeira pessoa.\nF liga o voo na construção livre; Espaço sobe e Ctrl desce.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.', button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
+    this.overlay.show({ title: 'Controles e receitas', text: 'V mostra o personagem por trás. Aperte de novo para a primeira pessoa.\nF liga o voo na construção livre; Espaço sobe e Ctrl desce.\nZ desfaz e Y refaz na construção livre, fora das lutas.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.', button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
   }
 
   private startPractice(): void {

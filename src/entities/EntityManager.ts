@@ -64,14 +64,6 @@ export class EntityManager {
     return best;
   }
 
-  countOfTeam(team: Team): number {
-    let count = 0;
-    for (const entity of this.entities) {
-      if (!entity.removed && entity.team === team) count += 1;
-    }
-    return count;
-  }
-
   /** Drops entities flagged for removal without waiting for the next update. */
   flushRemoved(): void {
     for (let i = this.entities.length - 1; i >= 0; i--) {

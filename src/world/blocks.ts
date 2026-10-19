@@ -283,35 +283,9 @@ export function isSolid(id: number): boolean {
   return SOLID[id] === 1;
 }
 
-export function isOpaque(id: number): boolean {
-  return OPAQUE[id] === 1;
-}
-
 export function isConsumable(id: number): boolean {
   return getBlockDef(id).heal > 0;
 }
-
-/** Blocks the player can pick up and place from the hotbar. */
-export const PLACEABLE_BLOCKS: readonly Block[] = [
-  Block.Cobblestone,
-  Block.Dirt,
-  Block.Sand,
-  Block.Planks,
-  Block.Log,
-  Block.BirchLog,
-  Block.Leaves,
-  Block.BirchLeaves,
-  Block.Glowstone,
-  Block.Obsidian,
-  Block.DarkBrick,
-  Block.Torch,
-  Block.Bed,
-  Block.Moss,
-  Block.Chest,
-];
-
-/** Right-click one coal ore to bind four torches. */
-export const TORCHES_PER_COAL = 4;
 
 export function isTorchFuel(id: number): boolean {
   return id === Block.CoalOre;
@@ -320,9 +294,6 @@ export function isTorchFuel(id: number): boolean {
 export function isWater(id: number): boolean {
   return id === Block.Water;
 }
-
-/** Right-click four planks while looking at air to bind a bedroll. */
-export const PLANKS_PER_BED = 4;
 
 export function isBedMaterial(id: number): boolean {
   return id === Block.Planks;

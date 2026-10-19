@@ -64,14 +64,3 @@ export function rayBox(
 
   return near;
 }
-
-export function boxesOverlap(a: Box, b: Box): boolean {
-  return (
-    a.minX < b.maxX &&
-    a.maxX > b.minX &&
-    a.minY < b.maxY &&
-    a.maxY > b.minY &&
-    a.minZ < b.maxZ &&
-    a.maxZ > b.minZ
-  );
-}

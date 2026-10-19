@@ -42,12 +42,6 @@ export const PLATES: Record<PlateTier, PlateStats> = {
   [PlateTier.Gold]: { name: 'Armadura de ouro', reduction: 0.42 },
 };
 
-export function platesFrom(block: Block): PlateTier | null {
-  if (block === Block.IronOre) return PlateTier.Iron;
-  if (block === Block.GoldOre) return PlateTier.Gold;
-  return null;
-}
-
 export function isPlateTier(value: unknown): value is PlateTier {
   return value === PlateTier.None || value === PlateTier.Iron || value === PlateTier.Gold;
 }
