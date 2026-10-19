@@ -38,7 +38,7 @@ import {
   chunkTouchesGrove,
   chunkTouchesRuin,
 } from '../world/arena.ts';
-import { Block, isWater } from '../world/blocks.ts';
+import { Block, isConsumable, isTorchFuel, isWater } from '../world/blocks.ts';
 import { ChunkManager } from '../world/ChunkManager.ts';
 import { OneBlock } from '../world/oneblock/OneBlock.ts';
 import { ISLAND_Y, VOID_KILL_Y, chestLoot, isOneBlockCell, unlockBreaks } from '../world/oneblock/phases.ts';
@@ -51,6 +51,7 @@ import { modeName, type GameMode } from './GameMode.ts';
 import { blockGrid, CATALOG_GROUPS } from '../ui/BlockCatalog.ts';
 import { getBlockDef, isSolid } from '../world/blocks.ts';
 import { ENTRANCE_SPAWN } from '../world/arena.ts';
+import { pickGuideHint, shownFromSave } from '../player/Guide.ts';
 import { loadSave, loadPreviousSave, parseSave, saveRun, SAVE_VERSION, type SavedRun } from './Save.ts';
 import { SessionLog, type SessionMarkKind, type SessionPanelId } from './SessionLog.ts';
 import { loadSettings, QUALITY, type StoredSettings } from './Settings.ts';
@@ -147,6 +148,8 @@ export class Game {
   private hintedBed = false;
   private hintedPlates = false;
   private hintedStagger = false;
+  private shownHints = new Set<string>();
+  private guideTimer = 0;
   private deaths = 0;
   private blocksMined = 0;
   private seed = DEFAULT_SEED;
@@ -346,7 +349,7 @@ export class Game {
     };
     this.interaction.onConsumableFound = (name) => {
       if (this.hintedConsumable) return;
-      this.hintedConsumable = true;
+      this.rememberHint('eat');
       this.hud.showHint(`Botão direito: comer ${name} e recuperar vida`, 3.5);
     };
     this.interaction.onUpgradeFound = (name) => {
@@ -365,7 +368,7 @@ export class Game {
     this.interaction.onHammerFeedback = (text) => this.hud.showHint(text, 2.4);
     this.interaction.onTorchFuelFound = (name) => {
       if (this.hintedTorch) return;
-      this.hintedTorch = true;
+      this.rememberHint('torch');
       this.hud.showHint(`C: use ${name} para criar tochas`, 3.5);
     };
     this.interaction.onBedFound = () => {
@@ -500,6 +503,7 @@ export class Game {
     } else if (this.player.creative) {
       this.hud.showHint('B: escolha blocos. Esc: construir, base e chefões.', 4);
     } else if (!this.arena.ruinFound) {
+      this.rememberHint('ruin');
       this.hud.showHint('Encontre o Sentinela: siga a bússola ou use Visitar no menu', 4.2);
     } else if (!this.player.creative && !this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
       this.hintedBed = true;
@@ -535,6 +539,7 @@ export class Game {
     if (this.state === 'dead') return;
     this.pendingDeath = false;
     this.deaths += 1;
+    this.oneBlock.noteDeath();
     this.session?.record('death');
     this.state = 'dead';
     this.sfx.play('death');
@@ -656,6 +661,8 @@ export class Game {
     this.hintedBed = false;
     this.hintedPlates = false;
     this.hintedStagger = false;
+    this.shownHints.clear();
+    this.guideTimer = 0;
     this.player.hammerTier = HammerTier.Wood;
     this.player.plates = PlateTier.None;
     this.viewModel.setTier(HammerTier.Wood);
@@ -705,6 +712,59 @@ export class Game {
   private hintStagger(): void {
     this.hintedStagger = true;
     this.hud.showHint('BATA AGORA! O chefão está vulnerável!', 3.4);
+  }
+
+  private rememberHint(id: string): void {
+    this.shownHints ??= new Set();
+    this.shownHints.add(id);
+    if (id === 'eat') this.hintedConsumable = true;
+    if (id === 'torch') this.hintedTorch = true;
+  }
+
+  private inventoryHas(predicate: (id: number) => boolean): boolean {
+    for (const slot of this.player.inventory.slots) {
+      if (slot.block !== null && slot.count > 0 && predicate(slot.block)) return true;
+    }
+    for (const [block, count] of this.player.inventory.reserve) {
+      if (count > 0 && predicate(block)) return true;
+    }
+    return false;
+  }
+
+  private updateCoach(dt: number): void {
+    if (!this.guidance || this.inEncounter || this.practice) {
+      this.guideTimer = 0;
+      return;
+    }
+    if (this.hud.hintVisible) {
+      this.guideTimer = 0;
+      return;
+    }
+    this.guideTimer += dt;
+    if (this.guideTimer < 4) return;
+    this.guideTimer = 0;
+    const hint = pickGuideHint(
+      {
+        enabled: this.guidance,
+        fighting: false,
+        health: this.player.health.current,
+        hasHeal: this.inventoryHas(isConsumable),
+        mode: this.mode,
+        hasDirtOrGrass: this.inventoryHas((id) => id === Block.Dirt || id === Block.Grass),
+        hasPlanksOrLog: this.inventoryHas((id) => id === Block.Planks || id === Block.Log),
+        hasTorchFuel: this.inventoryHas(isTorchFuel),
+        hasTorch: this.inventoryHas((id) => id === Block.Torch),
+        platformDone: this.oneBlock.goals.has('platform'),
+        shelterDone: this.oneBlock.goals.has('shelter'),
+        ruinUnlocked: this.mode === 'adventure' || this.oneBlock.ruinUnlocked,
+        ruinFound: this.arena.ruinFound,
+      },
+      this.shownHints,
+    );
+    if (!hint) return;
+    this.rememberHint(hint.id);
+    this.hud.showHint(hint.text, 4.2);
+    this.saveSoon = true;
   }
 
   private deathText(sentinelFight: boolean, groveFight: boolean, voided: boolean): string {
@@ -833,6 +893,7 @@ export class Game {
       reducedMotion: this.reducedMotion,
     });
     this.updateHud(dt);
+    this.updateCoach(dt);
     this.updateSave(dt);
 
     if (this.pendingDeath) {
@@ -1211,6 +1272,7 @@ export class Game {
       hintedBed: this.hintedBed,
       hintedPlates: this.hintedPlates,
       hintedStagger: this.hintedStagger,
+      shownHints: [...(this.shownHints ?? [])],
       player: {
         flying: returnTo?.flying ?? this.player.flying,
         x: position.x,
@@ -1283,6 +1345,10 @@ export class Game {
     this.hintedBed = save.hintedBed === true;
     this.hintedPlates = save.hintedPlates === true;
     this.hintedStagger = save.hintedStagger === true;
+    this.shownHints ??= new Set();
+    this.shownHints.clear();
+    for (const id of shownFromSave(save)) this.shownHints.add(id);
+    this.guideTimer = 0;
 
     this.entities.clear();
     this.arena.beginNewRun();

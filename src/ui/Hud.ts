@@ -139,6 +139,10 @@ export class Hud {
     this.flashTimer = 0.28;
   }
 
+  get hintVisible(): boolean {
+    return this.hintTimer > 0;
+  }
+
   showHint(text: string, seconds = 4): void {
     if (this.hintRoot.textContent !== text) this.hintRoot.textContent = text;
     this.hintRoot.classList.add('show');
