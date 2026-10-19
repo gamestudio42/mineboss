@@ -7,6 +7,8 @@ export const BUILD_IDEAS: BuildIdea[] = [
   { id: 'house', name: 'Casa colorida', icon: '🏠', steps: ['Faça um chão de 5 por 5 blocos.', 'Levante as paredes. Deixe a entrada e duas janelas.', 'Cubra com um telhado e coloque vidro nas janelas.'], materials: [Block.Planks, Block.Blue, Block.White, Block.Glass, Block.Bed, Block.Torch] },
   { id: 'bridge', name: 'Ponte', icon: '🌉', steps: ['Faça um caminho de tábuas com 3 blocos de largura.', 'Coloque bordas dos dois lados.', 'Enfeite a entrada com postes e luzes.'], materials: [Block.Planks, Block.Log, Block.Glowstone] },
   { id: 'castle', name: 'Castelo', icon: '🏰', steps: ['Faça uma base quadrada de pedra.', 'Levante as paredes e deixe o portão aberto.', 'Faça torres mais altas nos cantos e decore o topo.'], materials: [Block.Cobblestone, Block.DarkBrick, Block.Glowstone, Block.Red] },
+  { id: 'tower', name: 'Torre', icon: '🗼', steps: ['Faça um chão de 3 por 3 pedras.', 'Levante as paredes e deixe a porta aberta.', 'Faça um terraço no topo e coloque uma luz.'], materials: [Block.Cobblestone, Block.Planks, Block.Torch, Block.Glowstone] },
+  { id: 'pen', name: 'Curral', icon: '🪵', steps: ['Faça um chão de 5 por 5.', 'Faça a cerca com troncos e deixe um portão.', 'Coloque luzes nos cantos.'], materials: [Block.Dirt, Block.Log, Block.Planks, Block.Torch] },
 ];
 interface Cube { x: number; y: number; z: number; color: string; stage: number; }
 export function ideaCubes(id: string, stage: number): Cube[] {
@@ -31,7 +33,7 @@ export function ideaCubes(id: string, stage: number): Cube[] {
       if(x!==1)put(x,1,z,'#94734a',1);
       if(x!==1&&(z===0||z===6)){put(x,2,z,'#755037',2);put(x,3,z,'#ffd97c',2);}
     }
-  } else {
+  } else if (id === 'castle') {
     for(let x=0;x<7;x++)for(let z=0;z<7;z++) {
       put(x,0,z,'#8b97a0',0);
       if(x===0||x===6||z===0||z===6)for(let y=1;y<=3;y++) {
@@ -39,6 +41,23 @@ export function ideaCubes(id: string, stage: number): Cube[] {
       }
       if((x<2||x>4)&&(z<2||z>4))for(let y=1;y<=5;y++)put(x,y,z,y===5?'#e5c578':'#7d8594',2);
       else if((x===0||x===6||z===0||z===6)&&(x+z)%2===0)put(x,4,z,'#7d8594',2);
+    }
+  } else if (id === 'tower') {
+    for(let x=0;x<3;x++)for(let z=0;z<3;z++) {
+      put(x,0,z,'#8b97a0',0);
+      if(x===0||x===2||z===0||z===2)for(let y=1;y<=4;y++) {
+        const door=z===2&&x===1&&y<3;
+        if(!door)put(x,y,z,'#a4a6a9',1);
+      }
+      put(x,5,z,x===1&&z===1?'#ffd97c':'#7d8594',2);
+    }
+  } else if (id === 'pen') {
+    for(let x=0;x<5;x++)for(let z=0;z<5;z++) {
+      put(x,0,z,'#6b8f4e',0);
+      const edge=x===0||x===4||z===0||z===4;
+      const gate=z===4&&x===2;
+      if(edge&&!gate)put(x,1,z,'#755037',1);
+      if(edge&&(x===0||x===4)&&(z===0||z===4)){put(x,2,z,'#94734a',2);put(x,3,z,'#ffd97c',2);}
     }
   }
   return [...cells.values()].sort((a,b)=>(a.x+a.z)-(b.x+b.z)||a.y-b.y);
