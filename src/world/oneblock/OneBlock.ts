@@ -4,6 +4,7 @@ import type { EntityManager } from '../../entities/EntityManager.ts';
 import type { Player } from '../../player/Player.ts';
 import { Block, isSolid, getBlockDef } from '../blocks.ts';
 import type { World } from '../World.ts';
+import { mobPressure, phaseHasMushroomExtra } from './director.ts';
 import {
   ISLAND_Y,
   ONE_BLOCK_X,
@@ -47,6 +48,8 @@ export class OneBlock {
   pace: OneBlockPace = 'classic';
   readonly goals = new Set<string>();
   private pendingMob = 0;
+  private deathsSinceBreak = 0;
+  private reliefMushroom = false;
   onWarning: (() => void) | null = null;
 
   constructor(private seed: number) {}
@@ -57,10 +60,19 @@ export class OneBlock {
     this.seed = seed;
     this.broken = 0;
     this.pendingMob = 0;
+    this.deathsSinceBreak = 0;
+    this.reliefMushroom = false;
+  }
+
+  noteDeath(): void {
+    this.deathsSinceBreak += 1;
+    this.reliefMushroom = true;
   }
 
   load(saved: SavedOneBlock): void {
     this.pendingMob = 0;
+    this.deathsSinceBreak = 0;
+    this.reliefMushroom = false;
     this.broken = Math.max(0, saved.broken | 0);
     this.pace = saved.pace ?? 'classic';
     this.goals.clear();
@@ -148,25 +160,33 @@ export class OneBlock {
     else if (after.shrine && !before.shrine) unlocked = 'shrine';
     else if (after.ruin && !before.ruin) unlocked = 'ruin';
 
-    const spawnedMob = this.trySpawnMob(world, entities, phase);
+    const spawnedMob = this.trySpawnMob(entities, phase, player);
+    this.deathsSinceBreak = 0;
     return { next, unlocked, spawnedMob };
   }
 
   private applyExtras(world: World, player: Player, phase: PhaseDef): void {
-    if (!phase.extras) return;
+    if (player.health.current <= 8) this.reliefMushroom = true;
 
-    for (const extra of phase.extras) {
-      const roll = hash2(this.broken, extra.id * 19 + (extra.neighbor ? 7 : 3), this.seed);
-      if (roll >= extra.chance) continue;
+    if (phase.extras) {
+      for (const extra of phase.extras) {
+        const roll = hash2(this.broken, extra.id * 19 + (extra.neighbor ? 7 : 3), this.seed);
+        if (roll >= extra.chance) continue;
 
-      if (this.gentle && extra.id === Block.Lava) continue;
-      if (extra.neighbor) {
-        this.placeNeighbor(world, extra.id);
-        continue;
+        if (this.gentle && extra.id === Block.Lava) continue;
+        if (extra.neighbor) {
+          this.placeNeighbor(world, extra.id);
+          continue;
+        }
+
+        player.inventory.add(extra.id, 1);
       }
-
-      player.inventory.add(extra.id, 1);
     }
+
+    if (this.reliefMushroom && phaseHasMushroomExtra(phase)) {
+      player.inventory.add(Block.Mushroom, 1);
+    }
+    this.reliefMushroom = false;
   }
 
   private placeNeighbor(world: World, id: Block): void {
@@ -181,9 +201,14 @@ export class OneBlock {
     }
   }
 
-  private trySpawnMob(_world: World, entities: EntityManager, phase: PhaseDef): boolean {
+  private trySpawnMob(entities: EntityManager, phase: PhaseDef, player: Player): boolean {
     if (phase.mobChance <= 0 || this.pendingMob > 0) return false;
-    if (hash2(this.broken, 97, this.seed) >= phase.mobChance * (this.gentle ? 0.4 : 1)) return false;
+    const pressure = mobPressure({
+      gentle: this.gentle,
+      deathsSinceBreak: this.deathsSinceBreak,
+      health: player.health.current,
+    });
+    if (hash2(this.broken, 97, this.seed) >= phase.mobChance * pressure) return false;
 
     let live = 0;
     for (const entity of entities.entities) {
