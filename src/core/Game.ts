@@ -52,6 +52,7 @@ import { blockGrid, CATALOG_GROUPS } from '../ui/BlockCatalog.ts';
 import { getBlockDef, isSolid } from '../world/blocks.ts';
 import { ENTRANCE_SPAWN } from '../world/arena.ts';
 import { loadSave, loadPreviousSave, parseSave, saveRun, SAVE_VERSION, type SavedRun } from './Save.ts';
+import { SessionLog, type SessionMarkKind, type SessionPanelId } from './SessionLog.ts';
 import { loadSettings, QUALITY, type StoredSettings } from './Settings.ts';
 import { buildIdeaPanel, BUILD_IDEAS } from '../ui/BuildIdeas.ts';
 import { combatCue, showActionCue } from '../ui/CombatCue.ts';
@@ -59,6 +60,11 @@ import { Shockwave } from '../entities/boss/attacks/Shockwave.ts';
 import { clamp, damp, wrapAngle } from './math.ts';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'victory';
+
+function sessionBlockName(id: number | undefined): string | undefined {
+  if (id === undefined) return undefined;
+  return Block[id] ?? String(id);
+}
 
 const SKY_COLOR = 0x8fb8e0;
 const CAVE_COLOR = 0x090b11;
@@ -125,8 +131,11 @@ export class Game {
   private readonly oneBlock: OneBlock;
   private readonly hud: Hud;
   private readonly overlay = new Overlay();
+  private readonly session = new SessionLog();
 
   private reducedMotion = false;
+  private quality: StoredSettings['quality'] = 'balanced';
+  private guideText: string | null = null;
   private elapsed = 0;
   private trauma = 0;
   private stepDistance = 0;
@@ -238,6 +247,7 @@ export class Game {
         this.rewardBoss(Block.SentinelTrophy);
         this.finishFight();
         this.ruin.rebuildStatue(this.world);
+        this.session?.record('victory', { boss: 'sentinel' });
         this.showBossVictory('Sentinela vencido!');
         this.hud.bossBar.hide();
         this.hud.showHint(
@@ -265,6 +275,7 @@ export class Game {
         this.rewardBoss(Block.BeaconTrophy);
         this.finishFight();
         this.grove.rebuildBeacon(this.world);
+        this.session?.record('victory', { boss: 'beacon' });
         this.showBossVictory('Faroleiro vencido!');
         this.hud.bossBar.hide();
         this.hud.showHint('Você venceu o Faroleiro! A lanterna do farol está nos materiais', 4.2);
@@ -286,8 +297,12 @@ export class Game {
     };
 
     this.input = new Input(canvas);
-    this.input.onLockChange = (locked) => this.handleLockChange(locked);
+    this.input.onLockChange = (locked) => {
+      if (locked) this.session?.record('pointer_lock', { ok: true });
+      this.handleLockChange(locked);
+    };
     this.input.onLockError = () => {
+      this.session?.record('pointer_lock', { ok: false });
       if (this.state !== 'playing') return;
       this.pause();
       this.overlay.show({ title: 'Vamos ativar o mouse', text: 'Clique na aba do jogo para ativá-la e tente abaixo. Se o navegador pedir, permita usar o mouse.', button: 'Ativar mouse', secondary: 'Voltar à pausa', showControls: false }, () => this.startPlaying(), () => this.showPaused());
@@ -300,8 +315,12 @@ export class Game {
     this.overlay.bindSettings(settings);
     this.overlay.onSettingsChange = (next) => this.applySettings(next);
 
-    this.interaction.onBlockPlaced = () => {
-      if (this.buildLesson === 1) this.buildLesson = 2;
+    this.interaction.onBlockPlaced = (block) => {
+      this.session?.record('block_placed', { block: sessionBlockName(block) });
+      if (this.buildLesson === 1) {
+        this.buildLesson = 2;
+        this.session?.record('lesson', { step: 2 });
+      }
       if (this.mode === 'oneblock') {
         const earned = this.oneBlock.claimGoals(this.world, this.player);
         if (earned.length) { this.hud.showHint('Você conseguiu! Novos materiais na mochila.', 5); this.saveSoon = true; }
@@ -310,7 +329,10 @@ export class Game {
     this.interaction.onBuildEdit = edit => { if (this.player.creative && !this.inEncounter) this.buildHistory.record(edit); };
     this.player.inventory.onOverflow = () => this.hud.showHint('Barra cheia: material guardado na mochila. Aperte B.', 4);
     this.oneBlock.onWarning = () => this.hud.showHint('⚠ Um monstrinho está chegando! Afaste-se do bloco.', 3);
-    window.addEventListener('pagehide', () => { if (this.state !== 'menu') this.persistSave({ atSpawn: this.player.dead }); });
+    window.addEventListener('pagehide', () => {
+      this.session?.flush();
+      if (this.state !== 'menu') this.persistSave({ atSpawn: this.player.dead });
+    });
     this.interaction.onAltarActivated = () => this.tryStartFight();
     this.interaction.onStatueActivated = () => this.tryStartRuinFight();
     this.interaction.onBeaconActivated = () => this.tryStartGroveFight();
@@ -389,6 +411,7 @@ export class Game {
     const save = loadSave(this.mode);
     if (save) this.applySave(save);
     else this.prepareWorld();
+    this.updateSessionBanner();
     this.showMenu();
   }
 
@@ -431,6 +454,12 @@ export class Game {
     this.overlay.addAction('Som e conforto', () => {
       this.overlay.show({ title: 'Som e conforto', text: 'Ajuste a imagem, a câmera e o som.', button: 'Voltar', showControls: false, showSettings: true, onEscape: () => this.showMenu() }, () => this.showMenu());
     }, { icon: '⚙' });
+    this.overlay.addAction(this.session?.enabled ? 'Registro ligado' : 'Registrar esta partida', () => {
+      if (this.session?.enabled) this.session?.stop();
+      else this.session?.enable();
+      this.updateSessionBanner();
+      this.showMenu();
+    }, { icon: '📋', description: this.session?.enabled ? 'A observação continua neste navegador' : 'Grava o que acontece nesta partida' });
   }
 
   private showModeMenu(mode: GameMode): void {
@@ -461,6 +490,7 @@ export class Game {
     this.overlay.hide();
     this.hud.setVisible(true);
     this.state = 'playing';
+    this.session?.begin(this.sessionContext());
     this.input.requestLock();
     document.getElementById('mouse-prompt')!.classList.toggle('hidden', this.input.locked);
     if (this.inEncounter || this.practice) {
@@ -497,6 +527,7 @@ export class Game {
       () => this.startPlaying(),
       () => this.showMenu(),
     );
+    this.logPanel('pause');
     this.addPlayActions();
   }
 
@@ -504,6 +535,7 @@ export class Game {
     if (this.state === 'dead') return;
     this.pendingDeath = false;
     this.deaths += 1;
+    this.session?.record('death');
     this.state = 'dead';
     this.sfx.play('death');
     this.input.releaseLock();
@@ -557,6 +589,7 @@ export class Game {
   }
 
   private win(): void {
+    this.session?.record('victory', { boss: 'warden' });
     this.rewardBoss(Block.WardenTrophy);
     this.finishFight();
     this.arena.rebuildAltar(this.world);
@@ -717,6 +750,14 @@ export class Game {
     if (this.input.wasPressed('KeyZ')) this.undoBuild(this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight'));
     if (this.input.wasPressed('KeyY')) this.undoBuild(true);
     this.elapsed += dt;
+    this.session?.observe({
+      dt,
+      playing: this.state === 'playing',
+      locked: this.input.locked,
+      moving: this.input.isDown('KeyW') || this.input.isDown('KeyA') || this.input.isDown('KeyS') || this.input.isDown('KeyD'),
+      looking: this.input.mouseDX !== 0 || this.input.mouseDY !== 0,
+      fps: this.loop.fps,
+    });
 
     this.handleHotbarInput();
     if (this.input.wasPressed('KeyQ') && !this.practice) this.interaction.tossSelected();
@@ -733,11 +774,18 @@ export class Game {
     }
     this.combat.update(dt, this.input);
     this.interaction.previewEnabled = !this.inEncounter && !this.practice;
-    const interaction = this.practice ? { brokeBlock: false } : this.interaction.update(dt, this.input, this.combat.aimed !== null);
+    const interaction = this.practice ? { brokeBlock: false, brokenBlock: undefined } : this.interaction.update(dt, this.input, this.combat.aimed !== null);
     if (this.state !== 'playing') return;
     if (interaction.brokeBlock) {
       this.blocksMined += 1;
-      if (this.buildLesson === 2) { this.buildLesson = 0; this.tutorialDone = true; this.saveSoon = true; this.hud.showHint('Muito bem! Você já sabe escolher, colocar e remover blocos.', 5); }
+      this.session?.record('block_removed', { block: sessionBlockName(interaction.brokenBlock) });
+      if (this.buildLesson === 2) {
+        this.buildLesson = 0;
+        this.tutorialDone = true;
+        this.saveSoon = true;
+        this.session?.record('lesson', { step: 'done' });
+        this.hud.showHint('Muito bem! Você já sabe escolher, colocar e remover blocos.', 5);
+      }
     }
 
     this.context.dt = dt;
@@ -850,6 +898,7 @@ export class Game {
     this.sfx.setVolume(settings.volume);
     this.sfx.setMuted(settings.muted);
     this.controller.lookScale = settings.sensitivity;
+    this.quality = settings.quality;
     this.reducedMotion = this.controller.reducedMotion = settings.reducedMotion;
     this.hud.reducedEffects = settings.reducedEffects;
     const quality = QUALITY[settings.quality];
@@ -896,26 +945,26 @@ export class Game {
 
   private updateGuide(): void {
     const position = this.player.position;
-    if (this.practice) { this.hud.setObjective(null); this.hud.compass.update(false,0,''); return; }
+    if (this.practice) { this.setGuideObjective(null); this.hud.compass.update(false,0,''); return; }
     if (this.player.creative && !this.inEncounter) {
-      this.hud.setObjective(this.guidance ? 'Construa do seu jeito · Esc: sua base e chefões' : null);
+      this.setGuideObjective(this.guidance ? 'Construa do seu jeito · Esc: sua base e chefões' : null);
       this.hud.compass.update(false, 0, '');
       return;
     }
     if (!this.guidance && !this.inEncounter) {
-      this.hud.setObjective('Construa do seu jeito · B: blocos e mochila');
+      this.setGuideObjective('Construa do seu jeito · B: blocos e mochila');
       this.hud.compass.update(false, 0, '');
       return;
     }
 
     if (this.inEncounter) {
-      this.hud.setObjective(null);
+      this.setGuideObjective(null);
       this.hud.compass.update(false, 0, '');
       return;
     }
 
     if ((this.mode === 'adventure' || this.oneBlock.ruinUnlocked) && !this.ruin.defeated && this.arena.guideStage(position) === 'surface') {
-      this.hud.setObjective(
+      this.setGuideObjective(
         this.arena.ruinFound ? 'Botão direito na estátua: enfrentar o Sentinela' : 'Encontre o Sentinela: siga a bússola ou use Visitar no menu',
       );
       this.pointCompass(position, RUIN_STATUE.x + 0.5, position.y, RUIN_STATUE.z + 0.5);
@@ -923,13 +972,13 @@ export class Game {
     }
 
     if ((this.mode === 'adventure' || this.oneBlock.beaconUnlocked) && this.ruin.defeated && this.arena.defeated && !this.grove.defeated) {
-      this.hud.setObjective('O farol está ao sul. Botão direito na luz para enfrentar o Faroleiro');
+      this.setGuideObjective('O farol está ao sul. Botão direito na luz para enfrentar o Faroleiro');
       this.pointCompass(position, GROVE.x + 0.5, position.y, GROVE.z + 0.5);
       return;
     }
 
     if (this.mode === 'adventure' || this.oneBlock.shrineUnlocked || this.arena.defeated) {
-      this.hud.setObjective(this.arena.objectiveText(position));
+      this.setGuideObjective(this.arena.objectiveText(position));
       const target = this.arena.guideTarget(position);
       if (!target) {
         this.hud.compass.update(false, 0, '');
@@ -939,7 +988,7 @@ export class Game {
       return;
     }
 
-    this.hud.setObjective('Quebre o bloco infinito');
+    this.setGuideObjective('Quebre o bloco infinito');
     this.hud.compass.update(false, 0, '');
   }
 
@@ -1129,6 +1178,7 @@ export class Game {
   private persistSave(options: { atSpawn?: boolean } = {}): void {
     if (this.player.dead && !options.atSpawn) return;
     const ok = saveRun(this.snapshotRun(options.atSpawn === true));
+    this.session?.record('save', { ok });
     document.getElementById('save-status')!.textContent = ok ? '✓ Mundo salvo neste navegador' : '⚠ Não foi possível salvar. Exporte seu mundo pelo menu.';
   }
 
@@ -1194,6 +1244,7 @@ export class Game {
   }
 
   private applySave(save: SavedRun): void {
+    this.session?.record('loaded');
     const onEdit = this.world.onEdit;
     this.world.onEdit = null;
 
@@ -1396,11 +1447,13 @@ export class Game {
       this.overlay.addAction('Sair do treino', () => this.stopPractice(), { icon: '🏠' });
       this.overlay.addAction('Ver personagem', () => this.cycleCameraView(true), { icon: '🧍', description: this.cameraViewDescription() });
       this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?' });
+      this.overlay.addAction('Registro da sessão', () => this.showSessionPanel());
       return;
     }
     const fighting = this.inEncounter;
     if (fighting) {
       this.overlay.addAction('Sair da batalha', () => {
+        this.session?.record('encounter', { action: 'leave' });
         this.arena.reset(this.context); this.ruin.reset(this.context); this.grove.reset(this.context);
         this.finishFight(); this.goHome(); this.startPlaying();
       }, { icon: '🏠', description: 'Voltar com seus itens' });
@@ -1412,6 +1465,7 @@ export class Game {
     this.overlay.addAction('Ver personagem', () => this.cycleCameraView(true), { icon: '🧍', description: this.cameraViewDescription() });
     this.overlay.addAction('Como brincar', () => this.showHelp(), { icon: '?', description: 'Uma ajuda rápida' });
     this.overlay.addAction('Mais opções', () => this.showMoreOptions());
+    this.overlay.addAction('Registro da sessão', () => this.showSessionPanel());
   }
 
   private showBuildingTools(): void {
@@ -1427,6 +1481,7 @@ export class Game {
   }
 
   private showBossMenu(): void {
+    this.logPanel('boss');
     this.stopForPanel();
     this.overlay.show({ title: 'Chefões', text: 'Você escolhe quando enfrentar. O treino não tira vida.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     if (this.world.generator.ruinUnlocked) {
@@ -1439,6 +1494,7 @@ export class Game {
   }
 
   private showHomeMenu(): void {
+    this.logPanel('home');
     this.stopForPanel();
     this.overlay.show({ title: 'Minha base', text: 'Volte para casa ou escolha um novo lugar para ela.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     this.overlay.addAction('Voltar à base', () => { this.goHome(); this.startPlaying(); }, { icon: '🏠' });
@@ -1471,6 +1527,7 @@ export class Game {
   }
 
   private openCatalog(category = '🌳 Natureza'): void {
+    this.logPanel('catalog');
     this.stopForPanel();
     const creative = this.player.creative;
     this.overlay.show({ title: creative ? 'Escolha um bloco' : 'Sua mochila', text: creative ? 'Escolha uma figura. Depois, use o botão direito para colocar e o esquerdo para remover.' : 'Os materiais que não couberam na barra ficam aqui. Escolha um para usar no espaço selecionado.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
@@ -1485,7 +1542,10 @@ export class Game {
       }
       this.overlay.addContent(blockGrid(this.atlas, blocks.map(block => ({ block })), block => {
         Object.assign(this.player.inventory.selectedSlot, { block, count: 64 });
-        if (!this.tutorialDone) this.buildLesson = 1;
+        if (!this.tutorialDone) {
+          this.buildLesson = 1;
+          this.session?.record('lesson', { step: 1 });
+        }
         this.startPlaying();
       }, this.player.inventory.selectedSlot.block));
       this.overlay.addAction('Ideias para construir', () => this.showBuildIdeas());
@@ -1500,10 +1560,12 @@ export class Game {
   }
 
   private showRecipes(): void {
+    this.logPanel('recipes');
     this.stopForPanel();
     this.overlay.show({ title: 'Criar itens', text: 'Escolha o que quer fazer. Os materiais da barra e da mochila contam juntos.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     this.overlay.addContent(recipePanel(this.atlas, this.player, id => {
       if (craftRecipe(this.player, id)) {
+        this.session?.record('craft', { recipe: id });
         this.viewModel.setTier(this.player.hammerTier);
         this.viewModel.setPlates(this.player.plates);
         this.sfx.play('place'); this.persistSave();
@@ -1543,6 +1605,7 @@ export class Game {
   }
 
   private showHelp(): void {
+    this.logPanel('help');
     this.stopForPanel();
     const firstSteps = this.mode === 'oneblock'
       ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure o botão esquerdo para quebrá-lo.\n3. Escolha terra na barra e use o direito para ampliar a ilha.\n4. Um baú ao lado abre com o botão direito.'
@@ -1566,6 +1629,7 @@ export class Game {
   }
 
   private startPractice(): void {
+    this.session?.record('practice', { action: 'start' });
     this.stopForPanel();
     this.fightReturn = { position: this.player.position.clone(), spawn: this.player.spawn.clone(), yaw: this.player.yaw, pitch: this.player.pitch, flying: this.player.flying };
     this.fightCreative = this.player.creative;
@@ -1582,6 +1646,7 @@ export class Game {
   }
 
   private stopPractice(completed = false): void {
+    this.session?.record('practice', { action: completed ? 'complete' : 'leave' });
     this.practice = null;
     for (const entity of this.entities.entities) if (entity instanceof BossPractice || entity.team==='boss' && entity.clearedOnDeath) this.entities.remove(entity);
     this.finishFight(); this.goHome(); this.stopForPanel();
@@ -1589,8 +1654,11 @@ export class Game {
   }
 
   private confirmFight(sentinel: boolean): void {
+    const boss = sentinel ? 'sentinel' : 'warden';
+    this.session?.record('encounter', { action: 'invite', boss });
     this.stopForPanel();
     this.overlay.show({ title: sentinel ? 'Enfrentar o Sentinela?' : 'Enfrentar o Guardião?', text: `Dificuldade ${this.player.gentle ? 'Tranquila' : 'Normal'}. Pule as ondas e saia dos círculos. Quando ele ficar vulnerável, bata!\nDurante a luta, voo e invulnerabilidade ficam desligados. Seus itens e construções são preservados.`, button: 'Enfrentar chefão', secondary: 'Agora não', showControls: false }, () => {
+      this.session?.record('encounter', { action: 'start', boss });
       this.buildLesson = 0;
       this.hud.hideHint();
       this.fightReturn = { position: this.player.position.clone(), spawn: this.player.spawn.clone(), yaw: this.player.yaw, pitch: this.player.pitch, flying: this.player.flying };
@@ -1603,15 +1671,17 @@ export class Game {
       this.ensureSafeSpawn(); this.player.respawn();
       this.player.yaw = sentinel ? Math.PI / 2 : Math.PI;
       if (sentinel) this.ruin.summon(this.world); else this.arena.summon();
-      this.hud.setObjective('Pule e desvie · bata quando aparecer BATA AGORA!');
+      this.setGuideObjective('Pule e desvie · bata quando aparecer BATA AGORA!');
       this.hud.compass.update(false, 0, '');
       this.sfx.play('summon'); this.startPlaying();
     }, () => this.startPlaying());
   }
 
   private confirmBeaconFight(): void {
+    this.session?.record('encounter', { action: 'invite', boss: 'beacon' });
     this.stopForPanel();
     this.overlay.show({ title: 'Enfrentar o Faroleiro?', text: `Dificuldade ${this.player.gentle ? 'Tranquila' : 'Normal'}. Pule as ondas e saia dos círculos. Quando ele ficar vulnerável, bata!\nDurante a luta, voo e invulnerabilidade ficam desligados. Seus itens e construções são preservados.`, button: 'Enfrentar chefão', secondary: 'Agora não', showControls: false }, () => {
+      this.session?.record('encounter', { action: 'start', boss: 'beacon' });
       this.buildLesson = 0;
       this.hud.hideHint();
       this.fightReturn = { position: this.player.position.clone(), spawn: this.player.spawn.clone(), yaw: this.player.yaw, pitch: this.player.pitch, flying: this.player.flying };
@@ -1622,7 +1692,7 @@ export class Game {
       this.ensureSafeSpawn(); this.player.respawn();
       this.player.yaw = Math.PI / 2;
       this.grove.summon(this.world);
-      this.hud.setObjective('Pule e desvie · bata quando aparecer BATA AGORA!');
+      this.setGuideObjective('Pule e desvie · bata quando aparecer BATA AGORA!');
       this.hud.compass.update(false, 0, '');
       this.sfx.play('summon'); this.startPlaying();
     }, () => this.startPlaying());
@@ -1631,7 +1701,7 @@ export class Game {
   private finishFight(): void {
     this.hud.bossBar.hide();
     this.hud.hideHint();
-    this.hud.setObjective(null);
+    this.setGuideObjective(null);
     for (const entity of this.entities.entities) {
       if (entity !== this.arena.boss && entity !== this.ruin.boss && entity !== this.grove.boss && entity.team === 'boss' && entity.clearedOnDeath) this.entities.remove(entity);
     }
@@ -1802,6 +1872,89 @@ export class Game {
     this.chunks.regenerateWhere(test);
     this.chunks.preload(x, z, Math.max(2, Math.ceil(radius / 16)));
     this.chunks.preload(this.player.position.x, this.player.position.z, 2);
+  }
+
+  private sessionContext() {
+    return {
+      mode: this.mode,
+      creative: this.player.creative,
+      gentle: this.player.gentle,
+      quality: this.quality,
+      reducedMotion: this.reducedMotion,
+      pace: this.mode === 'oneblock' ? this.oneBlock.pace : undefined,
+    };
+  }
+
+  private logPanel(id: SessionPanelId): void {
+    this.session?.record('panel', { id });
+  }
+
+  private setGuideObjective(text: string | null): void {
+    this.guideText = text;
+    this.hud.setObjective(text);
+    if (text) this.session?.record('objective', { text });
+  }
+
+  private updateSessionBanner(): void {
+    document.getElementById('session-status')?.classList.toggle('hidden', !this.session?.enabled);
+  }
+
+  private showSessionPanel(): void {
+    this.stopForPanel();
+    const recording = this.session?.enabled;
+    this.overlay.show({
+      title: 'Registro da sessão',
+      text: recording
+        ? 'Marque o que a criança fez. O arquivo fica neste navegador e não entra no save do mundo.'
+        : 'O registro está parado. Você pode baixar ou apagar o arquivo.',
+      button: 'Voltar à pausa',
+      showControls: false,
+    }, () => this.showPaused());
+    if (recording) {
+      this.overlay.addAction('Pediu ajuda', () => this.markSession('help'));
+      this.overlay.addAction('Animou', () => this.markSession('cheer'));
+      this.overlay.addAction('Largou', () => this.markSession('quit'));
+    }
+    this.overlay.addAction('Baixar registro', () => this.downloadSession());
+    if (recording) {
+      this.overlay.addAction('Parar registro', () => {
+        this.session?.stop();
+        this.updateSessionBanner();
+        this.showSessionPanel();
+      });
+    }
+    if (this.session?.hasData) {
+      this.overlay.addAction('Apagar registro', () => this.confirmClearSession());
+    }
+  }
+
+  private markSession(kind: SessionMarkKind): void {
+    this.session?.record('mark', { kind, objective: this.guideText ?? undefined });
+    this.hud.showHint(kind === 'help' ? 'Marcado: pediu ajuda' : kind === 'cheer' ? 'Marcado: animou' : 'Marcado: largou', 2);
+    this.showSessionPanel();
+  }
+
+  private downloadSession(): void {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(this.session?.toExport(), null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mineboss-session.json';
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  private confirmClearSession(): void {
+    this.overlay.show({
+      title: 'Apagar registro?',
+      text: 'Apaga só o diário desta sessão. O mundo salvo continua neste navegador.',
+      button: 'Apagar registro',
+      secondary: 'Voltar',
+      showControls: false,
+    }, () => {
+      this.session?.clear();
+      this.updateSessionBanner();
+      this.showPaused();
+    }, () => this.showSessionPanel());
   }
 
   private readonly resize = (): void => {

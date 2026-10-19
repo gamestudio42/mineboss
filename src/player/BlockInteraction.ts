@@ -32,6 +32,7 @@ export interface InteractionResult {
   /** Distance to the aimed block, or Infinity when nothing is in range. */
   targetDistance: number;
   brokeBlock: boolean;
+  brokenBlock?: Block;
 }
 
 /** Mining, block placement and the aiming highlight. */
@@ -56,7 +57,7 @@ export class BlockInteraction {
   onBedFound: ((name: string) => void) | null = null;
   /** Fired after a placed chest is opened and removed. */
   onChestOpened: (() => void) | null = null;
-  onBlockPlaced: (() => void) | null = null;
+  onBlockPlaced: ((block: Block) => void) | null = null;
   onBuildEdit: ((edit: BuildEdit) => void) | null = null;
   onSpawnSet: (() => void) | null = null;
   onHammerFeedback: ((text: string) => void) | null = null;
@@ -113,9 +114,14 @@ export class BlockInteraction {
     }
 
     let brokeBlock = false;
+    let brokenBlock: Block | undefined;
     if (this.target && !entityBlocksAim) {
       if (input.isMouseDown(0) || input.wasMousePressed(0)) {
-        if (this.mineCooldown === 0) brokeBlock = this.mine(dt, this.target);
+        if (this.mineCooldown === 0) {
+          brokenBlock = this.target.block;
+          brokeBlock = this.mine(dt, this.target);
+          if (!brokeBlock) brokenBlock = undefined;
+        }
       }
       else this.progress = 0;
     } else {
@@ -125,7 +131,7 @@ export class BlockInteraction {
     if ((input.isMouseDown(2) || input.wasMousePressed(2)) && this.placeCooldown === 0) this.useItem(this.target);
 
     this.updateVisuals();
-    return { targetDistance: this.target?.distance ?? Infinity, brokeBlock };
+    return { targetDistance: this.target?.distance ?? Infinity, brokeBlock, brokenBlock };
   }
 
   private mine(dt: number, hit: VoxelHit): boolean {
@@ -277,7 +283,7 @@ export class BlockInteraction {
     this.placeCooldown = PLACE_COOLDOWN;
     if (!this.editBlock(x, y, z, block)) return;
     this.player.inventory.takeSelected();
-    this.onBlockPlaced?.();
+    this.onBlockPlaced?.(block);
     this.player.startSwing();
     this.sfx.play('place');
   }
@@ -334,7 +340,7 @@ export class BlockInteraction {
       const block = slot.block;
       if (!this.editBlock(x, y, z, block)) continue;
       this.player.inventory.takeSelected(1);
-      this.onBlockPlaced?.();
+      this.onBlockPlaced?.(block);
       this.player.startSwing();
       this.sfx.play('place');
       return true;
