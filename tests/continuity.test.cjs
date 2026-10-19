@@ -79,15 +79,16 @@ test('OneBlock waits for solid safe support and enough headroom',()=>{
  w.setBlock(1,72,0,Block.Planks);w.setBlock(1,74,0,Block.Planks);assert.equal(core.mobSpawn(w),null);
  w.setBlock(1,74,0,Block.Air);assert.deepEqual(core.mobSpawn(w),{x:1.5,y:73,z:.5});
 });
-test('creative flight has a slower building speed and Shift accelerates',()=>{
- const distances=[];
- for(const fast of [false,true]){
+test('creative flight keeps short moves at building speed and a long W hold accelerates',()=>{
+ const fly=frames=>{
   const w=world(),p=new Player();p.creative=true;p.flying=true;p.position.set(.5,80,.5);
   const c=new PlayerController(p,w,new THREE.PerspectiveCamera());
-  for(let i=0;i<120;i++)c.update(1/60,{wasPressed:()=>false,isDown:key=>key==='KeyW'||(fast&&key==='ShiftLeft')});
-  distances.push(Math.abs(p.position.z-.5));
- }
- assert.ok(distances[0]>8&&distances[0]<13);assert.ok(distances[1]>distances[0]*1.5);
+  for(let i=0;i<frames;i++)c.update(1/60,{wasPressed:()=>false,isDown:key=>key==='KeyW'});
+  return Math.abs(p.position.z-.5);
+ };
+ const short=fly(60),long=fly(240);
+ assert.ok(short>4&&short<7,`short hop ${short}`);
+ assert.ok(long-fly(180)>(short)*1.5,`cruise ${long}`);
 });
 test('pointer-lock errors are visible and losing focus clears held and pressed input',async()=>{
  const oldW=global.window,oldD=global.document;

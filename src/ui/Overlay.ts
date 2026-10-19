@@ -27,6 +27,8 @@ export class Overlay {
   private readonly reducedMotion: HTMLInputElement;
   private readonly reducedEffects: HTMLInputElement;
   private readonly quality: HTMLSelectElement;
+  private readonly narrator: HTMLInputElement;
+  private readonly music: HTMLInputElement;
 
   private readonly extras = document.createElement('div');
   private readonly back = document.createElement('button');
@@ -54,6 +56,8 @@ export class Overlay {
     this.reducedMotion = document.getElementById('setting-motion') as HTMLInputElement;
     this.reducedEffects = document.getElementById('setting-effects') as HTMLInputElement;
     this.quality = document.getElementById('setting-quality') as HTMLSelectElement;
+    this.narrator = document.getElementById('setting-narrator') as HTMLInputElement;
+    this.music = document.getElementById('setting-music') as HTMLInputElement;
     this.root.setAttribute('role', 'dialog');
     this.root.setAttribute('aria-modal', 'true');
     this.title.id = 'overlay-title';
@@ -72,6 +76,8 @@ export class Overlay {
     this.reducedMotion.addEventListener('change', () => this.commit());
     this.reducedEffects.addEventListener('change', () => this.commit());
     this.quality.addEventListener('change', () => this.commit());
+    this.narrator.addEventListener('change', () => this.commit());
+    this.music.addEventListener('change', () => this.commit());
     window.addEventListener('keydown', event => {
       if (!this.visible) return;
       if (event.code === 'Escape') {
@@ -114,7 +120,8 @@ export class Overlay {
     this.button.focus({ preventScroll: true });
   }
 
-  setBackAction(action: () => void): void {
+  setBackAction(action: () => void, label = 'Voltar aos modos'): void {
+    this.back.textContent = label;
     this.back.classList.remove('hidden');
     this.back.onclick = action;
     this.escapeAction = action;
@@ -152,6 +159,8 @@ export class Overlay {
     this.reducedMotion.checked = this.current.reducedMotion;
     this.reducedEffects.checked = this.current.reducedEffects;
     this.quality.value = this.current.quality;
+    this.narrator.checked = this.current.narrator;
+    this.music.checked = this.current.music;
     this.refreshLabels();
   }
 
@@ -163,6 +172,8 @@ export class Overlay {
       reducedMotion: this.reducedMotion.checked,
       reducedEffects: this.reducedEffects.checked,
       quality: this.quality.value as StoredSettings['quality'],
+      narrator: this.narrator.checked,
+      music: this.music.checked,
     };
     this.refreshLabels();
     saveSettings(this.current);

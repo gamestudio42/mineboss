@@ -1,6 +1,50 @@
+import { damp } from '../../core/math.ts';
 import { getBlockDef, isSolid } from '../../world/blocks.ts';
+import type { World } from '../../world/World.ts';
 
 export type BlockAt = (x: number, y: number, z: number) => number;
+
+const GRAVITY = 26;
+const HOP_SPEED = 7;
+
+export interface Walker {
+  velocity: { x: number; y: number; z: number };
+  body: { onGround: boolean; move(world: World, dt: number): void };
+}
+
+/**
+ * `always`: summons keep bouncing while they hold position. `moving`: hop
+ * only to climb what blocks the way. `never`: a one-block fence holds.
+ */
+export type HopMode = 'always' | 'moving' | 'never';
+
+/**
+ * Damped ground walk toward a wish vector, with gravity and a hop over the
+ * lip of a block.
+ */
+export function walkToward(
+  walker: Walker,
+  world: World,
+  wishX: number,
+  wishZ: number,
+  speed: number,
+  dt: number,
+  hop: HopMode = 'always',
+): void {
+  const wish = Math.hypot(wishX, wishZ);
+  const targetX = wish > 0.01 ? (wishX / wish) * speed : 0;
+  const targetZ = wish > 0.01 ? (wishZ / wish) * speed : 0;
+  const { velocity, body } = walker;
+
+  velocity.x = damp(velocity.x, targetX, 8, dt);
+  velocity.z = damp(velocity.z, targetZ, 8, dt);
+  velocity.y -= GRAVITY * dt;
+  const wantsHop = hop === 'always' || (hop === 'moving' && wish > 0.01);
+  if (body.onGround && wantsHop && Math.hypot(velocity.x, velocity.z) < speed * 0.35) {
+    velocity.y = HOP_SPEED;
+  }
+  body.move(world, dt);
+}
 
 function isFloor(id: number): boolean {
   return isSolid(id) && getBlockDef(id).contactDamage === 0;

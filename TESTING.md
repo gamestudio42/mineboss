@@ -2,11 +2,59 @@
 
 ## Estado atual — 19/10/2026
 
-- `pnpm test`: **107 testes passaram**. `pnpm build` passou. O pacote principal ficou em 755,68 kB (199,17 kB gzip).
+- `pnpm test`: **160 testes passaram**. `pnpm build` passou. O pacote principal ficou em 794,02 kB (212,13 kB gzip).
 - A suíte cobre os três chefões: Sentinela, Guardião e Faroleiro. Há combate com dano real, além de cancelar, sair, morrer e recarregar no meio da luta, nos estilos Aventura e OneBlock.
+- Rodada de game design (plano para 7–8 anos), coberta em `tests/design.test.cjs` e `tests/world-life.test.cjs`:
+  - **Controles:** Shift desce no voo, setas andam e Q precisa ser segurado.
+  - **Entrada:** começo rápido com **▶ Jogar**, mira fácil na Tranquila e HUD enxuto.
+  - **Voz e impacto:** narrador, hit-stop e som do golpe na janela.
+  - **Luta:** o muro segura a onda e o feixe do Faroleiro, que agora tem 240 de vida.
+  - **Mundo vivo:** sinais de vitória salvos, música, álbum (casa, torre e curral) e o bichinho do curral.
+- Os sinais de vitória foram testados com o gerador real, antes e depois da vitória, ao recarregar o chunk, sobre blocos do jogador e numa revanche contra o Faroleiro. O reconhecimento usa as próprias figuras de "Ideias para construir". A música foi verificada só como sequência de notas: ninguém ouviu o resultado no navegador.
+- No navegador (fixture em memória, botões **Curral** e **Álbum**), o curral entrou no álbum pelo reconhecimento real. O porquinho apareceu dentro, seguiu o jogador por cima da cerca e voltou. A primeira versão subia na cerca de 1 bloco sozinha; agora, em casa, ele não sobe nem pula. Um teste repete isso no menor curral aceito (2×2).
+- `pnpm session:report` agora também lista as construções que entraram no álbum durante a sessão.
 - O servidor de desenvolvimento usa a porta **5173**, com `strictPort`. A sessão antiga em 5175, abaixo, é só histórico.
 - Save v5. v1–v4 continuam legíveis.
 - A aceitação humana permanece nas issues [#1](https://github.com/marcelsavegnago/mineboss/issues/1) (mouse), [#2](https://github.com/marcelsavegnago/mineboss/issues/2) (sessão com a criança) e [#3](https://github.com/marcelsavegnago/mineboss/issues/3) (FPS).
+
+## Sessão observada com a criança (issue #2): roteiro
+
+Esta etapa depende de um adulto ao lado da criança. Nenhuma simulação a substitui, e ela ainda não foi feita. O roteiro abaixo usa o fluxo novo: primeira visita com **▶ Jogar**, OneBlock no ritmo Curto e HUD enxuto. As fases 3 a 5 já foram implementadas antes da sessão, a pedido. A tabela do fim serve para decidir o que ajustar, reforçar ou desligar com base no que a criança fizer.
+
+**Antes de começar**
+
+1. Use o navegador e o computador da família, com teclado e mouse. Se já houver mundos, exporte-os em **Cuidar dos mundos** e jogue numa janela anônima para testar a primeira visita.
+2. No menu inicial, toque em **Registrar esta partida**. O aviso "Registro ligado" aparece no canto.
+3. Deixe papel e relógio à mão. Marque no jogo só nas pausas naturais (Esc > Registro da sessão > **Pediu ajuda**, **Animou** ou **Largou**), para não interromper a criança.
+
+**Durante os 30 minutos (não ensine antes, espere ela pedir)**
+
+| Minutos | O que oferecer | O que observar |
+|---|---|---|
+| 0–10 | **▶ Jogar** e o catálogo que abre sozinho | Quanto tempo leva para andar e olhar; se termina a lição; se descobre o voo (F) e o Shift para descer |
+| 10–18 | Esc > Chefões > **Treinar com segurança** | Se pula a onda e acerta na hora de "BATA AGORA!" |
+| 18–28 | Visitar o Sentinela; se vencer, o Guardião | Onde morre ou desiste; se lê os avisos; se pede para repetir |
+| 28–30 | Fechar a aba e abrir de novo | Se o mundo voltou; se o navegador pediu confirmação ao fechar |
+
+Anote também: teclas que procurou e não existiam, textos que pediu para alguém ler, e o que quis construir.
+
+**Depois**
+
+1. Esc > Registro da sessão > **Baixar registro**. O arquivo `mineboss-session.json` não tem nome, posição nem imagem.
+2. Rode `pnpm session:report mineboss-session.json`. O relatório lista o tempo em cada objetivo, as marcas, as paradas longas, onde travou e onde largou.
+3. Use o relatório para decidir o que ajustar primeiro:
+
+| Se a sessão mostrou… | O que revisar |
+|---|---|
+| Pedidos de ajuda para ler objetivos ou avisos | Narrador (fase 3): a voz foi ouvida? Falou demais ou de menos? |
+| Venceu o treino, mas os golpes "não pareceram fortes" ou não notou a janela | Hit-stop e som do golpe (fase 3): duração do congelamento |
+| Morreu várias vezes para a onda ou largou numa luta | Muro que segura a onda (fase 4): a dica apareceu? Ela tentou o muro? |
+| Venceu os chefões e perguntou "e agora?" | Sinais de vitória e Faroleiro final (fase 4): ela notou as tochas e o farol? |
+| Passou a maior parte do tempo construindo | Música, álbum e bichinho (fase 5): o álbum reconheceu o que ela fez? Ela achou o bichinho? |
+
+Durante a sessão, observe também se a música incomoda ou cansa. Ela pode ser desligada em **Som e conforto > Música**.
+
+Registre o resultado como comentário na [issue #2](https://github.com/marcelsavegnago/mineboss/issues/2), colando o texto do relatório e as notas de papel.
 
 As seções abaixo são o diário das rodadas anteriores. Os números de teste e as menções a dois chefões descrevem o estado daquela data.
 

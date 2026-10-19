@@ -1,3 +1,24 @@
+/** Codes the page keeps while playing, so arrows and Tab do not scroll or move focus. */
+const CAPTURED_KEYS = new Set(['F3', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+
+/** Fires once after a key has been held long enough; a shorter press reports a tap on release. */
+export class HoldTrigger {
+  private held = 0;
+
+  constructor(private readonly seconds: number) {}
+
+  update(down: boolean, dt: number): 'fire' | 'tap' | null {
+    if (down) {
+      const before = this.held;
+      this.held += dt;
+      return before < this.seconds && this.held >= this.seconds ? 'fire' : null;
+    }
+    const released = this.held;
+    this.held = 0;
+    return released > 0 && released < this.seconds ? 'tap' : null;
+  }
+}
+
 /** Keyboard/mouse state. Clear both held and edge-triggered input across panels. */
 export class Input {
   private readonly held = new Set<string>();
@@ -74,7 +95,7 @@ export class Input {
     this.mouseDX = this.mouseDY = this.wheelDelta = 0;
   }
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (this.locked && (event.code === 'F3' || event.code === 'Tab')) event.preventDefault();
+    if (this.locked && CAPTURED_KEYS.has(event.code)) event.preventDefault();
     if (event.repeat) return;
     this.held.add(event.code);
     this.pressed.add(event.code);

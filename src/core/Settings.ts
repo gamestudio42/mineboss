@@ -12,10 +12,12 @@ export interface StoredSettings {
   reducedMotion: boolean;
   reducedEffects: boolean;
   quality: keyof typeof QUALITY;
+  narrator: boolean;
+  music: boolean;
 }
 export const DEFAULT_SETTINGS: StoredSettings = {
   volume: 0.45, muted: false, sensitivity: 1,
-  reducedMotion: false, reducedEffects: false, quality: 'balanced',
+  reducedMotion: false, reducedEffects: false, quality: 'balanced', narrator: true, music: true,
 };
 function numberIn(value: unknown, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
@@ -31,6 +33,8 @@ export function loadSettings(): StoredSettings {
       reducedMotion: parsed.reducedMotion === true,
       reducedEffects: parsed.reducedEffects === true,
       quality: parsed.quality === 'light' || parsed.quality === 'high' ? parsed.quality : 'balanced',
+      narrator: parsed.narrator !== false,
+      music: parsed.music !== false,
     };
   } catch { return { ...DEFAULT_SETTINGS }; }
 }

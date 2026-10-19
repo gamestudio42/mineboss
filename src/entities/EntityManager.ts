@@ -1,7 +1,9 @@
 import type * as THREE from 'three';
 
-import { rayBox } from '../physics/intersect.ts';
+import { createBox, rayBox } from '../physics/intersect.ts';
 import type { Entity, EntityContext, Team } from './Entity.ts';
+
+const inflated = createBox();
 
 export interface EntityHit {
   entity: Entity;
@@ -43,12 +45,13 @@ export class EntityManager {
     }
   }
 
-  /** Closest entity of the given team along a ray. */
+  /** Closest entity of the given team along a ray; `margin` widens every box for a forgiving aim. */
   raycast(
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     maxDistance: number,
     team?: Team,
+    margin = 0,
   ): EntityHit | null {
     let best: EntityHit | null = null;
 
@@ -56,7 +59,16 @@ export class EntityManager {
       if (entity.removed || entity.health === null) continue;
       if (team !== undefined && entity.team !== team) continue;
 
-      const distance = rayBox(origin, direction, entity.getBox(), maxDistance);
+      const box = entity.getBox();
+      if (margin > 0) {
+        inflated.minX = box.minX - margin;
+        inflated.minY = box.minY - margin;
+        inflated.minZ = box.minZ - margin;
+        inflated.maxX = box.maxX + margin;
+        inflated.maxY = box.maxY + margin;
+        inflated.maxZ = box.maxZ + margin;
+      }
+      const distance = rayBox(origin, direction, margin > 0 ? inflated : box, maxDistance);
       if (distance === null) continue;
       if (!best || distance < best.distance) best = { entity, distance };
     }

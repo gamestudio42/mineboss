@@ -12,6 +12,7 @@ const {BossArena}=require('../src/entities/boss/BossArena.ts');
 const {RuinEncounter}=require('../src/entities/boss/RuinEncounter.ts');
 const {GroveEncounter}=require('../src/entities/boss/GroveEncounter.ts');
 const {Shockwave}=require('../src/entities/boss/attacks/Shockwave.ts');
+const {LightBeam}=require('../src/entities/boss/attacks/LightBeam.ts');
 const {RUIN_COURTYARD,ARENA,GROVE}=require('../src/world/arena.ts');
 const {mulberry32}=require('../src/core/math.ts');
 for(const kind of ['sentinel','warden','beacon'])test(`${kind}: movement, dodges and melee can win gentle combat with damage enabled`,()=>{
@@ -39,7 +40,7 @@ for(const kind of ['sentinel','warden','beacon'])test(`${kind}: movement, dodges
   keys=new Set();
   if(boss.stateName==='stagger'){if(distance>2.8)keys.add('KeyW');}
   else {keys.add('KeyD');if(distance<7)keys.add('KeyS');else if(distance>10)keys.add('KeyW');}
-  if(entities.entities.some(e=>e instanceof Shockwave&&e.approaching(player.position)))keys.add('Space');
+  if(entities.entities.some(e=>(e instanceof Shockwave||e instanceof LightBeam)&&e.approaching(player.position)))keys.add('Space');
   controller.update(c.dt,input);combat.update(c.dt,input);if(player.health.current<=12)interaction.update(c.dt,{...input,isMouseDown:b=>b===2},true);c.elapsed+=c.dt;entities.update(c);encounter.update();player.health.update(c.dt);
  }
  console.log('Damage-enabled combat:',JSON.stringify({kind,seconds:Math.round(c.elapsed),wins,hits,received:Math.round(received*10)/10,health:player.health.current,foodRemaining:player.inventory.count(Block.Mushroom)}));

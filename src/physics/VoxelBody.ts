@@ -23,7 +23,7 @@ export class VoxelBody {
   constructor(
     readonly width: number,
     readonly height: number,
-    readonly stepHeight = 0,
+    public stepHeight = 0,
   ) {}
 
   get halfWidth(): number {

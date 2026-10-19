@@ -102,10 +102,31 @@ function cameraClearDistance(
 
 const PITCH_LIMIT = Math.PI / 2 - 0.001;
 
+/** Arrow keys mirror WASD for children who have not learned the letter layout. */
+export const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'] as const;
+
+type KeyState = Pick<Input, 'isDown'>;
+
+const anyDown = (input: KeyState, ...codes: string[]): boolean => codes.some((code) => input.isDown(code));
+
+export function movementAxes(input: KeyState): { forward: number; strafe: number } {
+  return {
+    forward: (anyDown(input, 'KeyW', 'ArrowUp') ? 1 : 0) - (anyDown(input, 'KeyS', 'ArrowDown') ? 1 : 0),
+    strafe: (anyDown(input, 'KeyD', 'ArrowRight') ? 1 : 0) - (anyDown(input, 'KeyA', 'ArrowLeft') ? 1 : 0),
+  };
+}
+
+export function isMoving(input: KeyState): boolean {
+  return anyDown(input, ...MOVE_KEYS);
+}
+
 const WALK_SPEED = 4.6;
 const SPRINT_SPEED = 6.4;
 const FLY_SPEED = 6;
 const FAST_FLY_SPEED = 14;
+/** Short hops stay at building speed; a long forward hold glides up to cruise speed. */
+const FLY_BOOST_DELAY = 1.2;
+const FLY_BOOST_RAMP = 1;
 const GROUND_ACCELERATION = 45;
 const AIR_ACCELERATION = 9;
 const GRAVITY = 28;
@@ -127,6 +148,7 @@ export class PlayerController {
   private bobAmount = 0;
   /** Keep the edge guard during a descent so momentum cannot skip its safe landing. */
   private guardedDescentY: number | null = null;
+  private flyForwardTime = 0;
   /** Multiplier around the default look speed, driven by the pause sliders. */
   lookScale = 1;
   reducedMotion = false;
@@ -164,10 +186,11 @@ export class PlayerController {
       player.velocity.y = 0;
     }
 
-    const forwardAxis = (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
-    const strafeAxis = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
+    const { forward: forwardAxis, strafe: strafeAxis } = movementAxes(input);
+    const shift = anyDown(input, 'ShiftLeft', 'ShiftRight');
 
-    player.sprinting = input.isDown('ShiftLeft') && forwardAxis > 0;
+    player.sprinting = !player.flying && shift && forwardAxis > 0;
+    this.flyForwardTime = player.flying && forwardAxis > 0 ? this.flyForwardTime + dt : 0;
 
     this.forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     this.right.set(-this.forward.z, 0, this.forward.x);
@@ -178,7 +201,8 @@ export class PlayerController {
 
     const swimming = !player.flying && this.bodyInWater();
     player.swimming = swimming;
-    const speed = player.flying ? (input.isDown('ShiftLeft') ? FAST_FLY_SPEED : FLY_SPEED) : swimming ? SWIM_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
+    const boost = clamp((this.flyForwardTime - FLY_BOOST_DELAY) / FLY_BOOST_RAMP, 0, 1);
+    const speed = player.flying ? FLY_SPEED + (FAST_FLY_SPEED - FLY_SPEED) * boost : swimming ? SWIM_SPEED : player.sprinting ? SPRINT_SPEED : WALK_SPEED;
     const targetX = wishLength > 0 ? (wishX / wishLength) * speed : 0;
     const targetZ = wishLength > 0 ? (wishZ / wishLength) * speed : 0;
 
@@ -187,11 +211,12 @@ export class PlayerController {
     player.velocity.x = damp(player.velocity.x, targetX, acceleration / speed, dt);
     player.velocity.z = damp(player.velocity.z, targetZ, acceleration / speed, dt);
 
+    // Ctrl is never bound: Ctrl+W closes the browser tab before the page can stop it.
     if (player.flying) {
-      const lift = (input.isDown('Space') ? 1 : 0) - (input.isDown('ControlLeft') ? 1 : 0);
-      player.velocity.y = damp(player.velocity.y, lift * speed, 12, dt);
+      const lift = (input.isDown('Space') ? 1 : 0) - (shift ? 1 : 0);
+      player.velocity.y = damp(player.velocity.y, lift * FLY_SPEED, 12, dt);
     } else if (swimming) {
-      const lift = (input.isDown('Space') ? 1 : 0) - (input.isDown('ShiftLeft') || input.isDown('ControlLeft') ? 1 : 0);
+      const lift = (input.isDown('Space') ? 1 : 0) - (shift ? 1 : 0);
       player.velocity.y = damp(player.velocity.y, lift * SWIM_LIFT - 1.2, 8, dt);
       player.velocity.y = Math.max(player.velocity.y - SWIM_GRAVITY * dt * 0.15, -6);
     } else {

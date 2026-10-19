@@ -86,6 +86,9 @@ export class World {
       chunk = new Chunk(cx, cz);
       this.generator.generate(chunk);
       this.chunks.set(key, chunk);
+      for (const sign of this.generator.victorySignsIn(cx, cz)) {
+        if (sign.id === Block.Torch) this.trackTorch(sign.x, sign.y, sign.z, Block.Air, Block.Torch);
+      }
       this.applyEditsToChunk(chunk);
     }
     return chunk;
@@ -131,6 +134,12 @@ export class World {
     const result = this.setBlock(wx, wy, wz, id);
     this.edits.delete(editKey(wx, wy, wz));
     return result;
+  }
+
+  /** Generator-owned block that yields to any player edit, placed or mined. */
+  stampStructure(wx: number, wy: number, wz: number, id: number): boolean {
+    if (this.edits.has(editKey(wx, wy, wz))) return false;
+    return this.restoreStructure(wx, wy, wz, id);
   }
 
   setBlock(wx: number, wy: number, wz: number, id: number): boolean {

@@ -609,6 +609,14 @@ kbd {
 .build-idea { width: 100%; margin: 0; padding: 8px; background: #203541; border-radius: 14px; }
 .build-idea svg { display: block; width: min(100%, 370px); max-height: 33vh; margin: auto; }
 .build-idea figcaption { font-size: 13px; color: #d4e1e4; padding: 8px; }
+.album { width: 100%; text-align: left; }
+.album h3 { margin: 12px 0 6px; font-size: 16px; color: #ffe08a; }
+.album ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.album li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: #203541; opacity: .7; }
+.album li.done { opacity: 1; background: #2c5245; border: 1px solid #7fd3a8; }
+.album li > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.album small { color: #d4e1e4; font-size: 13px; }
+.album-icon { font-size: 26px; min-width: 32px; text-align: center; }
 #action-label { top: auto; bottom: 175px; max-width: min(90vw, 560px); display: flex; align-items: center; justify-content: center; gap: 10px; padding: 9px 14px; border-radius: 12px; background: #142630db; font-weight: 650; font-size: 16px; border: 1px solid #658481; }
 #action-label kbd { font-size: 13px; padding: 5px 8px; margin: 0; white-space: nowrap; }
 .cue-icon { font-size: 24px; color: #adead0; }
@@ -642,6 +650,6 @@ kbd {
   #save-status { font-size: 10px; }
 }
 .play-extras:has(.menu-card) > button:not(.menu-card) { grid-column: 1 / -1; }
-.play-extras:has(.build-idea) { display: flex; justify-content: center; }
-.play-extras:has(.build-idea) .menu-card { flex-direction: row; min-height: 48px; font-size: 16px; }
-.play-extras:has(.build-idea) .menu-icon { font-size: 24px; }
+.play-extras:has(.build-idea), .play-extras:has(.album) { display: flex; justify-content: center; }
+.play-extras:has(.build-idea) .menu-card, .play-extras:has(.album) .menu-card { flex-direction: row; min-height: 48px; font-size: 16px; }
+.play-extras:has(.build-idea) .menu-icon, .play-extras:has(.album) .menu-icon { font-size: 24px; }

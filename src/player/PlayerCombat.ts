@@ -16,6 +16,8 @@ const BASE_DAMAGE = 7;
 /** Bonus for hitting while falling, the classic critical hit. */
 const CRITICAL_MULTIPLIER = 1.5;
 const KNOCKBACK = 4.5;
+/** Tranquila widens every target so a child's wobbly crosshair still connects. */
+export const GENTLE_AIM_MARGIN = 0.6;
 
 /** Melee swings against entities; block mining lives in BlockInteraction. */
 export class PlayerCombat {
@@ -42,7 +44,8 @@ export class PlayerCombat {
     this.player.getEyePosition(this.origin);
     this.player.getForward(this.direction);
 
-    const hit = this.entities.raycast(this.origin, this.direction, ATTACK_REACH, 'boss');
+    const margin = this.player.gentle ? GENTLE_AIM_MARGIN : 0;
+    const hit = this.entities.raycast(this.origin, this.direction, ATTACK_REACH, 'boss', margin);
     const wall = this.world ? raycastVoxels(this.world, this.origin, this.direction, ATTACK_REACH) : null;
     this.aimed = hit && (!wall || wall.distance >= hit.distance) ? hit.entity : null;
 
@@ -60,10 +63,10 @@ export class PlayerCombat {
 
     if (!hitEntity(this.aimed, damage, this.origin, KNOCKBACK, this.particles)) return;
 
-    this.sfx.play('hit');
+    const staggered = this.aimed.damageMultiplier > 1;
+    this.sfx.play(staggered ? 'smash' : 'hit');
     this.aimed.hitFlash();
     this.aimed.getCenter(this.impact);
-    const staggered = this.aimed.damageMultiplier > 1;
     this.onHit?.(staggered);
     this.particles.burst(this.impact, {
       count: staggered ? 20 : critical ? 14 : 8,

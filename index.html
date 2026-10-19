@@ -41,7 +41,7 @@
         <div id="hint"></div>
         <div id="flight-status"></div>
         <div id="build-lesson" class="hidden"><svg viewBox="0 0 60 80" aria-label="Botões do mouse"><rect x="8" y="3" width="44" height="72" rx="22" fill="#263c4c" stroke="white" stroke-width="3"/><path class="left-button" d="M30 4 C14 4 9 14 9 32 H30 Z"/><path class="right-button" d="M30 4 C46 4 51 14 51 32 H30 Z"/><path d="M30 4 V35 M9 33 H51" fill="none" stroke="white" stroke-width="2"/></svg><span></span></div>
-        <div id="play-help">B: blocos e mochila · H: ajuda · Esc: menu</div>
+        <div id="play-help"></div>
         <div id="action-label"></div>
 
         <div id="bottom-bar">
@@ -82,22 +82,30 @@
               <input id="setting-mute" type="checkbox" />
               <span>Sem som</span>
             </label>
+            <label class="setting setting-check">
+              <input id="setting-narrator" type="checkbox" checked />
+              <span>Ler as dicas em voz alta</span>
+            </label>
+            <label class="setting setting-check">
+              <input id="setting-music" type="checkbox" checked />
+              <span>Música</span>
+            </label>
             <label class="setting">
               <span>Sensibilidade do mouse <strong id="setting-sensitivity-value">1.0×</strong></span>
               <input id="setting-sensitivity" type="range" min="40" max="220" value="100" />
             </label>
           </div>
           <ul id="controls">
-            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> andar</li>
-            <li><kbd>Space</kbd> pular / nadar para cima &middot; <kbd>Shift</kbd> correr / mergulhar</li>
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas: andar</li>
+            <li><kbd>Space</kbd> pular / nadar para cima &middot; <kbd>Shift</kbd> correr / mergulhar / descer no voo</li>
             <li><kbd>Botão esquerdo</kbd> remover / atacar</li>
             <li><kbd>Botão direito</kbd> colocar / usar / enfrentar chefão</li>
             <li><kbd>1</kbd>&hellip;<kbd>9</kbd> ou roda do mouse: escolher material</li>
-            <li><kbd>Q</kbd> soltar um bloco</li>
+            <li>Segure <kbd>Q</kbd> para soltar um bloco</li>
             <li><kbd>B</kbd> blocos e mochila · <kbd>C</kbd> criar · <kbd>H</kbd> ajuda</li>
             <li><kbd>Z</kbd> desfazer · <kbd>Y</kbd> refazer</li>
             <li><kbd>V</kbd> ver o personagem</li>
-            <li><kbd>F</kbd> voo na construção livre · <kbd>Ctrl</kbd> descer</li>
+            <li><kbd>F</kbd> voo na construção livre · <kbd>Shift</kbd> descer · segure <kbd>W</kbd> para acelerar</li>
             <li><kbd>Esc</kbd> menu</li>
           </ul>
         </div>

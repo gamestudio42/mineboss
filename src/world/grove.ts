@@ -8,6 +8,15 @@ export function groveFloorY(surfaceHeight: number): number {
   return Math.max(surfaceHeight, SEA_LEVEL);
 }
 
+/** The four moss-and-glowstone pillars on the grove rim. */
+export function grovePillars(): Array<{ x: number; z: number }> {
+  const { x: centerX, z: centerZ, radius } = GROVE;
+  return Array.from({ length: 4 }, (_, i) => {
+    const angle = (Math.PI * 2 * i) / 4;
+    return { x: Math.round(centerX + Math.cos(angle) * (radius - 1)), z: Math.round(centerZ + Math.sin(angle) * (radius - 1)) };
+  });
+}
+
 /**
  * Moss ring and the glowstone beacon. The setter ignores coordinates outside
  * the chunk currently being generated.
@@ -37,12 +46,9 @@ export function stampGrove(
     }
   }
 
-  for (let i = 0; i < 4; i++) {
-    const angle = (Math.PI * 2 * i) / 4;
-    const wx = Math.round(centerX + Math.cos(angle) * (radius - 1));
-    const wz = Math.round(centerZ + Math.sin(angle) * (radius - 1));
-    set(wx, floor + 1, wz, Block.Moss);
-    set(wx, floor + 2, wz, Block.Glowstone);
+  for (const { x, z } of grovePillars()) {
+    set(x, floor + 1, z, Block.Moss);
+    set(x, floor + 2, z, Block.Glowstone);
   }
 
   set(centerX, floor + 1, centerZ, Block.Moss);
