@@ -26,11 +26,11 @@ export class TorchLights {
   update(world: World, x: number, y: number, z: number): void {
     this.scratch.length = 0;
 
-    for (const torch of world.torches.values()) {
+    world.forEachNearbyTorch(x, z, REACH, (torch) => {
       const distance = Math.hypot(torch.x + 0.5 - x, torch.y + 0.7 - y, torch.z + 0.5 - z);
-      if (distance > REACH) continue;
+      if (distance > REACH) return;
       this.scratch.push({ x: torch.x, y: torch.y, z: torch.z, distance });
-    }
+    });
 
     this.scratch.sort((a, b) => a.distance - b.distance);
 

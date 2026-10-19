@@ -55,7 +55,8 @@ test('creative selection never consumes blocks and restores survival inventory i
 test('saves stay separate and exported files validate before replacing anything',()=>{
  storage.clear();assert.equal(saveRun(run()),true);const b=run('oneblock');b.seed=99;saveRun(b);
  assert.equal(loadSave('adventure').seed,42);assert.equal(loadSave('oneblock').seed,99);
- for(const invalid of ['{','null',JSON.stringify({...run(),player:{...run().player,x:null}}),JSON.stringify({...run(),edits:[{x:0,y:999,z:0,id:1}]}),JSON.stringify({...run(),creative:true})]) assert.equal(parseSave(invalid),null);
+ for(const invalid of ['{','null',JSON.stringify({...run(),player:{...run().player,x:null}}),JSON.stringify({...run(),edits:[{x:0,y:999,z:0,id:1}]}),JSON.stringify({...run(),creative:true}),
+  JSON.stringify({...run(),arena:{...run().arena,ruinFound:'yes'}}),JSON.stringify({...run(),arena:{...run().arena,cacheClaimed:1}}),JSON.stringify({...run(),arena:{...run().arena,ruinDefeated:'no'}}),JSON.stringify({...run(),arena:{...run().arena,beaconDefeated:'no'}})]) assert.equal(parseSave(invalid),null);
  assert.equal(loadSave('adventure').seed,42);
 });
 test('legacy versions 1, 2 and 3 load into the correct mode',()=>{
@@ -78,6 +79,12 @@ test('boss explosions protect player construction and structure rebuild preserve
 test('generated statue can be cleared and restored repeatedly',()=>{
  const w=world();w.restoreStructure(2,73,0,Block.RunicStone);w.restoreStructure(2,73,0,Block.Air);w.restoreStructure(2,73,0,Block.RunicStone);
  assert.equal(w.getBlock(2,73,0),Block.RunicStone);assert.equal(w.edits.has('2,73,0'),false);
+});
+test('chunk reload reapplies only that column of edits and nearby torches skip distant columns',()=>{
+ const w=world();w.setBlock(2,73,2,Block.Planks);w.ensureChunk(8,8);w.setBlock(130,73,130,Block.Torch);
+ w.unloadChunk(0,0);w.ensureChunk(0,0);assert.equal(w.getBlock(2,73,2),Block.Planks);
+ const near=[];w.forEachNearbyTorch(2.5,2.5,26,torch=>near.push(torch));assert.equal(near.length,0);
+ const far=[];w.forEachNearbyTorch(130.5,130.5,26,torch=>far.push(torch));assert.equal(far.length,1);
 });
 test('gentle damage is lower and respawn has protection',()=>{
  const p=new Player();p.gentle=false;hitPlayer(p,4,null,0);assert.equal(p.health.current,16);

@@ -21,13 +21,54 @@ function editKey(x: number, y: number, z: number): string {
   return `${x},${y},${z}`;
 }
 
+/** Map keyed by `x,y,z` that also keeps a per-chunk bucket for cheap reloads. */
+class ChunkIndexedMap<T> extends Map<string, T> {
+  readonly byChunk = new Map<string, Map<string, T>>();
+
+  override set(key: string, value: T): this {
+    super.set(key, value);
+    const bucketKey = chunkBucketKey(key);
+    let bucket = this.byChunk.get(bucketKey);
+    if (!bucket) {
+      bucket = new Map();
+      this.byChunk.set(bucketKey, bucket);
+    }
+    bucket.set(key, value);
+    return this;
+  }
+
+  override delete(key: string): boolean {
+    const removed = super.delete(key);
+    const bucketKey = chunkBucketKey(key);
+    const bucket = this.byChunk.get(bucketKey);
+    if (bucket) {
+      bucket.delete(key);
+      if (bucket.size === 0) this.byChunk.delete(bucketKey);
+    }
+    return removed;
+  }
+
+  override clear(): void {
+    super.clear();
+    this.byChunk.clear();
+  }
+}
+
+function chunkBucketKey(editKeyValue: string): string {
+  const comma = editKeyValue.indexOf(',');
+  const last = editKeyValue.lastIndexOf(',');
+  const wx = Number(editKeyValue.slice(0, comma));
+  const wz = Number(editKeyValue.slice(last + 1));
+  return chunkKey(wx >> 4, wz >> 4);
+}
+
 /** Sparse voxel world made of generated chunk columns. */
 export class World {
   readonly chunks = new Map<string, Chunk>();
   /** World positions of placed torches, used to drive a small light pool. */
-  readonly torches = new Map<string, { x: number; y: number; z: number }>();
+  readonly torches = new ChunkIndexedMap<{ x: number; y: number; z: number }>();
   /** Player (and boss) edits, reapplied after a chunk regenerates or unloads. */
-  readonly edits = new Map<string, number>();
+  readonly edits = new ChunkIndexedMap<number>();
   onEdit: (() => void) | null = null;
   private readonly dirty = new Map<string, DirtySection>();
 
@@ -52,13 +93,9 @@ export class World {
 
   unloadChunk(cx: number, cz: number): void {
     this.chunks.delete(chunkKey(cx, cz));
-    const minX = cx * CHUNK_SIZE;
-    const minZ = cz * CHUNK_SIZE;
-    for (const [key, torch] of this.torches) {
-      if (torch.x >= minX && torch.x < minX + CHUNK_SIZE && torch.z >= minZ && torch.z < minZ + CHUNK_SIZE) {
-        this.torches.delete(key);
-      }
-    }
+    const torches = this.torches.byChunk.get(chunkKey(cx, cz));
+    if (!torches) return;
+    for (const key of [...torches.keys()]) this.torches.delete(key);
   }
 
   /** Drops every column so the next ensure regenerates virgin terrain. */
@@ -116,6 +153,25 @@ export class World {
     return true;
   }
 
+  /** Walks placed torches in nearby columns so the light pool can skip the rest. */
+  forEachNearbyTorch(
+    x: number,
+    z: number,
+    reach: number,
+    visit: (torch: { x: number; y: number; z: number }) => void,
+  ): void {
+    const originCx = Math.floor(x / CHUNK_SIZE);
+    const originCz = Math.floor(z / CHUNK_SIZE);
+    const reachChunks = Math.ceil(reach / CHUNK_SIZE);
+    for (let dz = -reachChunks; dz <= reachChunks; dz++) {
+      for (let dx = -reachChunks; dx <= reachChunks; dx++) {
+        const bucket = this.torches.byChunk.get(chunkKey(originCx + dx, originCz + dz));
+        if (!bucket) continue;
+        for (const torch of bucket.values()) visit(torch);
+      }
+    }
+  }
+
   /** Highest non-air block of a column, or -1 when the chunk is not loaded. */
   surfaceY(wx: number, wz: number): number {
     const cx = wx >> 4;
@@ -147,14 +203,13 @@ export class World {
   }
 
   private applyEditsToChunk(chunk: Chunk): void {
-    const minX = chunk.cx * CHUNK_SIZE;
-    const minZ = chunk.cz * CHUNK_SIZE;
+    const bucket = this.edits.byChunk.get(chunkKey(chunk.cx, chunk.cz));
+    if (!bucket) return;
 
-    for (const [key, id] of this.edits) {
+    for (const [key, id] of bucket) {
       const [wx, wy, wz] = key.split(',').map(Number);
-      if (wx < minX || wx >= minX + CHUNK_SIZE || wz < minZ || wz >= minZ + CHUNK_SIZE) continue;
-      const previous = chunk.get(wx - minX, wy, wz - minZ);
-      if (!chunk.set(wx - minX, wy, wz - minZ, id)) continue;
+      const previous = chunk.get(wx - chunk.cx * CHUNK_SIZE, wy, wz - chunk.cz * CHUNK_SIZE);
+      if (!chunk.set(wx - chunk.cx * CHUNK_SIZE, wy, wz - chunk.cz * CHUNK_SIZE, id)) continue;
       this.trackTorch(wx, wy, wz, previous, id);
     }
   }
