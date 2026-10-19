@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Voxel sandbox game with a multi-phase boss fight",
+  "description": "Portuguese voxel sandbox with Adventure, OneBlock and three optional bosses",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

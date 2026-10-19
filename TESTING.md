@@ -1,6 +1,16 @@
-# Validação — 30/09/2026
+# Validação
 
-## Rodada mais recente: controles, construção e conforto
+## Estado atual — 19/10/2026
+
+- `pnpm test`: **107 testes passaram**. `pnpm build` passou. O pacote principal ficou em 755,68 kB (199,17 kB gzip).
+- A suíte cobre os três chefões: Sentinela, Guardião e Faroleiro. Há combate com dano real, além de cancelar, sair, morrer e recarregar no meio da luta, nos estilos Aventura e OneBlock.
+- O servidor de desenvolvimento usa a porta **5173**, com `strictPort`. A sessão antiga em 5175, abaixo, é só histórico.
+- Save v5. v1–v4 continuam legíveis.
+- A aceitação humana permanece nas issues [#1](https://github.com/marcelsavegnago/mineboss/issues/1) (mouse), [#2](https://github.com/marcelsavegnago/mineboss/issues/2) (sessão com a criança) e [#3](https://github.com/marcelsavegnago/mineboss/issues/3) (FPS).
+
+As seções abaixo são o diário das rodadas anteriores. Os números de teste e as menções a dois chefões descrevem o estado daquela data.
+
+## Rodada de 30/09/2026: controles, construção e conforto
 
 - `pnpm test`: **96 testes passaram**; `pnpm build` e `git diff --check` passaram.
 - Corrigida colisão em quedas longas com frames de 100 ms: 76 alturas iniciais

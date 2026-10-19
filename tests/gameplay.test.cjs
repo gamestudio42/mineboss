@@ -143,7 +143,7 @@ test('melee cannot hit a target behind a solid wall',()=>{
  assert.equal(dummy.health.current,100);assert.equal(combat.aimed,null);
  c.world.setBlock(2,74,0,Block.Air);combat.update(1/60,input(0));assert.ok(dummy.health.current<100);
 });
-test('both boss state machines complete via real melee in vulnerability windows and can restart',()=>{
+test('all three boss state machines complete via real melee in vulnerability windows and can restart',()=>{
  for(const kind of ['sentinel','warden','beacon']){
   const c=setup();c.world=new World(new TerrainGenerator(42,'adventure'));
   const center=kind==='sentinel'?{x:RUIN_COURTYARD.centerX,z:RUIN_COURTYARD.centerZ}:kind==='beacon'?{x:GROVE.x,z:GROVE.z}:{x:ARENA.centerX,z:ARENA.centerZ};

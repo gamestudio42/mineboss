@@ -106,9 +106,11 @@ test('pointer-lock errors are visible and losing focus clears held and pressed i
   input.releaseLock();assert.equal(input.locked,false);
  }finally{global.window=oldW;global.document=oldD;}
 });
-test('visiting Sentinel opens confirmation without moving or replacing spawn',()=>{
- const g=game();g.world.generator.ruinUnlocked=true;g.player.position.set(10,73,12);g.player.spawn.set(10,73,12);const actions=new Map();g.overlay={show(){},addAction:(label,fn)=>actions.set(label,fn)};g.stopForPanel=()=>{};let asked=false;g.confirmFight=()=>{asked=true;};
- g.addPlayActions();actions.get('Chefões')();actions.get('Visitar o Sentinela')();assert.equal(asked,true);assert.deepEqual(g.player.position.toArray(),[10,73,12]);assert.deepEqual(g.player.spawn.toArray(),[10,73,12]);
+test('visiting Sentinel or Faroleiro opens confirmation without moving or replacing spawn',()=>{
+ for(const [unlock,visit,hook] of [['ruinUnlocked','Visitar o Sentinela','confirmFight'],['beaconUnlocked','Visitar o Faroleiro','confirmBeaconFight']]){
+  const g=game();g.world.generator[unlock]=true;g.player.position.set(10,73,12);g.player.spawn.set(10,73,12);const actions=new Map();g.overlay={show(){},addAction:(label,fn)=>actions.set(label,fn)};g.stopForPanel=()=>{};let asked=false;g[hook]=()=>{asked=true;};
+  g.addPlayActions();actions.get('Chefões')();actions.get(visit)();assert.equal(asked,true);assert.deepEqual(g.player.position.toArray(),[10,73,12]);assert.deepEqual(g.player.spawn.toArray(),[10,73,12]);
+ }
 });
 
 test('frequent autosaves keep a meaningful checkpoint and refresh it after a minute',()=>{
@@ -150,20 +152,21 @@ function integratedGame(mode='adventure',creative=true) {
  return g;
 }
 for(const [mode,creative] of [['adventure',true],['adventure',false],['oneblock',false]]){
- for(const sentinel of [true,false]){
-  test(`${mode}/${creative?'creative':'survival'} ${sentinel?'Sentinel':'Warden'}: cancel, exit, death and reload preserve home and inventories`,()=>{
-   const g=integratedGame(mode,creative);if(mode==='oneblock'){g.oneBlock.broken=560;g.syncGeneratorUnlocks();}
+ for(const kind of ['Sentinel','Warden','Beacon']){
+  test(`${mode}/${creative?'creative':'survival'} ${kind}: cancel, exit, death and reload preserve home and inventories`,()=>{
+   const g=integratedGame(mode,creative);if(mode==='oneblock'){g.oneBlock.broken=kind==='Beacon'?640:560;g.syncGeneratorUnlocks();}
    const palette=g.inventorySnapshot(),home={...g.home},spawn=g.player.spawn.clone();
    g.world.setBlock(4,100,4,Block.Glass);
-   g.confirmFight(sentinel);g.overlay.secondary();assert.deepEqual(g.player.spawn,spawn);assert.equal(g.fightReturn,null);
-   g.confirmFight(sentinel);g.overlay.primary();assert.equal(g.player.creative,false);assert.ok(g.arena.active||g.ruin.active);
+   const start=()=>kind==='Beacon'?g.confirmBeaconFight():g.confirmFight(kind==='Sentinel');
+   start();g.overlay.secondary();assert.deepEqual(g.player.spawn,spawn);assert.equal(g.fightReturn,null);
+   start();g.overlay.primary();assert.equal(g.player.creative,false);assert.ok(kind==='Sentinel'?g.ruin.active:kind==='Warden'?g.arena.active:g.grove.active);
    const midFight=parseSave(JSON.stringify(g.snapshotRun(false)));assert.ok(midFight);
    g.addPlayActions();g.overlay.actions.get('Sair da batalha')();
    assert.equal(g.player.creative,creative);assert.equal(g.player.flying,creative);assert.deepEqual(g.inventorySnapshot(),palette);assert.deepEqual(g.home,home);assert.deepEqual(g.player.spawn,spawn);
-   g.confirmFight(sentinel);g.overlay.primary();g.die();g.overlay.actions.get('Voltar à base')();
+   start();g.overlay.primary();g.die();g.overlay.actions.get('Voltar à base')();
    assert.equal(g.player.dead,false);assert.equal(g.player.creative,creative);assert.deepEqual(g.inventorySnapshot(),palette);assert.deepEqual(g.home,home);assert.deepEqual(g.player.spawn,spawn);
    const loaded=integratedGame();loaded.applySave(midFight);
-   assert.equal(loaded.arena.active||loaded.ruin.active,false);assert.equal(loaded.practice,null);assert.equal(loaded.player.creative,creative);assert.equal(loaded.player.flying,creative);
+   assert.equal(loaded.arena.active||loaded.ruin.active||loaded.grove.active,false);assert.equal(loaded.practice,null);assert.equal(loaded.player.creative,creative);assert.equal(loaded.player.flying,creative);
    assert.deepEqual(loaded.inventorySnapshot(),palette);assert.deepEqual(loaded.home,home);assert.equal(loaded.world.getBlock(4,100,4),Block.Glass);assert.equal(loaded.guidance,false);
   });
  }
