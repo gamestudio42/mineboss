@@ -14,6 +14,7 @@ import { SEA_LEVEL } from '../../world/terrain/generator.ts';
 import { Entity, type EntityContext } from '../Entity.ts';
 import { BossModel } from './BossModel.ts';
 import { Shockwave } from './attacks/Shockwave.ts';
+import { pickSentinelAttack, type SentinelAttack } from './sentinelAttack.ts';
 import { Telegraph } from './attacks/Telegraph.ts';
 
 export const SENTINEL_NAME = 'Sentinela das Ruínas';
@@ -78,6 +79,8 @@ export class RuinSentinel extends Entity {
   private slamImpacted = false;
   private throwsLeft = 0;
   private throwTimer = 0;
+  private lastAttack: SentinelAttack | null = null;
+  private lastWaveJumped: boolean | null = null;
   private readonly floorY: number;
 
   constructor(floorY: number) {
@@ -245,21 +248,24 @@ export class RuinSentinel extends Entity {
       damage,
       knockback: 7,
       color: PHASES[this.phase].color,
+      onPass: (jumped) => {
+        this.lastWaveJumped = jumped;
+      },
     });
     wave.position.set(this.position.x, this.position.y, this.position.z);
     this.context.entities.add(wave);
   }
 
   pickAttack(): SentinelStateName {
-    const distance = this.distanceToPlayer();
-    const options: SentinelStateName[] = [];
-
-    if (distance < 10) options.push('slam', 'slam');
-    if (distance > 6) options.push('charge', 'charge');
-    if (this.phase >= 1 && distance > 5) options.push('shard');
-    if (options.length === 0) options.push('slam');
-
-    return options[Math.floor(Math.random() * options.length)];
+    const name = pickSentinelAttack({
+      distance: this.distanceToPlayer(),
+      phase: this.phase,
+      lastAttack: this.lastAttack,
+      lastWaveJumped: this.lastWaveJumped,
+      gentle: this.context.player.gentle,
+    });
+    this.lastAttack = name;
+    return name;
   }
 
   startCharge(): void {
