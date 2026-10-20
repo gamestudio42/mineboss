@@ -3,9 +3,13 @@
 Jogo de blocos no navegador, em português, para construir, explorar e enfrentar o Sentinela, o Guardião e o Faroleiro quando quiser.
 
 <p align="center">
-  <a href="https://marcelsavegnago.github.io/mineboss/"><img alt="Jogar agora" src="https://img.shields.io/badge/MineBoss-Jogar%20agora-f5a623.png?style=for-the-badge&amp;labelColor=1b2430"></a>
+  <a href="https://gamestudio42.github.io/mineboss/"><img alt="Jogar agora" src="https://img.shields.io/badge/Play-33ff66?style=for-the-badge&labelColor=0a0f0a&color=33ff66"></a>
   &nbsp;
-  <a href="https://github.com/marcelsavegnago/mineboss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/marcelsavegnago/mineboss/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/gamestudio42/mineboss/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/gamestudio42/mineboss?style=for-the-badge&labelColor=0a0f0a&color=33ff66"></a>
+  &nbsp;
+  <a href="https://github.com/gamestudio42/mineboss/fork"><img alt="Fork" src="https://img.shields.io/github/forks/gamestudio42/mineboss?style=for-the-badge&labelColor=0a0f0a&color=1f9d4a"></a>
+  &nbsp;
+  <a href="https://github.com/gamestudio42/mineboss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gamestudio42/mineboss/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
 <table>
@@ -31,11 +35,11 @@ Jogo de blocos no navegador, em português, para construir, explorar e enfrentar
   </tr>
 </table>
 
-Dá para jogar no site sem instalar nada. Quem quiser ajudar pode abrir uma [issue](https://github.com/marcelsavegnago/mineboss/issues) ou um pull request. O código e os comentários ficam em inglês; os textos da tela, em português.
+Dá para jogar no site sem instalar nada. Quem quiser ajudar pode abrir uma [issue](https://github.com/gamestudio42/mineboss/issues) ou um pull request. O código e os comentários ficam em inglês; os textos da tela, em português.
 
 ## Jogar no site e no computador
 
-O jogo publicado está em https://marcelsavegnago.github.io/mineboss/.
+O jogo publicado está em https://gamestudio42.github.io/mineboss/.
 
 Para abrir uma cópia local:
 
@@ -128,3 +132,21 @@ pnpm build
 Os testes cobrem inventário, receitas, desfazer, vidro, saves v1–v5, recuperação, base obstruída, controles, treino, os três chefões, os sinais de vitória, morte, saída, recarga, OneBlock, música, álbum e bichinho. A evidência e os limites estão em [TESTING.md](TESTING.md). A avaliação de diversão com a criança continua sendo uma sessão acompanhada.
 
 TypeScript, three.js e Vite. Texturas em canvas, áudio sintetizado e malhas voxel em workers. Esta versão é para um jogador.
+
+## Fork e remix
+
+O código é MIT. Clone, mude as regras e publique o seu fork no GitHub Pages.
+
+```sh
+git clone https://github.com/gamestudio42/mineboss.git
+cd mineboss
+pnpm install
+pnpm dev
+```
+
+Issues de entrada e conversa: [good first issue](https://github.com/gamestudio42/mineboss/labels/good%20first%20issue)
+e [discussions](https://github.com/gamestudio42/mineboss/discussions). Guia em [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licença
+
+MIT. Game Studio 42.

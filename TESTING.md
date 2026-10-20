@@ -15,7 +15,7 @@
 - `pnpm session:report` agora também lista as construções que entraram no álbum durante a sessão.
 - O servidor de desenvolvimento usa a porta **5173**, com `strictPort`. A sessão antiga em 5175, abaixo, é só histórico.
 - Save v5. v1–v4 continuam legíveis.
-- A aceitação humana permanece nas issues [#1](https://github.com/marcelsavegnago/mineboss/issues/1) (mouse), [#2](https://github.com/marcelsavegnago/mineboss/issues/2) (sessão com a criança) e [#3](https://github.com/marcelsavegnago/mineboss/issues/3) (FPS).
+- A aceitação humana permanece nas issues [#1](https://github.com/gamestudio42/mineboss/issues/1) (mouse), [#2](https://github.com/gamestudio42/mineboss/issues/2) (sessão com a criança) e [#3](https://github.com/gamestudio42/mineboss/issues/3) (FPS).
 
 ## Sessão observada com a criança (issue #2): roteiro
 
@@ -54,7 +54,7 @@ Anote também: teclas que procurou e não existiam, textos que pediu para algué
 
 Durante a sessão, observe também se a música incomoda ou cansa. Ela pode ser desligada em **Som e conforto > Música**.
 
-Registre o resultado como comentário na [issue #2](https://github.com/marcelsavegnago/mineboss/issues/2), colando o texto do relatório e as notas de papel.
+Registre o resultado como comentário na [issue #2](https://github.com/gamestudio42/mineboss/issues/2), colando o texto do relatório e as notas de papel.
 
 As seções abaixo são o diário das rodadas anteriores. Os números de teste e as menções a dois chefões descrevem o estado daquela data.
 

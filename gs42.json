@@ -1,0 +1,11 @@
+{
+  "title": "MineBoss",
+  "tagline": {
+    "en": "A block adventure in the browser. Build, explore, fight optional bosses.",
+    "pt": "Aventura de blocos no navegador. Construa, explore e lute com chefões opcionais."
+  },
+  "cover": "docs/readme/aventura.png",
+  "genre": "voxel-sandbox",
+  "tech": ["TypeScript", "three.js", "Vite"],
+  "order": 2
+}
