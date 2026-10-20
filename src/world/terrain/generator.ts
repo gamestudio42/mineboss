@@ -15,11 +15,14 @@ import {
   chunkTouchesRuin,
   distanceToArenaCenter,
   GROVE,
+  isStairStep,
+  ruinPosts,
 } from '../arena.ts';
 import { Block } from '../blocks.ts';
 import { CHUNK_SIZE, Chunk, WORLD_HEIGHT } from '../Chunk.ts';
 import { groveFloorY, stampGrove } from '../grove.ts';
 import { ISLAND_Y, ONE_BLOCK_X, ONE_BLOCK_Z, startingOneBlock } from '../oneblock/phases.ts';
+import { victoryBlocks, type VictoryBlock, type VictoryBoss } from '../victory.ts';
 
 export const SEA_LEVEL = 60;
 
@@ -31,6 +34,8 @@ export class TerrainGenerator {
   beaconUnlocked = false;
 
   private readonly adventure: AdventureGenerator | null;
+  private readonly victories = new Set<VictoryBoss>();
+  private signs: VictoryBlock[] | null = null;
 
   constructor(readonly seed: number, readonly mode: GameMode = 'adventure') {
     this.adventure = mode === 'adventure' ? new AdventureGenerator(seed) : null;
@@ -38,7 +43,37 @@ export class TerrainGenerator {
   }
 
   generate(chunk: Chunk): void {
-    if (this.adventure) { this.adventure.generate(chunk); return; }
+    if (this.adventure) this.adventure.generate(chunk);
+    else this.generateOneBlock(chunk);
+
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+    for (const sign of this.victorySignsIn(chunk.cx, chunk.cz)) chunk.set(sign.x - baseX, sign.y, sign.z - baseZ, sign.id);
+    chunk.generated = true;
+  }
+
+  /** Victory marks inside one chunk; `generate` already stamped them. */
+  victorySignsIn(cx: number, cz: number): VictoryBlock[] {
+    if (!this.signs) {
+      const heightAt = (x: number, z: number): number => this.surfaceHeight(x, z);
+      this.signs = [...this.victories].filter(boss => this.structureOf(boss)).flatMap(boss => victoryBlocks(boss, heightAt));
+    }
+    return this.signs.filter(sign => sign.x >> 4 === cx && sign.z >> 4 === cz && sign.y >= 0 && sign.y < WORLD_HEIGHT);
+  }
+
+  applyVictories(won: Record<VictoryBoss, boolean>): void {
+    this.victories.clear();
+    for (const boss of ['sentinel', 'warden', 'beacon'] as const) if (won[boss]) this.victories.add(boss);
+    this.signs = null;
+  }
+
+  private structureOf(boss: VictoryBoss): boolean {
+    if (boss === 'sentinel') return this.ruinUnlocked;
+    if (boss === 'warden') return this.shrineUnlocked;
+    return this.beaconUnlocked;
+  }
+
+  private generateOneBlock(chunk: Chunk): void {
     const baseX = chunk.cx * CHUNK_SIZE;
     const baseZ = chunk.cz * CHUNK_SIZE;
 
@@ -52,8 +87,6 @@ export class TerrainGenerator {
     if (this.cacheUnlocked && chunkTouchesCache(chunk.cx, chunk.cz)) this.buildCache(chunk, baseX, baseZ);
     if (this.ruinUnlocked && chunkTouchesRuin(chunk.cx, chunk.cz)) this.buildRuin(chunk, baseX, baseZ);
     if (this.beaconUnlocked && chunkTouchesGrove(chunk.cx, chunk.cz)) this.buildGrove(chunk, baseX, baseZ);
-
-    chunk.generated = true;
   }
 
   /** Island height; structures sit on this plane in the void. */
@@ -66,6 +99,7 @@ export class TerrainGenerator {
     this.shrineUnlocked = flags.shrine;
     this.cacheUnlocked = flags.cache;
     this.beaconUnlocked = flags.beacon;
+    this.signs = null;
   }
 
   private placeOneBlock(chunk: Chunk, baseX: number, baseZ: number): void {
@@ -180,21 +214,12 @@ export class TerrainGenerator {
         id = ring >= shaft ? Block.Obsidian : Block.Air;
       } else if (y > ARENA.floorY && y < ARENA_STAND_Y) {
         id = Block.Bedrock;
-      } else if (y > ARENA_STAND_Y && y < top && this.isStairStep(dx, dz, shaft, top - y)) {
+      } else if (y > ARENA_STAND_Y && y < top && isStairStep(dx, dz, shaft, top - y)) {
         id = Block.Obsidian;
       }
 
       this.paint(chunk, baseX, baseZ, wx, y, wz, id);
     }
-  }
-
-  private isStairStep(dx: number, dz: number, shaft: number, stepsFromTop: number): boolean {
-    if (Math.max(Math.abs(dx), Math.abs(dz)) !== shaft) return false;
-    const quad = ((stepsFromTop % 4) + 4) % 4;
-    if (quad === 0) return dz === shaft;
-    if (quad === 1) return dx === shaft;
-    if (quad === 2) return dz === -shaft;
-    return dx === -shaft;
   }
 
   private carveDoorway(chunk: Chunk, baseX: number, baseZ: number): void {
@@ -308,16 +333,10 @@ export class TerrainGenerator {
   }
 
   private buildRuinPosts(chunk: Chunk, baseX: number, baseZ: number, floor: number): void {
-    const { centerX, centerZ, radius } = RUIN_COURTYARD;
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8;
-      const wx = Math.round(centerX + Math.cos(angle) * (radius - 1));
-      const wz = Math.round(centerZ + Math.sin(angle) * (radius - 1));
-      if (Math.hypot(wx - RUIN.x, wz - RUIN.z) < 5) continue;
-
+    for (const { x: wx, z: wz, index } of ruinPosts()) {
       this.setWorld(chunk, baseX, baseZ, wx, floor + 1, wz, Block.Cobblestone);
       this.setWorld(chunk, baseX, baseZ, wx, floor + 2, wz, Block.Cobblestone);
-      if (i % 2 === 0) this.setWorld(chunk, baseX, baseZ, wx, floor + 3, wz, Block.Glowstone);
+      if (index % 2 === 0) this.setWorld(chunk, baseX, baseZ, wx, floor + 3, wz, Block.Glowstone);
     }
   }
 

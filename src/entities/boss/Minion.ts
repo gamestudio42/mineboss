@@ -2,9 +2,8 @@ import * as THREE from 'three';
 
 import { hitPlayer } from '../../combat/DamageSystem.ts';
 import { Health } from '../../combat/Health.ts';
-import { damp } from '../../core/math.ts';
 import { Entity, type EntityContext } from '../Entity.ts';
-import { steerAround } from './steer.ts';
+import { steerAround, walkToward } from './steer.ts';
 
 let nextFlank: 1 | -1 = 1;
 
@@ -15,7 +14,6 @@ function takeFlank(): 1 | -1 {
 }
 
 const SPEED = 3.4;
-const GRAVITY = 26;
 const ATTACK_RANGE = 2;
 /** Stop closing in at this distance so the pack does not stand inside the player. */
 const STOP_RANGE = 1.5;
@@ -122,22 +120,8 @@ export class Minion extends Entity {
     wishX += pushX * 1.5;
     wishZ += pushZ * 1.5;
 
-    const wish = Math.hypot(wishX, wishZ);
-    const targetX = wish > 0.01 ? (wishX / wish) * SPEED : 0;
-    const targetZ = wish > 0.01 ? (wishZ / wish) * SPEED : 0;
-
-    this.velocity.x = damp(this.velocity.x, targetX, 8, dt);
-    this.velocity.z = damp(this.velocity.z, targetZ, 8, dt);
     if (distance > 0.4) this.body3D.rotation.y = Math.atan2(dx, dz);
-
-    this.velocity.y -= GRAVITY * dt;
-
-    // Hop over the lip of a block when walking into a wall.
-    if (this.body.onGround && Math.hypot(this.velocity.x, this.velocity.z) < SPEED * 0.35) {
-      this.velocity.y = 7;
-    }
-
-    this.body.move(world, dt);
+    walkToward(this, world, wishX, wishZ, SPEED, dt);
 
     const verticalGap = Math.abs(player.position.y - this.position.y);
     if (distance < ATTACK_RANGE && verticalGap < 2.4 && this.cooldown === 0) {

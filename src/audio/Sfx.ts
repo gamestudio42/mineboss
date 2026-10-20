@@ -1,7 +1,13 @@
+import { MUSIC_STEP_SECONDS, musicNotes, type MusicTheme } from './music.ts';
+
+/** How far ahead music notes are queued; covers a dropped frame or two. */
+const MUSIC_LOOKAHEAD = 0.25;
+
 export type SfxName =
   | 'break'
   | 'place'
   | 'hit'
+  | 'smash'
   | 'hurt'
   | 'step'
   | 'slam'
@@ -29,7 +35,13 @@ export class Sfx {
     boss: GainNode;
   } | null = null;
 
+  private musicBus: GainNode | null = null;
+  private musicTheme: MusicTheme | null = null;
+  private musicStep = 0;
+  private musicNext = 0;
+
   muted = false;
+  musicEnabled = true;
   /** Linear master level, 0–1. The previous hardcoded gain was 0.45. */
   volume = 0.45;
 
@@ -43,6 +55,8 @@ export class Sfx {
       this.context = new AudioContextClass();
       this.master = this.context.createGain();
       this.master.connect(this.context.destination);
+      this.musicBus = this.context.createGain();
+      this.musicBus.connect(this.master);
       this.noiseBuffer = this.createNoiseBuffer(this.context);
       this.applyGain();
       this.startAmbient(this.context, this.master);
@@ -76,6 +90,33 @@ export class Sfx {
     this.ambient.boss.gain.value = Math.max(0, boss) * 0.09;
   }
 
+  /** Switches the looping theme; `null` lets the queued notes ring out. */
+  setMusic(theme: MusicTheme | null): void {
+    if (theme === this.musicTheme) return;
+    this.musicTheme = theme;
+    this.musicStep = 0;
+    if (this.context) this.musicNext = this.context.currentTime + 0.12;
+  }
+
+  /** Queues the next notes of the current theme; call once per frame. */
+  updateMusic(): void {
+    const context = this.context;
+    const bus = this.musicBus;
+    const theme = this.musicTheme;
+    if (!context || !bus || !theme || !this.musicEnabled || this.muted) return;
+
+    const now = context.currentTime;
+    // A hidden tab stalls frames; restart the beat instead of bursting the backlog.
+    if (this.musicNext < now) this.musicNext = now + 0.05;
+    while (this.musicNext < now + MUSIC_LOOKAHEAD) {
+      for (const note of musicNotes(theme, this.musicStep)) {
+        this.tone(this.musicNext, note.wave, note.frequency, note.frequency * note.bend, note.duration, note.gain, bus);
+      }
+      this.musicNext += MUSIC_STEP_SECONDS[theme];
+      this.musicStep++;
+    }
+  }
+
   play(name: SfxName): void {
     if (this.muted || !this.context || !this.master) return;
     const now = this.context.currentTime;
@@ -90,6 +131,12 @@ export class Sfx {
       case 'hit':
         this.tone(now, 'square', 340, 120, 0.09, 0.28);
         this.noise(now, 0.1, 0.25, 2400, 900);
+        break;
+      case 'smash':
+        this.tone(now, 'sine', 150, 45, 0.32, 0.6);
+        this.tone(now, 'triangle', 784, 1175, 0.22, 0.3);
+        this.tone(now + 0.06, 'triangle', 1175, 1568, 0.26, 0.22);
+        this.noise(now, 0.16, 0.38, 3200, 600);
         break;
       case 'hurt':
         this.tone(now, 'sawtooth', 200, 90, 0.28, 0.3);
@@ -148,9 +195,10 @@ export class Sfx {
     to: number,
     duration: number,
     gain: number,
+    destination: GainNode | null = this.master,
   ): void {
     const context = this.context;
-    const master = this.master;
+    const master = destination;
     if (!context || !master) return;
 
     const oscillator = context.createOscillator();

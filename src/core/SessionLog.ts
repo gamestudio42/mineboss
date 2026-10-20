@@ -18,6 +18,7 @@ export type SessionEventType =
   | 'block_placed'
   | 'block_removed'
   | 'craft'
+  | 'build'
   | 'objective'
   | 'panel'
   | 'practice'
@@ -32,7 +33,7 @@ export type SessionEventType =
   | 'session_stop';
 
 export type SessionMarkKind = 'help' | 'cheer' | 'quit';
-export type SessionPanelId = 'pause' | 'catalog' | 'recipes' | 'help' | 'boss' | 'home';
+export type SessionPanelId = 'pause' | 'catalog' | 'recipes' | 'help' | 'boss' | 'home' | 'album';
 
 export interface SessionContext {
   mode: 'adventure' | 'oneblock';
@@ -101,7 +102,7 @@ interface SessionCounts {
 
 const EVENT_TYPES = new Set<string>([
   'session_start', 'pointer_lock', 'first_move', 'first_look', 'lesson',
-  'block_placed', 'block_removed', 'craft', 'objective', 'panel', 'practice',
+  'block_placed', 'block_removed', 'craft', 'build', 'objective', 'panel', 'practice',
   'encounter', 'death', 'victory', 'save', 'loaded', 'idle', 'perf', 'mark',
   'session_stop',
 ]);

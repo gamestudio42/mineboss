@@ -35,6 +35,8 @@ export interface SavedRun {
   reserve?: SavedSlot[];
   survival?: { slots: SavedSlot[]; selected: number; reserve: SavedSlot[] };
   trophies?: number[];
+  builds?: string[];
+  pet?: SavedPoint & { following: boolean };
 
   version: number;
   seed: number;
@@ -133,6 +135,8 @@ export function parseSave(raw: string, mode?: GameMode): SavedRun | null {
     if (parsed.oneBlock.pace !== undefined && !['classic','quick'].includes(parsed.oneBlock.pace)) return null;
     if (parsed.oneBlock.goals !== undefined && (!Array.isArray(parsed.oneBlock.goals) || parsed.oneBlock.goals.some(goal => !['platform','shelter'].includes(goal)))) return null;
     if (parsed.trophies !== undefined && (!Array.isArray(parsed.trophies) || parsed.trophies.some(id => id !== 26 && id !== 27 && id !== 42))) return null;
+    if (parsed.builds !== undefined && (!Array.isArray(parsed.builds) || parsed.builds.some(kind => !['house', 'tower', 'pen'].includes(kind)))) return null;
+    if (parsed.pet !== undefined && (![parsed.pet.x, parsed.pet.y, parsed.pet.z].every(coord) || typeof parsed.pet.following !== 'boolean')) return null;
     if (parsed.shownHints !== undefined && (!Array.isArray(parsed.shownHints) || parsed.shownHints.length > 32 || parsed.shownHints.some(id => typeof id !== 'string' || id.length === 0 || id.length > 32))) return null;
     if (parsed.edits.length > 300_000) return null;
     for (const edit of parsed.edits) {

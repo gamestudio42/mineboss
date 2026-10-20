@@ -17,7 +17,7 @@ export interface HammerStats {
 export const HAMMER: Record<HammerTier, HammerStats> = {
   [HammerTier.Wood]: { name: 'Martelo', mineSpeed: 1, damage: 1 },
   [HammerTier.Iron]: { name: 'Martelo de ferro', mineSpeed: 1.75, damage: 1.1 },
-  [HammerTier.Gold]: { name: 'Martelo de ouro', mineSpeed: 1.35, damage: 1.55 },
+  [HammerTier.Gold]: { name: 'Martelo de ouro', mineSpeed: 2, damage: 1.55 },
 };
 
 export const UPGRADE_COST = 3;

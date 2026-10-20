@@ -1,12 +1,23 @@
 import * as THREE from 'three';
 import { Health } from '../../combat/Health.ts';
 import { Entity, type EntityContext } from '../Entity.ts';
-import { Shockwave } from './attacks/Shockwave.ts';
+import { holdsCoverBlock } from './attacks/cover.ts';
+import { Shockwave, type WaveOutcome } from './attacks/Shockwave.ts';
 import { Telegraph } from './attacks/Telegraph.ts';
+
+/** Seconds to place a block before the bonus wave starts. */
+export const WALL_PREP_SECONDS = 6;
+
+const AFTER_WALL: Record<Exclude<WaveOutcome, 'pending'>, string> = {
+  blocked: 'O muro segurou a onda! Agora saia do círculo antes de ele encher.',
+  jumped: 'Pular também vale! Agora saia do círculo antes de ele encher.',
+  hit: 'Sem problema! Nas lutas, um muro de blocos segura a onda. Agora saia do círculo.',
+};
 
 /** Harmless practice using the same wave and ground marker as the encounters. */
 export class BossPractice extends Entity {
-  stage: 'wave' | 'circle' | 'hit' | 'done' = 'wave';
+  /** `wall` is a bonus: any outcome moves on, and it is skipped without a block in the hotbar. */
+  stage: 'wave' | 'wall' | 'circle' | 'hit' | 'done' = 'wave';
   private timer = 0;
   private wave: Shockwave | null = null;
   private readonly telegraph = new Telegraph();
@@ -26,7 +37,9 @@ export class BossPractice extends Entity {
     this.hint('Treino sem dano · Espaço: pule a onda que vem até você');
   }
   get objective(): string {
-    return this.stage === 'wave' ? '1/3 · Espaço: pule a onda' : this.stage === 'circle' ? '2/3 · Saia do círculo vermelho' : '3/3 · BATA AGORA! Mire no boneco e segure o esquerdo';
+    if (this.stage === 'wave') return '1/3 · Espaço: pule a onda';
+    if (this.stage === 'wall') return 'Bônus · Coloque um bloco entre você e o boneco';
+    return this.stage === 'circle' ? '2/3 · Saia do círculo vermelho' : '3/3 · BATA AGORA! Mire no boneco e segure o esquerdo';
   }
   override update(context: EntityContext): void {
     if (this.stage === 'done') { context.entities.remove(this); this.complete(); return; }
@@ -39,13 +52,25 @@ export class BossPractice extends Entity {
     if (this.stage === 'wave') {
       if (this.timer < 3 || (this.wave && !this.wave.removed)) return;
       this.timer = 0;
-      this.wave = new Shockwave({maxRadius:12,speed:3,damage:0,knockback:0,onPass:jumped=>{
-        if (jumped) { this.stage='circle'; this.timer=0; this.hint('Boa! Agora saia do círculo antes de ele encher.'); }
-        else this.hint('Sem problema! Aperte Espaço quando a onda chegar.');
-      }});
-      this.wave.position.copy(this.position);
-      context.entities.add(this.wave);
-      context.sfx.play('stagger');
+      this.sendWave(context, (jumped) => {
+        if (!jumped) { this.hint('Sem problema! Aperte Espaço quando a onda chegar.'); return; }
+        this.timer = 0;
+        if (holdsCoverBlock(p.inventory)) {
+          this.stage = 'wall';
+          this.hint('Bônus: coloque um bloco entre você e o boneco. A onda não passa pelo muro.');
+        } else {
+          this.stage = 'circle';
+          this.hint('Boa! Agora saia do círculo antes de ele encher.');
+        }
+      });
+    } else if (this.stage === 'wall') {
+      if (this.timer < WALL_PREP_SECONDS || (this.wave && !this.wave.removed)) return;
+      this.timer = 0;
+      this.sendWave(context, (_avoided, outcome) => {
+        this.stage = 'circle';
+        this.timer = 0;
+        if (outcome !== 'pending') this.hint(AFTER_WALL[outcome]);
+      });
     } else if (this.stage === 'circle') {
       if (!this.circleActive) {
         this.circleX=p.position.x;this.circleZ=p.position.z;this.circleActive=true;this.timer=0;
@@ -61,6 +86,12 @@ export class BossPractice extends Entity {
         context.sfx.play('stagger');
       } else this.hint('Tente de novo: ande para fora do círculo vermelho.');
     }
+  }
+  private sendWave(context: EntityContext, onPass: (avoided: boolean, outcome: WaveOutcome) => void): void {
+    this.wave = new Shockwave({ maxRadius: 12, speed: 3, damage: 0, knockback: 0, onPass });
+    this.wave.position.copy(this.position);
+    context.entities.add(this.wave);
+    context.sfx.play('stagger');
   }
   override onRemoved(): void { this.telegraph.dispose();this.dummy.geometry.dispose();this.dummy.material.dispose(); }
 }

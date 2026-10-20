@@ -17,6 +17,8 @@ import {
   distanceToArenaCenter,
   distanceToRuinCourtyard,
   GROVE,
+  isStairStep,
+  ruinPosts,
 } from '../arena.ts';
 import { groveFloorY, stampGrove } from '../grove.ts';
 import { Block } from '../blocks.ts';
@@ -346,22 +348,12 @@ export class AdventureGenerator {
         id = ring >= shaft ? Block.Obsidian : Block.Air;
       } else if (y > ARENA.floorY && y < ARENA_STAND_Y) {
         id = Block.DarkBrick;
-      } else if (y > ARENA_STAND_Y && y < top && this.isStairStep(dx, dz, shaft, top - y)) {
+      } else if (y > ARENA_STAND_Y && y < top && isStairStep(dx, dz, shaft, top - y)) {
         id = Block.Obsidian;
       }
 
       this.paint(chunk, baseX, baseZ, wx, y, wz, id);
     }
-  }
-
-  /** One-block-high spiral: a full revolution every four levels. */
-  private isStairStep(dx: number, dz: number, shaft: number, stepsFromTop: number): boolean {
-    if (Math.max(Math.abs(dx), Math.abs(dz)) !== shaft) return false;
-    const quad = ((stepsFromTop % 4) + 4) % 4;
-    if (quad === 0) return dz === shaft;
-    if (quad === 1) return dx === shaft;
-    if (quad === 2) return dz === -shaft;
-    return dx === -shaft;
   }
 
   private carveDoorway(chunk: Chunk, baseX: number, baseZ: number): void {
@@ -485,16 +477,10 @@ export class AdventureGenerator {
   }
 
   private buildRuinPosts(chunk: Chunk, baseX: number, baseZ: number, floor: number): void {
-    const { centerX, centerZ, radius } = RUIN_COURTYARD;
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8;
-      const wx = Math.round(centerX + Math.cos(angle) * (radius - 1));
-      const wz = Math.round(centerZ + Math.sin(angle) * (radius - 1));
-      if (Math.hypot(wx - RUIN.x, wz - RUIN.z) < 5) continue;
-
+    for (const { x: wx, z: wz, index } of ruinPosts()) {
       this.setWorld(chunk, baseX, baseZ, wx, floor + 1, wz, Block.Cobblestone);
       this.setWorld(chunk, baseX, baseZ, wx, floor + 2, wz, Block.Cobblestone);
-      if (i % 2 === 0) this.setWorld(chunk, baseX, baseZ, wx, floor + 3, wz, Block.Glowstone);
+      if (index % 2 === 0) this.setWorld(chunk, baseX, baseZ, wx, floor + 3, wz, Block.Glowstone);
     }
   }
 

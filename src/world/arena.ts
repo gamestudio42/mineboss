@@ -117,6 +117,29 @@ export function isInsideRuinCourtyard(x: number, z: number): boolean {
   return distanceToRuinCourtyard(x, z) < RUIN_COURTYARD.radius - 0.5;
 }
 
+/** The courtyard rim posts; even ones carry glowstone. Posts next to the hut are left out. */
+export function ruinPosts(): Array<{ x: number; z: number; index: number }> {
+  const { centerX, centerZ, radius } = RUIN_COURTYARD;
+  const posts: Array<{ x: number; z: number; index: number }> = [];
+  for (let index = 0; index < 8; index++) {
+    const angle = (Math.PI * 2 * index) / 8;
+    const x = Math.round(centerX + Math.cos(angle) * (radius - 1));
+    const z = Math.round(centerZ + Math.sin(angle) * (radius - 1));
+    if (Math.hypot(x - RUIN.x, z - RUIN.z) >= 5) posts.push({ x, z, index });
+  }
+  return posts;
+}
+
+/** One-block-high spiral down the shrine shaft: a full revolution every four levels. */
+export function isStairStep(dx: number, dz: number, shaft: number, stepsFromTop: number): boolean {
+  if (Math.max(Math.abs(dx), Math.abs(dz)) !== shaft) return false;
+  const quad = ((stepsFromTop % 4) + 4) % 4;
+  if (quad === 0) return dz === shaft;
+  if (quad === 1) return dx === shaft;
+  if (quad === 2) return dz === -shaft;
+  return dx === -shaft;
+}
+
 /** True when this column belongs to the cracked statue. */
 export function isRuinStatueColumn(x: number, z: number): boolean {
   return Math.abs(x - RUIN_STATUE.x) <= 1 && Math.abs(z - RUIN_STATUE.z) <= 1;

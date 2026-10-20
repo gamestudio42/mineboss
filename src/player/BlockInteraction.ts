@@ -59,6 +59,8 @@ export class BlockInteraction {
   onChestOpened: (() => void) | null = null;
   onBlockPlaced: ((block: Block) => void) | null = null;
   onBuildEdit: ((edit: BuildEdit) => void) | null = null;
+  /** Right click on a friendly creature; returns true when it took the click. */
+  onEntityUse: (() => boolean) | null = null;
   onSpawnSet: (() => void) | null = null;
   onHammerFeedback: ((text: string) => void) | null = null;
   /** Fired before the drop when the regenerating core is mined. */
@@ -71,6 +73,7 @@ export class BlockInteraction {
   private readonly crack: THREE.Mesh;
   private placeCooldown = 0;
   private mineCooldown = 0;
+  private useHeld = false;
   private targetKey = '';
 
   constructor(
@@ -128,7 +131,11 @@ export class BlockInteraction {
       this.progress = 0;
     }
 
-    if ((input.isMouseDown(2) || input.wasMousePressed(2)) && this.placeCooldown === 0) this.useItem(this.target);
+    const using = input.isMouseDown(2) || input.wasMousePressed(2);
+    // Holding the button after tapping a creature must not start placing blocks behind it.
+    if (!using) this.useHeld = false;
+    else if (input.wasMousePressed(2) && this.onEntityUse?.()) this.useHeld = true;
+    if (using && !this.useHeld && this.placeCooldown === 0) this.useItem(this.target);
 
     this.updateVisuals();
     return { targetDistance: this.target?.distance ?? Infinity, brokeBlock, brokenBlock };

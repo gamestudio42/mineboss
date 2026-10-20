@@ -10,6 +10,7 @@ Object.defineProperty(window, 'localStorage', { value: {
 const html = new DOMParser().parseFromString(await (await fetch('/')).text(),'text/html');
 document.body.append(document.importNode(html.getElementById('app'),true));
 const game = new Game(document.getElementById('viewport'));
+window.qaGame = game;
 game.input.requestLock=()=>{game.input.reset();game.input.locked=true;};
 game.input.releaseLock=()=>{game.input.locked=false;game.input.reset();};
 const bar=document.createElement('div');bar.style.cssText='position:fixed;bottom:0;left:0;z-index:100;background:#0b172a;padding:4px;display:flex;gap:5px;align-items:center;max-width:100vw;flex-wrap:wrap;font:12px monospace';
@@ -35,6 +36,12 @@ add('Colocar',()=>{game.interaction.placeCooldown=0;game.interaction.update(1/60
 add('Desfazer',()=>game.undoBuild());add('Refazer',()=>game.undoBuild(true));
 add('Treino',()=>game.startPractice());
 add('Sentinela',()=>game.confirmFight(true));add('Guardião',()=>game.confirmFight(false));
+add('Curral',()=>{
+ fixture();
+ for(let x=4;x<=10;x++)for(let z=2;z<=6;z++)if((x===4||x===10||z===2||z===6)&&!(x===7&&z===6))game.world.setBlock(x,91,z,Block.Log);
+ game.world.ensureChunk(0,0);game.noticeBuild(7,91,2);const pen=game.builds.update(game.world,99);if(pen)game.celebrateBuild(pen);status.textContent='Cenário: curral com bichinho · botão direito nele para seguir';
+});
+add('Álbum',()=>game.showAlbum());
 add('Estresse 5 min',()=>{fixture();running=true;frames=elapsed=stalls=maxGeometries=edits=lastEdit=0;lastSegment=-1;samples.length=0;});
 add('Parar',()=>{running=false;game.pause();report();});
 bar.append(status);document.body.append(bar);

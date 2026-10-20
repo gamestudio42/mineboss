@@ -206,3 +206,29 @@ test('the recording toggle survives a new SessionLog on the same origin', () => 
   assert.equal(second.enabled, true);
   assert.equal(second.events.length, 0);
 });
+
+test('the session review attributes time, help and idle spells to the objective on screen', () => {
+  const { reviewSession, formatReview } = require('../src/core/sessionReview.ts');
+  let now = 0;
+  const log = diary(() => now);
+  log.enable();
+  log.begin(context);
+  now = 5_000; log.record('objective', { text: 'Coloque três blocos' });
+  now = 65_000; log.record('objective', { text: 'Visite o Sentinela' });
+  now = 70_000; log.record('idle', { active: true });
+  now = 100_000; log.record('idle', { active: false });
+  now = 110_000; log.record('mark', { kind: 'help', objective: 'Visite o Sentinela' });
+  now = 120_000; log.record('encounter', { action: 'invite', boss: 'sentinel' });
+  now = 130_000; log.record('objective', { text: 'Coloque três blocos' });
+  now = 190_000; log.record('mark', { kind: 'quit', objective: 'Coloque três blocos' });
+
+  const review = reviewSession(parseSession(JSON.stringify(log.toExport())));
+  const build = review.stretches.find(entry => entry.objective === 'Coloque três blocos');
+  const boss = review.stretches.find(entry => entry.objective === 'Visite o Sentinela');
+  assert.equal(build.seconds, 120);
+  assert.deepEqual([boss.seconds, boss.idleSeconds, boss.helpMarks], [65, 30, 1]);
+  assert.deepEqual(review.stuck, ['Visite o Sentinela']);
+  assert.equal(review.quitDuring, 'Coloque três blocos');
+  assert.equal(review.reachedBoss, false, 'an invitation alone is not a fight');
+  assert.match(formatReview(review), /Onde travou: Visite o Sentinela/);
+});

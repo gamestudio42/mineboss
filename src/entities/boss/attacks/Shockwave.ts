@@ -2,6 +2,9 @@ import * as THREE from 'three';
 
 import { hitPlayer } from '../../../combat/DamageSystem.ts';
 import { Entity, type EntityContext } from '../../Entity.ts';
+import { coverBetween } from './cover.ts';
+
+export type WaveOutcome = 'pending' | 'jumped' | 'blocked' | 'hit';
 
 export interface ShockwaveOptions {
   maxRadius: number;
@@ -9,11 +12,12 @@ export interface ShockwaveOptions {
   damage: number;
   knockback: number;
   color?: number;
-  onPass?: (jumped: boolean) => void;
+  onPass?: (avoided: boolean, outcome: WaveOutcome) => void;
 }
 
-/** Expanding ground ring. Jumping over the crest avoids the hit. */
+/** Expanding ground ring. Jumping over the crest or a block in its path avoids the hit. */
 export class Shockwave extends Entity {
+  outcome: WaveOutcome = 'pending';
   private radius = 1;
   private hitPlayerAlready = false;
 
@@ -61,9 +65,15 @@ export class Shockwave extends Entity {
 
     if (Math.abs(distance - this.radius) < 1.3) {
       this.hitPlayerAlready = true;
-      this.options.onPass?.(!grounded);
-      if (grounded) hitPlayer(player, this.options.damage, this.position, this.options.knockback);
+      this.outcome = !grounded ? 'jumped' : this.shelters(context.world, player.position) ? 'blocked' : 'hit';
+      this.options.onPass?.(this.outcome !== 'hit', this.outcome);
+      if (this.outcome === 'hit') hitPlayer(player, this.options.damage, this.position, this.options.knockback);
     }
+  }
+
+  /** A solid block at foot level just in front of the player breaks the ring. */
+  shelters(world: { getBlock(x: number, y: number, z: number): number }, player: { x: number; y: number; z: number }): boolean {
+    return coverBetween(world, this.position, player);
   }
 
   approaching(player: { x: number; y: number; z: number }): boolean {

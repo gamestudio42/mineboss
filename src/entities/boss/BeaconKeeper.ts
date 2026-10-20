@@ -6,11 +6,16 @@ import { Block } from '../../world/blocks.ts';
 import { Entity, type EntityContext } from '../Entity.ts';
 import { BossModel } from './BossModel.ts';
 import { Minion } from './Minion.ts';
+import { LightBeam } from './attacks/LightBeam.ts';
 import { Shockwave } from './attacks/Shockwave.ts';
 import { Telegraph } from './attacks/Telegraph.ts';
 
 export const BEACON_NAME = 'Faroleiro do Vazio';
-export const BEACON_MAX_HEALTH = 180;
+/** The last boss outlasts the Sentinel (200). */
+export const BEACON_MAX_HEALTH = 240;
+const BEAM_LENGTH = 14;
+/** Over a second of warning before the sweep, longer in Tranquila. */
+const BEAM_WARM_UP = 1.1;
 
 const WIDTH = 2.4;
 const HEIGHT = 4.4;
@@ -20,11 +25,11 @@ const CHASE_STANDOFF = 3;
 const MODEL_SCALE = 0.86;
 
 const PHASES = [
-  { label: 'Fase I', speed: 1, color: 0x8fbf4a, staggerTime: 3.4 },
-  { label: 'Fase II', speed: 1.18, color: 0xe6d56a, staggerTime: 2.8 },
+  { label: 'Fase I', speed: 1, color: 0x8fbf4a, staggerTime: 3.4, beamSweep: 3.2 },
+  { label: 'Fase II', speed: 1.18, color: 0xe6d56a, staggerTime: 2.8, beamSweep: 2.6 },
 ] as const;
 
-type BeaconStateName = 'awaken' | 'chase' | 'slam' | 'summon' | 'stagger' | 'phaseShift' | 'dying';
+export type BeaconStateName = 'awaken' | 'chase' | 'slam' | 'beam' | 'summon' | 'stagger' | 'phaseShift' | 'dying';
 
 interface BeaconState {
   enter?(keeper: BeaconKeeper): void;
@@ -33,8 +38,9 @@ interface BeaconState {
 }
 
 /**
- * South-island keeper. A ground slam teaches the shockwave, and the second
- * phase calls sprouts that still end in a stagger window.
+ * South-island keeper and last boss. A ground slam teaches the shockwave, a
+ * turning light beam takes turns with it, and the second phase calls sprouts.
+ * Every attack ends in a stagger window.
  */
 export class BeaconKeeper extends Entity {
   readonly model = new BossModel();
@@ -49,6 +55,8 @@ export class BeaconKeeper extends Entity {
 
   phase = 0;
   attackCooldown = 1;
+  lastAttack: BeaconStateName | null = null;
+  beam: LightBeam | null = null;
 
   private machine: StateMachine | null = null;
   private facing = 0;
@@ -139,9 +147,38 @@ export class BeaconKeeper extends Entity {
     );
   }
 
+  /** Slam and beam take turns; the second phase calls sprouts on a distant player. */
   pickAttack(): BeaconStateName {
     if (this.phase >= 1 && this.distanceToPlayer() > 7) return 'summon';
-    return 'slam';
+    return this.lastAttack === 'slam' ? 'beam' : 'slam';
+  }
+
+  /** Starts behind the player so the bar is seen coming around before it arrives. */
+  startBeam(): void {
+    const player = this.context.player.position;
+    const toPlayer = Math.atan2(-(player.z - this.position.z), player.x - this.position.x);
+    this.beam = new LightBeam({
+      length: BEAM_LENGTH,
+      warmUp: BEAM_WARM_UP,
+      sweep: PHASES[this.phase].beamSweep,
+      damage: 5,
+      knockback: 4,
+      color: PHASES[this.phase].color,
+      startAngle: toPlayer + Math.PI,
+      direction: Math.random() < 0.5 ? 1 : -1,
+    });
+    this.beam.position.set(this.position.x, this.position.y, this.position.z);
+    this.context.entities.add(this.beam);
+    this.context.sfx.play('summon');
+  }
+
+  get beamDone(): boolean {
+    return this.beam === null || this.beam.removed;
+  }
+
+  endBeam(): void {
+    if (this.beam && !this.beam.removed) this.context.entities.remove(this.beam);
+    this.beam = null;
   }
 
   resetSlam(): void {
@@ -214,7 +251,7 @@ export class BeaconKeeper extends Entity {
 
   clearBeacon(): void {
     const world = this.context.world;
-    for (let y = this.floorY + 1; y <= this.floorY + 4; y++) {
+    for (let y = this.floorY + 1; y <= this.floorY + 7; y++) {
       if (world.getBlock(GROVE.x, y, GROVE.z) === Block.Air) continue;
       if (!world.edits.has(`${GROVE.x},${y},${GROVE.z}`)) world.restoreStructure(GROVE.x, y, GROVE.z, Block.Air);
     }
@@ -336,6 +373,7 @@ const STATES: Record<BeaconStateName, BeaconState> = {
   },
   slam: {
     enter(keeper) {
+      keeper.lastAttack = 'slam';
       keeper.resetSlam();
       keeper.telegraph.show(0, 0, 0, 4.2);
     },
@@ -360,8 +398,25 @@ const STATES: Record<BeaconStateName, BeaconState> = {
       keeper.telegraph.hide();
     },
   },
+  beam: {
+    enter(keeper) {
+      keeper.lastAttack = 'beam';
+      keeper.startBeam();
+      keeper.model.setArmRaise(1);
+    },
+    update(keeper, dt, time) {
+      keeper.stopMoving(dt);
+      keeper.model.setArmRaise(0.6 + 0.4 * Math.sin(time * 6));
+      if (keeper.beamDone) return 'stagger';
+    },
+    exit(keeper) {
+      keeper.endBeam();
+      keeper.model.setArmRaise(0);
+    },
+  },
   summon: {
     enter(keeper) {
+      keeper.lastAttack = 'summon';
       keeper.resetSummon();
       keeper.model.setArmRaise(1);
       keeper.telegraph.show(0, 0, 0, 3.2);

@@ -6,6 +6,7 @@ import type { World } from '../../world/World.ts';
 import { Block } from '../../world/blocks.ts';
 import { GROVE, isInsideGrove } from '../../world/arena.ts';
 import { groveFloorY } from '../../world/grove.ts';
+import { applyVictorySign } from '../../world/victory.ts';
 import { BeaconKeeper, BEACON_NAME } from './BeaconKeeper.ts';
 
 export interface GroveCallbacks {
@@ -76,5 +77,6 @@ export class GroveEncounter {
     world.restoreStructure(GROVE.x, floor + 2, GROVE.z, Block.Moss);
     world.restoreStructure(GROVE.x, floor + 3, GROVE.z, Block.Glowstone);
     world.restoreStructure(GROVE.x, floor + 4, GROVE.z, Block.Glowstone);
+    if (this.defeated) applyVictorySign(world, 'beacon');
   }
 }
