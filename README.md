@@ -1,56 +1,99 @@
-# MineBoss
+<p align="center">
+  <img src="docs/readme/mark.svg" width="88" alt="MineBoss">
+</p>
 
-Jogo de blocos no navegador, em português, para construir, explorar e enfrentar o Sentinela, o Guardião e o Faroleiro quando quiser.
+<h1 align="center">MineBoss</h1>
+
+<p align="center"><strong>Construa, explore e lute — quando quiser.</strong></p>
 
 <p align="center">
-  <a href="https://gamestudio42.github.io/mineboss/"><img alt="Jogar agora" src="https://img.shields.io/badge/Play-33ff66?style=for-the-badge&labelColor=0a0f0a&color=33ff66"></a>
-  &nbsp;
-  <a href="https://github.com/gamestudio42/mineboss/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/gamestudio42/mineboss?style=for-the-badge&labelColor=0a0f0a&color=33ff66"></a>
-  &nbsp;
-  <a href="https://github.com/gamestudio42/mineboss/fork"><img alt="Fork" src="https://img.shields.io/github/forks/gamestudio42/mineboss?style=for-the-badge&labelColor=0a0f0a&color=1f9d4a"></a>
-  &nbsp;
-  <a href="https://github.com/gamestudio42/mineboss/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/gamestudio42/mineboss/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://gamestudio42.github.io/mineboss/"><img src="https://img.shields.io/badge/Play-33ff66?style=for-the-badge&labelColor=0a0f0a&color=33ff66" alt="Jogar MineBoss"></a>
+  <a href="https://github.com/gamestudio42/mineboss/stargazers"><img src="https://img.shields.io/github/stars/gamestudio42/mineboss?style=for-the-badge&labelColor=0a0f0a&color=33ff66" alt="Stars"></a>
+  <a href="https://github.com/gamestudio42/mineboss/fork"><img src="https://img.shields.io/github/forks/gamestudio42/mineboss?style=for-the-badge&labelColor=0a0f0a&color=1f9d4a" alt="Forks"></a>
+  <a href="https://github.com/gamestudio42"><img src="https://img.shields.io/badge/Game_Studio_42-0a0f0a?style=for-the-badge&labelColor=0a0f0a&color=1f9d4a" alt="Game Studio 42"></a>
+  <a href="https://github.com/gamestudio42/mineboss/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/gamestudio42/mineboss/ci.yml?style=for-the-badge&label=CI&labelColor=0a0f0a&color=33ff66" alt="CI"></a>
+</p>
+
+<p align="center">
+  Jogo de blocos no navegador, em português.
+  Aventura e OneBlock, com o Sentinela, o Guardião e o Faroleiro
+  se você quiser enfrentá-los. Sem instalação.
+</p>
+
+<p align="center">
+  <a href="https://gamestudio42.github.io/mineboss/">
+    <img src="docs/readme/play.svg" alt="Jogar MineBoss no navegador" height="56">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://gamestudio42.github.io/mineboss/">
+    <img src="docs/readme/menu.png" alt="Menu Vamos brincar?" width="920">
+  </a>
+</p>
+
+## Telas
+
+<p align="center">
+  <img src="docs/readme/aventura.png" alt="Primeira pessoa na aventura, com o martelo de ouro" width="920">
+</p>
+
+<p align="center">
+  <img src="docs/readme/oneblock.png" alt="Ilha do OneBlock" width="920">
 </p>
 
 <table>
   <tr>
-    <td width="33%" align="center"><img src="docs/readme/aventura.png" alt="Primeira pessoa na aventura, com o martelo de ouro"></td>
-    <td width="33%" align="center"><img src="docs/readme/oneblock.png" alt="Primeira pessoa na ilha do OneBlock, com o martelo e o vazio ao lado"></td>
-    <td width="33%" align="center"><img src="docs/readme/chefao.png" alt="Luta em primeira pessoa contra o Sentinela das Ruínas"></td>
+    <td width="33%" align="center"><img src="docs/readme/chefao.png" alt="Luta contra o Sentinela das Ruínas"></td>
+    <td width="33%" align="center"><img src="docs/readme/personagem.png" alt="Personagem por trás, com capacete e armadura"></td>
+    <td width="33%" align="center"><img src="docs/readme/criacao.png" alt="Menu Criar itens"></td>
   </tr>
   <tr>
-    <td align="center">Aventura</td>
-    <td align="center">OneBlock</td>
     <td align="center">O Sentinela</td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/readme/personagem.png" alt="Personagem por trás, com capacete e armadura"></td>
-    <td align="center"><img src="docs/readme/menu.png" alt="Menu de pausa Vamos brincar?"></td>
-    <td align="center"><img src="docs/readme/criacao.png" alt="Menu Criar itens, com tochas, cama, martelos e armaduras"></td>
-  </tr>
-  <tr>
-    <td align="center">O personagem por trás</td>
-    <td align="center">Menu <strong>Vamos brincar?</strong></td>
+    <td align="center">O personagem</td>
     <td align="center">Criar itens</td>
   </tr>
 </table>
 
-Dá para jogar no site sem instalar nada. Quem quiser ajudar pode abrir uma [issue](https://github.com/gamestudio42/mineboss/issues) ou um pull request. O código e os comentários ficam em inglês; os textos da tela, em português.
+<p align="center">
+  <a href="https://gamestudio42.github.io/mineboss/">
+    <img src="docs/readme/play.svg" alt="Jogar MineBoss no navegador" height="56">
+  </a>
+</p>
 
-## Jogar no site e no computador
+## Por que MineBoss
 
-O jogo publicado está em https://gamestudio42.github.io/mineboss/.
+- **Joga no navegador.** Abre o link e está no mundo. Nada para baixar.
+- **Dois modos.** Aventura (sobrevivência ou construção livre) e OneBlock.
+- **Chefões opcionais.** Sentinela, Guardião e Faroleiro — só se você for até eles.
+- **Feito para criança e adulto.** Dificuldade Tranquila, narrador em português, câmera calma.
+- **O mundo fica com você.** Save no navegador, exportar e importar JSON.
 
-Para abrir uma cópia local:
+## Jogar
+
+| | |
+| --- | --- |
+| **Jogo ao vivo** | [gamestudio42.github.io/mineboss](https://gamestudio42.github.io/mineboss/) |
+| **Atalhos** | `WASD` andar · `Espaço` pular · `B` blocos · `C` criar · `H` ajuda · `Esc` menu |
+| **Idioma** | Interface em português · código e docs em inglês |
+| **Local** | `pnpm install && pnpm dev` → http://localhost:5173 (WebGL2, porta fixa) |
+
+O save do site e o de `localhost` são separados. Cada origem do navegador guarda a própria partida.
+
+## Desenvolver
 
 ```sh
 pnpm install
-pnpm dev
+pnpm dev        # http://localhost:5173
+pnpm test
+pnpm build
 ```
 
-Abra http://localhost:5173/ num navegador com WebGL2. Use Node compatível com Vite 8 (20.19+ ou 22.12+). A porta é fixa: se estiver ocupada, o servidor avisa em vez de abrir outro endereço.
+Node compatível com Vite 8 (20.19+ ou 22.12+). Se a porta 5173 estiver ocupada, o servidor avisa em vez de abrir outro endereço. Cada push em `master` publica `dist` no GitHub Pages.
 
-O save do site e o de `localhost` são separados. Cada origem do navegador guarda a própria partida.
+Os testes cobrem inventário, receitas, desfazer, vidro, saves v1–v5, os três chefões, OneBlock, música, álbum e bichinho. Evidência em [TESTING.md](TESTING.md). Guia em [CONTRIBUTING.md](CONTRIBUTING.md).
+
+TypeScript, three.js e Vite. Texturas em canvas, áudio sintetizado e malhas voxel em workers. Um jogador.
 
 ## Modos
 
@@ -122,17 +165,6 @@ Uma cópia anterior válida por modo pode ser recuperada pelo menu. O checkpoint
 - Ler as dicas em voz alta: liga ou desliga o narrador.
 - Música: uma melodia calma, só com notas que combinam, enquanto você joga, e um tema mais rápido nas lutas. Os menus ficam em silêncio. Começa ligada e se cala com **Sem som**.
 
-## Verificação
-
-```sh
-pnpm test
-pnpm build
-```
-
-Os testes cobrem inventário, receitas, desfazer, vidro, saves v1–v5, recuperação, base obstruída, controles, treino, os três chefões, os sinais de vitória, morte, saída, recarga, OneBlock, música, álbum e bichinho. A evidência e os limites estão em [TESTING.md](TESTING.md). A avaliação de diversão com a criança continua sendo uma sessão acompanhada.
-
-TypeScript, three.js e Vite. Texturas em canvas, áudio sintetizado e malhas voxel em workers. Esta versão é para um jogador.
-
 ## Fork e remix
 
 O código é MIT. Clone, mude as regras e publique o seu fork no GitHub Pages.
@@ -145,7 +177,7 @@ pnpm dev
 ```
 
 Issues de entrada e conversa: [good first issue](https://github.com/gamestudio42/mineboss/labels/good%20first%20issue)
-e [discussions](https://github.com/gamestudio42/mineboss/discussions). Guia em [CONTRIBUTING.md](CONTRIBUTING.md).
+e [discussions](https://github.com/gamestudio42/mineboss/discussions).
 
 ## Licença
 

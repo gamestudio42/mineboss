@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="56" role="img" aria-label="Jogar MineBoss">
+  <rect width="300" height="56" rx="10" fill="#ffb347"/>
+  <polygon points="22,18 22,38 38,28" fill="#182837"/>
+  <text x="52" y="36" fill="#182837" font-family="Segoe UI, system-ui, sans-serif" font-size="20" font-weight="700">Jogar no navegador</text>
+</svg>
