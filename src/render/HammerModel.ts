@@ -8,8 +8,18 @@ const PALETTES = {
   [HammerTier.Gold]: { body: 0xdb9c35, edge: 0xffe394, band: 0x80502e, socket: 0x4d302e, gem: 0x83f4cb },
 };
 
+export interface HammerMeshOptions {
+  /** First-person view paints a glove on the shaft; the third-person body already has an arm. */
+  glove?: boolean;
+  /** Shift the mesh so the grip sits at the origin and a parent can place the hand. */
+  gripAtOrigin?: boolean;
+}
+
+/** Centre of the leather wrap — the point a fist should close around. */
+export const HAMMER_GRIP_Y = -0.35;
+
 /** Small voxel solids merged into one draw call; colors stay readable in caves. */
-export function createHammerGeometry(tier: HammerTier): THREE.BufferGeometry {
+export function createHammerGeometry(tier: HammerTier, options: HammerMeshOptions = {}): THREE.BufferGeometry {
   const p = PALETTES[tier];
   const pieces: THREE.BufferGeometry[] = [];
   const box = (w: number, h: number, d: number, x: number, y: number, z: number, hex: number): void => {
@@ -56,15 +66,18 @@ export function createHammerGeometry(tier: HammerTier): THREE.BufferGeometry {
   box(0.042, 0.125, 0.019, 0, hy, 0.194, p.gem);
   box(0.023, 0.035, 0.006, -0.014, hy + 0.022, 0.209, 0xfff3cf);
 
-  // A blocky glove wraps the shaft, with a visible thumb and blue sleeve.
-  box(0.19, 0.16, 0.185, 0.025, -0.285, 0.018, 0xb77b51);
-  box(0.07, 0.12, 0.075, -0.06, -0.245, 0.108, 0xd49a67);
-  for (let i = 0; i < 3; i++) box(0.11, 0.012, 0.008, 0.055, -0.24 - i * 0.043, 0.115, 0x855338);
-  box(0.2, 0.065, 0.19, 0.034, -0.4, 0.019, 0x284d64);
-  box(0.195, 0.25, 0.18, 0.04, -0.55, 0.013, 0x447e97);
+  if (options.glove !== false) {
+    // A blocky glove wraps the shaft, with a visible thumb and blue sleeve.
+    box(0.19, 0.16, 0.185, 0.025, -0.285, 0.018, 0xb77b51);
+    box(0.07, 0.12, 0.075, -0.06, -0.245, 0.108, 0xd49a67);
+    for (let i = 0; i < 3; i++) box(0.11, 0.012, 0.008, 0.055, -0.24 - i * 0.043, 0.115, 0x855338);
+    box(0.2, 0.065, 0.19, 0.034, -0.4, 0.019, 0x284d64);
+    box(0.195, 0.25, 0.18, 0.04, -0.55, 0.013, 0x447e97);
+  }
 
   const merged = mergeGeometries(pieces, false)!;
   for (const geometry of pieces) geometry.dispose();
+  if (options.gripAtOrigin) merged.translate(0, -HAMMER_GRIP_Y, 0);
   merged.computeBoundingSphere();
   return merged;
 }
