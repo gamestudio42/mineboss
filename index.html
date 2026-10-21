@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MineBoss</title>
+    <meta name="theme-color" content="#05070c" />
     <meta
       name="description"
       content="MineBoss: aventura de blocos no navegador. Construa, explore e lute com chefões opcionais."
@@ -31,10 +32,80 @@
       name="twitter:image"
       content="https://gamestudio42.github.io/mineboss/og.jpg"
     />
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="stylesheet" href="/src/styles.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05070c;
+      }
+      .boot-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: radial-gradient(circle at 50% 40%, #182837 0%, #05070c 70%);
+        color: #e8eef6;
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      }
+      .boot-screen img {
+        width: 96px;
+        height: 96px;
+      }
+      .boot-word {
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: 0.28em;
+        margin-right: -0.28em;
+        line-height: 1;
+        color: #ffb347;
+      }
+      .boot-step {
+        margin: 0;
+        color: #8b9bb0;
+        font-size: 14px;
+      }
+      .boot-progress {
+        width: min(260px, 70vw);
+        height: 6px;
+        overflow: hidden;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .boot-progress-fill {
+        width: 0;
+        height: 100%;
+        background: linear-gradient(90deg, #c47a28, #ffb347, #ffe08a);
+      }
+    </style>
   </head>
   <body>
+    <div
+      id="boot-screen"
+      class="boot-screen"
+      data-testid="boot-screen"
+      data-step="graphics"
+      aria-busy="true"
+    >
+      <img src="%BASE_URL%favicon.svg" alt="" />
+      <strong class="boot-word">MINEBOSS</strong>
+      <p class="boot-step" data-testid="boot-step">Carregando…</p>
+      <div
+        class="boot-progress"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+      >
+        <div class="boot-progress-fill"></div>
+      </div>
+    </div>
     <div id="app">
       <canvas id="viewport"></canvas>
 
@@ -87,7 +158,7 @@
       <div id="session-status" class="hidden" role="status">Registro ligado</div>
       <div id="damage-flash"></div>
 
-      <div id="overlay">
+      <div id="overlay" class="hidden" data-testid="main-menu">
         <div id="overlay-panel">
           <h1 class="title">MINEBOSS</h1>
           <p id="overlay-text">
