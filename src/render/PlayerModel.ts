@@ -9,6 +9,7 @@ import {
 } from '../world/blocks.ts';
 import type { BlockAtlas } from './atlas.ts';
 import { createHammerGeometry } from './HammerModel.ts';
+import { createPlayerHeadMaterials } from './PlayerSkin.ts';
 
 /** Local pose on the right arm: grip in the fist, head hanging so the silhouette reads. */
 export const HAND_HAMMER = {
@@ -17,13 +18,11 @@ export const HAND_HAMMER = {
   scale: 0.42,
 } as const;
 
-const SKIN = 0xf0c9a0;
-const HAIR = 0x5c3a24;
+const SKIN = 0xe0b089;
 const SHIRT = 0x3d8fd1;
 const SHIRT_DARK = 0x2b6ea8;
 const PANTS = 0x3a4a6b;
 const SHOES = 0x4a3728;
-const EYE = 0x2a2420;
 
 const PLATE_METAL: Record<PlateTier.Iron | PlateTier.Gold, { body: number; trim: number }> = {
   [PlateTier.Iron]: { body: 0x9aa4b0, trim: 0xdce3ec },
@@ -101,9 +100,9 @@ export interface PlayerPose {
 }
 
 /**
- * Blocky person standing on the player's feet. The face looks along local -Z,
- * which matches the player's yaw. Armor is a slightly larger shell so the
- * suit reads without covering the eyes.
+ * Blocky person standing on the player's feet. The face is painted on the
+ * head cube and looks along local -Z, matching the player's yaw. Armor is a
+ * slightly larger shell so the suit reads without covering the eyes.
  */
 export class PlayerModel {
   readonly root = new THREE.Group();
@@ -150,26 +149,8 @@ export class PlayerModel {
     const head = new THREE.Group();
     head.position.y = 1.58;
     this.root.add(head);
-    const face = box(head, 0.44, 0.44, 0.44, SKIN, 0, 0, 0);
-    face.material.emissive.setHex(0x8a6244);
-    face.material.emissiveIntensity = 0.55;
-    this.hair.push(box(head, 0.46, 0.16, 0.46, HAIR, 0, 0.22, 0.02));
-    this.hair.push(box(head, 0.46, 0.28, 0.12, HAIR, 0, 0.06, 0.16));
-    const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xf4f1ea });
-    const pupil = new THREE.MeshBasicMaterial({ color: EYE });
-    for (const side of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.03), eyeWhite);
-      eye.position.set(side * 0.1, 0.04, -0.23);
-      const dot = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.02), pupil);
-      dot.position.set(side * 0.1, 0.03, -0.25);
-      head.add(eye, dot);
-    }
-    const smile = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 0.035, 0.03),
-      new THREE.MeshBasicMaterial({ color: 0x8a4b3a }),
-    );
-    smile.position.set(0, -0.1, -0.25);
-    head.add(smile);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.44), createPlayerHeadMaterials());
+    head.add(face);
     this.suitPiece(head, 0.56, 0.2, 0.56, 0, 0.24, 0, true);
     this.suitPiece(head, 0.52, 0.28, 0.08, -0.24, 0.02, 0, false);
     this.suitPiece(head, 0.52, 0.28, 0.08, 0.24, 0.02, 0, false);
