@@ -10,6 +10,13 @@ import {
 import type { BlockAtlas } from './atlas.ts';
 import { createHammerGeometry } from './HammerModel.ts';
 
+/** Local pose on the right arm: grip in the fist, head hanging so the silhouette reads. */
+export const HAND_HAMMER = {
+  position: new THREE.Vector3(0.04, -0.62, 0.02),
+  rotation: new THREE.Euler(Math.PI + 0.2, 0.9, 0.15),
+  scale: 0.42,
+} as const;
+
 const SKIN = 0xf0c9a0;
 const HAIR = 0x5c3a24;
 const SHIRT = 0x3d8fd1;
@@ -179,14 +186,15 @@ export class PlayerModel {
     this.suitPiece(this.rightArm, 0.22, 0.14, 0.22, 0, -0.04, 0, true);
     this.suitPiece(this.leftArm, 0.2, 0.36, 0.08, 0, -0.28, -0.1, false);
     this.suitPiece(this.rightArm, 0.2, 0.36, 0.08, 0, -0.28, -0.1, false);
+    box(this.rightArm, 0.2, 0.16, 0.2, SKIN, 0.03, -0.62, 0.02);
 
     this.hammer = new THREE.Mesh(
-      createHammerGeometry(HammerTier.Wood),
+      createHammerGeometry(HammerTier.Wood, { glove: false, gripAtOrigin: true }),
       new THREE.MeshLambertMaterial({ vertexColors: true }),
     );
-    this.hammer.scale.setScalar(0.52);
-    this.hammer.position.set(0.1, -0.55, -0.28);
-    this.hammer.rotation.set(0.55, 0.2, 0.15);
+    this.hammer.scale.setScalar(HAND_HAMMER.scale);
+    this.hammer.position.copy(HAND_HAMMER.position);
+    this.hammer.rotation.copy(HAND_HAMMER.rotation);
     this.rightArm.add(this.hammer);
 
     const heldGeometry = new THREE.BoxGeometry(0.26, 0.26, 0.26);
@@ -194,7 +202,7 @@ export class PlayerModel {
       heldGeometry,
       new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.5 }),
     );
-    this.held.position.set(0.16, -0.58, -0.28);
+    this.held.position.set(0.02, -0.58, -0.16);
     this.held.visible = false;
     this.rightArm.add(this.held);
 
@@ -225,13 +233,14 @@ export class PlayerModel {
     if (tier === this.tier) return;
     this.tier = tier;
     this.hammer.geometry.dispose();
-    this.hammer.geometry = createHammerGeometry(tier);
+    this.hammer.geometry = createHammerGeometry(tier, { glove: false, gripAtOrigin: true });
   }
 
   setHeld(block: number | null): void {
     if (block === this.heldBlock) return;
     this.heldBlock = block;
     this.held.visible = block !== null;
+    this.hammer.visible = block === null;
     if (block !== null) paintBlockUvs(this.held.geometry, block);
   }
 
@@ -247,7 +256,8 @@ export class PlayerModel {
 
     const progress = pose.swingDuration > 0 ? 1 - Math.min(1, pose.swing / pose.swingDuration) : 1;
     const attack = pose.swing > 0 ? Math.sin(Math.min(1, progress) * Math.PI) : 0;
-    this.rightArm.rotation.x = attack > 0.01 ? -1.2 * attack : step * 0.75;
+    this.rightArm.rotation.z = 0.22;
+    this.rightArm.rotation.x = attack > 0.01 ? -1.2 * attack : step * 0.75 - 0.28;
 
     const bob = pose.reducedMotion ? 0 : Math.abs(Math.sin(this.walkPhase)) * 0.045 * this.walkAmount;
     this.root.position.set(pose.x, pose.y + bob, pose.z);

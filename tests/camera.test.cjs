@@ -5,6 +5,9 @@ const THREE = require('three');
 const { Player } = require('../src/player/Player.ts');
 const { PLAYER_EYE_HEIGHT } = require('../src/player/Player.ts');
 const { PlayerController, CameraView, THIRD_PERSON_DISTANCE, nextCameraView, placePlayerCamera } = require('../src/player/PlayerController.ts');
+const { createHammerGeometry, HAMMER_GRIP_Y } = require('../src/render/HammerModel.ts');
+const { HAND_HAMMER, PlayerModel } = require('../src/render/PlayerModel.ts');
+const { HammerTier } = require('../src/player/Hammer.ts');
 const { BlockInteraction } = require('../src/player/BlockInteraction.ts');
 const { Block } = require('../src/world/blocks.ts');
 const { World } = require('../src/world/World.ts');
@@ -73,6 +76,33 @@ test('the live controller keeps first person on the eyes and third person behind
   player.getEyePosition(eye);
   assert.ok(camera.position.z > eye.z + 3);
   assert.equal(camera.position.y, eye.y);
+});
+
+test('third-person hammer uses a bare mesh with the grip at the origin', () => {
+  const gloved = createHammerGeometry(HammerTier.Wood);
+  const bare = createHammerGeometry(HammerTier.Wood, { glove: false, gripAtOrigin: true });
+  gloved.computeBoundingBox();
+  bare.computeBoundingBox();
+  assert.ok(bare.attributes.position.count < gloved.attributes.position.count);
+  assert.ok(bare.boundingBox.min.y < 0.08);
+  assert.ok(bare.boundingBox.max.y > -HAMMER_GRIP_Y);
+});
+
+test('the body hammer sits in the right fist instead of floating beside the hip', () => {
+  const model = new PlayerModel({ texture: new THREE.Texture() });
+  /** @type {THREE.Mesh | null} */
+  let hammer = null;
+  model.root.traverse((object) => {
+    if (object.isMesh && object.material.vertexColors) hammer = object;
+  });
+  assert.ok(hammer);
+  assert.equal(hammer.parent.position.x, 0.34);
+  assert.deepEqual(hammer.position.toArray(), HAND_HAMMER.position.toArray());
+  assert.ok(Math.abs(hammer.position.z) < 0.1);
+  model.setHeld(Block.Dirt);
+  assert.equal(hammer.visible, false);
+  model.setHeld(null);
+  assert.equal(hammer.visible, true);
 });
 
 test('mining and melee aim from the eyes, not from where the third-person camera sits', () => {
