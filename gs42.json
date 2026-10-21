@@ -2,7 +2,10 @@
   "title": "MineBoss",
   "tagline": {
     "en": "A block adventure in the browser. Build, explore, fight optional bosses.",
-    "pt": "Aventura de blocos no navegador. Construa, explore e lute com chefões opcionais."
+    "pt": "Aventura de blocos no navegador. Construa, explore e lute com chefões opcionais.",
+    "es": "Una aventura de bloques en el navegador. Construye, explora y lucha contra jefes opcionales.",
+    "fr": "Une aventure de blocs dans le navigateur. Construisez, explorez, affrontez des boss optionnels.",
+    "de": "Ein Block-Abenteuer im Browser. Bauen, erkunden, optionale Bosse bekämpfen."
   },
   "cover": "docs/readme/aventura.png",
   "genre": "voxel-sandbox",
