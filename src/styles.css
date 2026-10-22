@@ -466,6 +466,63 @@ body {
   }
 }
 
+/* Studio seal. The phosphor green is the studio colour, not a world token. */
+.studio-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #8b9bb0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  pointer-events: auto;
+}
+
+.studio-mark img {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+
+.studio-mark:hover,
+.studio-mark:focus-visible {
+  color: #f2f4f8;
+}
+
+.studio-mark-boot {
+  margin-top: 6px;
+}
+
+.studio-mark-menu {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  padding: 4px 12px 4px 4px;
+  background: rgba(12, 14, 20, 0.88);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+/* Corner of the play HUD. The world stays clear of a floating seal. */
+.studio-mark-play {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 6;
+}
+
+.studio-mark-play img {
+  width: 30px;
+  height: 30px;
+}
+
+#hud:not(.hidden) ~ #save-status,
+#hud:not(.hidden) ~ #session-status {
+  right: 58px;
+}
+
 /* ------------------------------------------------------- Overlay menu */
 
 #overlay {

@@ -54,9 +54,23 @@
         color: #e8eef6;
         font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       }
-      .boot-screen img {
+      .boot-screen > img {
         width: 96px;
         height: 96px;
+      }
+      .boot-screen .studio-mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        color: #8b9bb0;
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-decoration: none;
+      }
+      .boot-screen .studio-mark img {
+        width: 28px;
+        height: 28px;
       }
       .boot-word {
         font-size: 40px;
@@ -105,6 +119,10 @@
       >
         <div class="boot-progress-fill"></div>
       </div>
+      <a class="studio-mark studio-mark-boot" href="https://gamestudio42.github.io/" target="_blank" rel="noreferrer" aria-label="Game Studio 42">
+        <img src="%BASE_URL%studio-badge.svg" alt="" width="28" height="28" />
+        <span>Game Studio 42</span>
+      </a>
     </div>
     <div id="app">
       <canvas id="viewport"></canvas>
@@ -152,6 +170,9 @@
         </div>
 
         <div id="debug" class="hidden"></div>
+        <a class="studio-mark studio-mark-play" href="https://gamestudio42.github.io/" target="_blank" rel="noreferrer" aria-label="Game Studio 42" data-testid="studio-mark">
+          <img src="%BASE_URL%studio-badge.svg" alt="" width="30" height="30" />
+        </a>
       </div>
 
       <div id="save-status" role="status" aria-live="polite"></div>
@@ -159,6 +180,10 @@
       <div id="damage-flash"></div>
 
       <div id="overlay" class="hidden" data-testid="main-menu">
+        <a class="studio-mark studio-mark-menu" href="https://gamestudio42.github.io/" target="_blank" rel="noreferrer" aria-label="Game Studio 42" data-testid="studio-mark">
+          <img src="%BASE_URL%studio-badge.svg" alt="" width="28" height="28" />
+          <span>Game Studio 42</span>
+        </a>
         <div id="overlay-panel">
           <h1 class="title">MINEBOSS</h1>
           <p id="overlay-text">
