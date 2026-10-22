@@ -10,5 +10,5 @@
   "cover": "docs/readme/aventura.png",
   "genre": "voxel-sandbox",
   "tech": ["TypeScript", "three.js", "Vite"],
-  "order": 2
+  "order": 3
 }
