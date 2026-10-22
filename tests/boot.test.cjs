@@ -15,12 +15,20 @@ test('the page ships a splash that matches the Urbe boot pattern', () => {
   assert.match(html, /MINEBOSS/);
   assert.match(html, /Carregando…/);
   assert.match(html, /favicon\.svg/);
+  assert.match(html, /studio-badge\.svg/);
+  assert.match(html, /studio-mark-boot/);
+  assert.match(html, /studio-mark-menu/);
+  assert.match(html, /studio-mark-play/);
+  assert.match(html, /https:\/\/gamestudio42\.github\.io\//);
+  assert.match(html, /aria-label="Game Studio 42"/);
   assert.match(html, /theme-color" content="#05070c"/);
   assert.match(html, /id="overlay" class="hidden"/);
   assert.match(html, /data-testid="main-menu"/);
 
   const css = fs.readFileSync(path.join(root, 'src/styles.css'), 'utf8');
   assert.match(css, /\.boot-screen/);
+  assert.match(css, /\.studio-mark-menu/);
+  assert.match(css, /\.studio-mark-play/);
   assert.match(css, /\.boot-screen\.leaving/);
   assert.match(css, /prefers-reduced-motion/);
 
