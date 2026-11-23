@@ -62,8 +62,9 @@ import { loadSettings, QUALITY, type StoredSettings } from './Settings.ts';
 import { albumCount, albumPanel, albumSections, buildFoundText, type AlbumSection } from '../ui/Album.ts';
 import { buildIdeaPanel, BUILD_IDEAS } from '../ui/BuildIdeas.ts';
 import { BuildWatcher, type RecognizedBuild } from '../world/builds.ts';
-import { combatCue, showActionCue, spokenCue } from '../ui/CombatCue.ts';
+import { combatCue, cueForTouch, showActionCue, spokenCue, type ActionCue } from '../ui/CombatCue.ts';
 import { hudChrome } from '../ui/HudChrome.ts';
+import { bindTouchControls, prefersTouch } from '../ui/TouchControls.ts';
 import { Shockwave } from '../entities/boss/attacks/Shockwave.ts';
 import { holdsCoverBlock } from '../entities/boss/attacks/cover.ts';
 import { LightBeam } from '../entities/boss/attacks/LightBeam.ts';
@@ -160,6 +161,7 @@ export class Game {
   private readonly oneBlock: OneBlock;
   private readonly hud: Hud;
   private readonly overlay = new Overlay();
+  private touchRoot: HTMLElement | null = null;
   private readonly session = new SessionLog();
 
   private reducedMotion = false;
@@ -250,7 +252,7 @@ export class Game {
     this.scene.add(this.playerModel.root);
     this.hud = new Hud(this.atlas);
     this.combat.onHit = vulnerable => {
-      this.hud.showHint(vulnerable ? 'Acertou! Ele está vulnerável!' : 'Acertou!', 0.7);
+      this.note(vulnerable ? 'Acertou! Ele está vulnerável!' : 'Acertou!', 0.7);
       if (vulnerable) this.hitStop.trigger(HIT_STOP.stagger);
     };
     this.arena = new BossArena(this.entities, {
@@ -262,10 +264,10 @@ export class Game {
       onPhase: (phase, label) => {
         this.hud.bossBar.setPhase(label);
         if (phase === 2) {
-          this.hud.showHint('Desvie das pedras e dos monstrinhos. Bata quando ele ficar vulnerável.', 3.5);
+          this.note('Desvie das pedras e dos monstrinhos. Bata quando ele ficar vulnerável.', 3.5);
           return;
         }
-        this.hud.showHint(`${label}: ele está mais forte`, 2.5);
+        this.note(`${label}: ele está mais forte`, 2.5);
       },
       onVictory: () => this.win(),
       onShake: (intensity) => this.shake(intensity),
@@ -279,7 +281,7 @@ export class Game {
       },
       onPhase: (_phase, label) => {
         this.hud.bossBar.setPhase(label);
-        this.hud.showHint(`${label}: ele joga pedras — saia dos círculos`, 3.2);
+        this.note(`${label}: ele joga pedras — saia dos círculos`, 3.2);
       },
       onDefeated: () => {
         this.rewardBoss(Block.SentinelTrophy);
@@ -289,7 +291,7 @@ export class Game {
         this.session?.record('victory', { boss: 'sentinel' });
         this.showBossVictory('Sentinela vencido!', 'sentinel');
         this.hud.bossBar.hide();
-        this.hud.showHint(
+        this.note(
           (this.mode === 'adventure' || this.oneBlock.shrineUnlocked)
             ? 'Você venceu o Sentinela! O santuário fica ao norte'
             : 'Você venceu o Sentinela! Continue explorando o bloco',
@@ -308,7 +310,7 @@ export class Game {
       },
       onPhase: (_phase, label) => {
         this.hud.bossBar.setPhase(label);
-        this.hud.showHint(`${label}: brotos vão sair do chão. Bata quando ele ficar vulnerável.`, 3.2);
+        this.note(`${label}: brotos vão sair do chão. Bata quando ele ficar vulnerável.`, 3.2);
       },
       onDefeated: () => {
         this.rewardBoss(Block.BeaconTrophy);
@@ -318,7 +320,7 @@ export class Game {
         this.session?.record('victory', { boss: 'beacon' });
         this.showBossVictory('Faroleiro vencido!', 'beacon');
         this.hud.bossBar.hide();
-        this.hud.showHint('Você venceu o Faroleiro! A lanterna do farol está nos materiais', 4.2);
+        this.note('Você venceu o Faroleiro! A lanterna do farol está nos materiais', 4.2);
         this.saveSoon = true;
       },
       onShake: (intensity) => this.shake(intensity),
@@ -348,6 +350,7 @@ export class Game {
       this.overlay.show({ title: 'Vamos ativar o mouse', text: 'Clique na aba do jogo para ativá-la e tente abaixo. Se o navegador pedir, permita usar o mouse.', button: 'Ativar mouse', secondary: 'Voltar à pausa', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     };
     document.getElementById('mouse-activate')!.onclick = () => this.input.requestLock();
+    this.installTouch();
     this.loop = new Loop((dt) => this.tick(dt));
 
     const settings = loadSettings();
@@ -363,7 +366,7 @@ export class Game {
       }
       if (this.mode === 'oneblock') {
         const earned = this.oneBlock.claimGoals(this.world, this.player);
-        if (earned.length) { this.hud.showHint('Você conseguiu! Novos materiais na mochila.', 5); this.saveSoon = true; }
+        if (earned.length) { this.note('Você conseguiu! Novos materiais na mochila.', 5); this.saveSoon = true; }
       }
     };
     this.interaction.onBuildEdit = edit => {
@@ -371,8 +374,8 @@ export class Game {
       if (isSolid(edit.after)) this.noticeBuild(edit.x, edit.y, edit.z);
     };
     this.interaction.onEntityUse = () => this.tapPet();
-    this.player.inventory.onOverflow = () => this.hud.showHint('Barra cheia: material guardado na mochila. Aperte B.', 4);
-    this.oneBlock.onWarning = () => this.hud.showHint('⚠ Um monstrinho está chegando! Afaste-se do bloco.', 3);
+    this.player.inventory.onOverflow = () => this.note('Barra cheia: material guardado na mochila. Aperte B.', 4);
+    this.oneBlock.onWarning = () => this.note('⚠ Um monstrinho está chegando! Afaste-se do bloco.', 3);
     window.addEventListener('pagehide', () => {
       this.session?.flush();
       if (this.state !== 'menu') this.persistSave({ atSpawn: this.player.dead });
@@ -388,7 +391,7 @@ export class Game {
     this.interaction.onOneBlockMined = () => this.handleOneBlockMined();
     this.interaction.onConsumed = (healed) => {
       if (healed <= 0) {
-        this.hud.showHint('Sua vida já está cheia', 1.6);
+        this.note('Sua vida já está cheia', 1.6);
         return;
       }
       this.hud.flashHeal();
@@ -396,41 +399,41 @@ export class Game {
     this.interaction.onConsumableFound = (name) => {
       if (this.hintedConsumable) return;
       this.rememberHint('eat');
-      this.hud.showHint(`Botão direito: comer ${name} e recuperar vida`, 3.5);
+      this.note(`Botão direito: comer ${name} e recuperar vida`, 3.5);
     };
     this.interaction.onUpgradeFound = (name) => {
       if (!this.hintedUpgrade) {
         this.hintedUpgrade = true;
-        this.hud.showHint(`C: criar um martelo com ${UPGRADE_COST} ${name}`, 3.5);
+        this.note(`C: criar um martelo com ${UPGRADE_COST} ${name}`, 3.5);
         return;
       }
       if (name.includes('Gold') && this.player.hammerTier >= HammerTier.Gold && this.player.plates < PlateTier.Gold) {
-        this.hud.showHint(`C: criar armadura com ${PLATE_COST} ${name}`, 3.5);
+        this.note(`C: criar armadura com ${PLATE_COST} ${name}`, 3.5);
         return;
       }
       if (this.player.hammerTier < HammerTier.Iron || this.player.plates >= PlateTier.Iron) return;
-      this.hud.showHint(`C: criar armadura com ${PLATE_COST} ${name}`, 3.5);
+      this.note(`C: criar armadura com ${PLATE_COST} ${name}`, 3.5);
     };
-    this.interaction.onHammerFeedback = (text) => this.hud.showHint(text, 2.4);
+    this.interaction.onHammerFeedback = (text) => this.note(text, 2.4);
     this.interaction.onTorchFuelFound = (name) => {
       if (this.hintedTorch) return;
       this.rememberHint('torch');
-      this.hud.showHint(`C: use ${name} para criar tochas`, 3.5);
+      this.note(`C: use ${name} para criar tochas`, 3.5);
     };
     this.interaction.onBedFound = () => {
       if (this.hintedBed) return;
       this.hintedBed = true;
-      this.hud.showHint('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
+      this.note('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
     };
     this.interaction.onChestOpened = () => {
       const loot = chestLoot(this.mode === 'oneblock' ? this.oneBlock.phaseIndex : 0);
       for (const item of loot) this.player.inventory.add(item.id, item.count);
       const names = loot.map(item => `${item.count} ${getBlockDef(item.id).name}`).join(', ');
-      this.hud.showHint(`O baú trouxe ${names}.`, 3.6);
+      this.note(`O baú trouxe ${names}.`, 3.6);
       this.saveSoon = true;
     };
     this.interaction.onSpawnSet = () => {
-      this.hud.showHint('Você vai voltar aqui ao renascer', 2.6);
+      this.note('Você vai voltar aqui ao renascer', 2.6);
       this.saveSoon = true;
     };
     this.player.health.onDamage = (amount) => {
@@ -444,7 +447,7 @@ export class Game {
       this.sfx.play('plate');
       if (this.hintedPlates) return;
       this.hintedPlates = true;
-      this.hud.showHint('Sua armadura protegeu você', 3.2);
+      this.note('Sua armadura protegeu você', 3.2);
     };
     this.player.health.onDeath = () => {
       this.pendingDeath = true;
@@ -569,20 +572,20 @@ export class Game {
     this.hud.setVisible(true);
     this.state = 'playing';
     this.session?.begin(this.sessionContext());
-    this.input.requestLock();
-    document.getElementById('mouse-prompt')!.classList.toggle('hidden', this.input.locked);
+    if (!this.input.coarse) this.input.requestLock();
+    document.getElementById('mouse-prompt')!.classList.toggle('hidden', this.input.locked || this.input.coarse);
     if (this.inEncounter || this.practice) {
       this.hud.hideHint();
     } else if (this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked) {
-      this.hud.showHint('Use o direito para colocar terra e ampliar a ilha.', 5);
+      this.note('Use o direito para colocar terra e ampliar a ilha.', 5);
     } else if (this.player.creative) {
-      this.hud.showHint('B: escolha blocos. Esc: construir, base e chefões.', 4);
+      this.note('B: escolha blocos. Esc: construir, base e chefões.', 4);
     } else if (!this.arena.ruinFound) {
       this.rememberHint('ruin');
-      this.hud.showHint('Encontre o Sentinela: siga a bússola ou use Visitar no menu', 4.2);
+      this.note('Encontre o Sentinela: siga a bússola ou use Visitar no menu', 4.2);
     } else if (!this.player.creative && !this.hintedBed && this.player.inventory.slots.some((slot) => slot.block === Block.Bed)) {
       this.hintedBed = true;
-      this.hud.showHint('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
+      this.note('Coloque a cama e clique nela com o botão direito para descansar', 3.8);
     }
     this.persistSave();
   }
@@ -810,13 +813,13 @@ export class Game {
     if (!landed) return;
     this.hintedWall = true;
     const text = landed instanceof LightBeam ? BEAM_WALL_HINT : WALL_HINT;
-    this.hud.showHint(text, 4.5);
+    this.note(text, 4.5);
     this.narrator?.say(text);
   }
 
   private hintStagger(): void {
     this.hintedStagger = true;
-    this.hud.showHint('BATA AGORA! O chefão está vulnerável!', 3.4);
+    this.note('BATA AGORA! O chefão está vulnerável!', 3.4);
   }
 
   private rememberHint(id: string): void {
@@ -868,8 +871,9 @@ export class Game {
     );
     if (!hint) return;
     this.rememberHint(hint.id);
-    this.hud.showHint(hint.text, 4.2);
-    this.narrator?.say(hint.text);
+    const line = this.touchLine(hint.text);
+    this.hud.showHint(line, 4.2);
+    this.narrator?.say(line);
     this.saveSoon = true;
   }
 
@@ -889,19 +893,74 @@ export class Game {
     return 'Seus itens estão seguros. Renasça e escolha quando tentar de novo.';
   }
 
+  /** Mouse play waits for pointer lock. Touch play starts immediately. */
+  private get handsOn(): boolean {
+    return this.input.locked || this.input.coarse;
+  }
+
+  private installTouch(): void {
+    this.input.coarse = prefersTouch();
+    document.documentElement.classList.toggle('coarse-pointer', this.input.coarse);
+    try {
+      window.matchMedia('(pointer: coarse), (hover: none)').addEventListener('change', () => {
+        this.input.coarse = prefersTouch();
+        document.documentElement.classList.toggle('coarse-pointer', this.input.coarse);
+      });
+    } catch { /* matchMedia is missing in some test hosts */ }
+    this.touchRoot = document.getElementById('touch-controls');
+    if (this.touchRoot) bindTouchControls(this.input, this.touchRoot);
+  }
+
+  /** Rewrites keyboard reminders once a coarse pointer is active. */
+  private touchLine(text: string): string {
+    if (!this.input?.coarse) return text;
+    const mapped: Record<string, string> = {
+      'Barra cheia: material guardado na mochila. Aperte B.': 'Barra cheia: material guardado na mochila. Toque em Blocos.',
+      'Coloque a cama e clique nela com o botão direito para descansar': 'Coloque a cama e toque em Colocar para descansar',
+      'Use o direito para colocar terra e ampliar a ilha.': 'Toque em Colocar para pôr terra e ampliar a ilha.',
+      'B: escolha blocos. Esc: construir, base e chefões.': 'Blocos: escolha. Menu: construir, base e chefões.',
+      'Sua base está marcada! Esc: Voltar à base.': 'Sua base está marcada! Menu: Voltar à base.',
+      'Sua vida está baixa. Botão direito: comer e recuperar vida': 'Sua vida está baixa. Toque em Colocar para comer e recuperar vida',
+      'C: use carvão para criar tochas': 'Menu: use carvão para criar tochas',
+      'Aperte C para criar itens.': 'Abra o menu para criar itens.',
+      'Treino sem dano · Espaço: pule a onda que vem até você': 'Treino sem dano · Pular: pule a onda que vem até você',
+      'Sem problema! Aperte Espaço quando a onda chegar.': 'Sem problema! Toque em Pular quando a onda chegar.',
+      'BATA AGORA! Chegue perto, mire no boneco e use o esquerdo.': 'BATA AGORA! Chegue perto, mire no boneco e segure Tirar.',
+      'Construa do seu jeito · Esc: sua base e chefões': 'Construa do seu jeito · Menu: base e chefões',
+      'Construa do seu jeito · B: blocos e mochila': 'Construa do seu jeito · Blocos: mochila',
+      'Botão direito na estátua: enfrentar o Sentinela': 'Toque em Colocar na estátua para enfrentar o Sentinela',
+      'O farol está ao sul. Botão direito na luz para enfrentar o Faroleiro': 'O farol está ao sul. Toque em Colocar na luz para enfrentar o Faroleiro',
+    };
+    if (mapped[text]) return mapped[text];
+    if (text.startsWith('Botão direito: comer ')) return `Colocar: comer ${text.slice('Botão direito: comer '.length)}`;
+    if (text.startsWith('C: criar ')) return `Menu: criar ${text.slice('C: criar '.length)}`;
+    if (text.startsWith('C: use ')) return `Menu: use ${text.slice('C: use '.length)}`;
+    return text;
+  }
+
+  private note(text: string, seconds: number): void {
+    this.hud.showHint(this.touchLine(text), seconds);
+  }
+
+  private showCue(cue: ActionCue | null): void {
+    showActionCue(!cue || !this.input.coarse ? cue : cueForTouch(cue));
+  }
+
   private handleLockChange(locked: boolean): void {
-    document.getElementById('mouse-prompt')!.classList.toggle('hidden', locked || this.state !== 'playing');
+    document.getElementById('mouse-prompt')!.classList.toggle('hidden', locked || this.input.coarse || this.state !== 'playing');
     if (locked && this.state !== 'playing') { this.input.releaseLock(); return; }
-    if (!locked && this.state === 'playing') this.pause();
+    if (!locked && this.state === 'playing' && !this.input.coarse) this.pause();
   }
 
   private tick(dt: number): void {
     if (this.state === 'playing') {
-      if (this.input.locked) this.updateWorld(dt);
+      if (this.handsOn) this.updateWorld(dt);
       else if (this.input.wasPressed('Escape')) this.pause();
     }
+    this.touchRoot?.classList.toggle('hidden', !(this.input.coarse && this.state === 'playing'));
+    if (this.input.coarse) document.getElementById('mouse-prompt')?.classList.add('hidden');
 
-    this.sfx.setMusic(musicTheme(this.state === 'playing' && this.input.locked, this.inEncounter));
+    this.sfx.setMusic(musicTheme(this.state === 'playing' && this.handsOn, this.inEncounter));
     this.sfx.updateMusic();
     this.updateAtmosphere(dt);
     this.renderer.render(this.scene, this.camera);
@@ -921,7 +980,7 @@ export class Game {
     this.session?.observe({
       dt,
       playing: this.state === 'playing',
-      locked: this.input.locked,
+      locked: this.handsOn,
       moving: isMoving(this.input),
       looking: this.input.mouseDX !== 0 || this.input.mouseDY !== 0,
       fps: this.loop.fps,
@@ -930,7 +989,7 @@ export class Game {
     this.handleHotbarInput();
     const toss = this.tossHold.update(this.input.isDown('KeyQ') && !this.practice, dt);
     if (toss === 'fire') this.interaction.tossSelected();
-    else if (toss === 'tap') this.hud.showHint('Segure Q para soltar um bloco', 2);
+    else if (toss === 'tap') this.note('Segure Q para soltar um bloco', 2);
     if (this.input.wasPressed('F3')) this.hud.debug.toggle();
 
     this.player.health.immune = this.player.creative || this.practice !== null;
@@ -955,7 +1014,7 @@ export class Game {
         this.tutorialDone = true;
         this.saveSoon = true;
         this.session?.record('lesson', { step: 'done' });
-        this.hud.showHint('Muito bem! Você já sabe escolher, colocar e remover blocos.', 5);
+        this.note('Muito bem! Você já sabe escolher, colocar e remover blocos.', 5);
       }
     }
 
@@ -1030,6 +1089,7 @@ export class Game {
   }
 
   private updateHud(dt: number): void {
+    this.hud.touch = this.input.coarse;
     this.hud.update(
       dt,
       this.player.inventory,
@@ -1053,15 +1113,16 @@ export class Game {
       flying: this.player.flying,
       fighting,
       tutorialDone: this.tutorialDone,
+      coarse: this.input.coarse,
       elapsed: this.elapsed,
       oneBlockMark: `${this.oneBlock.label} · ${oneBlockMark}`,
     });
     this.hud.setPhase(chrome.phase);
     const lesson = fighting ? 0 : this.buildLesson;
-    updateBuildLesson(lesson);
+    updateBuildLesson(lesson, this.input.coarse);
     if (lesson !== this.spokenLesson) {
       this.spokenLesson = lesson;
-      if (lesson) this.narrator?.say(lessonCaption(lesson), 0);
+      if (lesson) this.narrator?.say(lessonCaption(lesson, this.input.coarse), 0);
     }
     setText('flight-status', chrome.flight);
     setText('play-help', chrome.playHelp);
@@ -1123,19 +1184,19 @@ export class Game {
       this.spokenFightCue = line;
       this.narrator?.say(line, FIGHT_CUE_REPEAT_SECONDS);
     }
-    if (cue) showActionCue(cue);
-    else if (this.controller.edgeBlocked) showActionCue({ icon: '✋', key: 'Espaço', text: 'Proteção de borda: queda à frente', kind: 'warning' });
-    else if (this.interaction.placementHint) showActionCue({ icon: '!', key: '', text: this.interaction.placementHint, kind: 'warning' });
-    else if (this.buildLesson) showActionCue(null);
-    else if (this.combat.aimed) showActionCue({ icon: '🔨', key: 'Esquerdo', text: 'Bater', kind: 'attack' });
-    else if (this.interaction.aimingAltar || this.interaction.aimingStatue || this.interaction.aimingBeacon) showActionCue({ icon: '👑', key: 'Direito', text: 'Visitar chefão', kind: 'build' });
-    else if (this.interaction.aimingBed) showActionCue({ icon: '☾', key: 'Direito', text: 'Descansar', kind: 'build' });
-    else if (this.interaction.aimingChest) showActionCue({ icon: '📦', key: 'Direito', text: 'Abrir baú', kind: 'build' });
-    else if (this.interaction.holdingConsumable) showActionCue({ icon: '♥', key: 'Direito', text: 'Comer', kind: 'build' });
-    else if (aimingCore) showActionCue({ icon: '🔨', key: 'Esquerdo', text: 'Segure para pegar blocos', kind: 'build' });
-    else if (this.interaction.holdingTorchFuel || this.interaction.holdingUpgradeOre) showActionCue({ icon: '🔨', key: 'C', text: 'Criar itens', kind: 'build' });
-    else if (target) showActionCue({ icon: '🧱', key: 'Direito', text: 'Colocar · esquerdo remove', kind: 'build' });
-    else showActionCue(null);
+    if (cue) this.showCue(cue);
+    else if (this.controller.edgeBlocked) this.showCue({ icon: '✋', key: 'Espaço', text: 'Proteção de borda: queda à frente', kind: 'warning' });
+    else if (this.interaction.placementHint) this.showCue({ icon: '!', key: '', text: this.interaction.placementHint, kind: 'warning' });
+    else if (this.buildLesson) this.showCue(null);
+    else if (this.combat.aimed) this.showCue({ icon: '🔨', key: 'Esquerdo', text: 'Bater', kind: 'attack' });
+    else if (this.interaction.aimingAltar || this.interaction.aimingStatue || this.interaction.aimingBeacon) this.showCue({ icon: '👑', key: 'Direito', text: 'Visitar chefão', kind: 'build' });
+    else if (this.interaction.aimingBed) this.showCue({ icon: '☾', key: 'Direito', text: 'Descansar', kind: 'build' });
+    else if (this.interaction.aimingChest) this.showCue({ icon: '📦', key: 'Direito', text: 'Abrir baú', kind: 'build' });
+    else if (this.interaction.holdingConsumable) this.showCue({ icon: '♥', key: 'Direito', text: 'Comer', kind: 'build' });
+    else if (aimingCore) this.showCue({ icon: '🔨', key: 'Esquerdo', text: 'Segure para pegar blocos', kind: 'build' });
+    else if (this.interaction.holdingTorchFuel || this.interaction.holdingUpgradeOre) this.showCue({ icon: '🔨', key: 'C', text: 'Criar itens', kind: 'build' });
+    else if (target) this.showCue({ icon: '🧱', key: 'Direito', text: 'Colocar · esquerdo remove', kind: 'build' });
+    else this.showCue(null);
     if (this.combat.aimed) this.hud.setCrosshair('attack');
     else if (fighting) this.hud.setCrosshair('idle');
     else if (this.interaction.aimingAltar || this.interaction.aimingStatue || this.interaction.aimingBeacon) this.hud.setCrosshair('altar');
@@ -1153,12 +1214,12 @@ export class Game {
     const position = this.player.position;
     if (this.practice) { this.setGuideObjective(null); this.hud.compass.update(false,0,''); return; }
     if (this.player.creative && !this.inEncounter) {
-      this.setGuideObjective(this.guidance ? 'Construa do seu jeito · Esc: sua base e chefões' : null);
+      this.setGuideObjective(this.guidance ? this.touchLine('Construa do seu jeito · Esc: sua base e chefões') : null);
       this.hud.compass.update(false, 0, '');
       return;
     }
     if (!this.guidance && !this.inEncounter) {
-      this.setGuideObjective('Construa do seu jeito · B: blocos e mochila');
+      this.setGuideObjective(this.touchLine('Construa do seu jeito · B: blocos e mochila'));
       this.hud.compass.update(false, 0, '');
       return;
     }
@@ -1171,14 +1232,14 @@ export class Game {
 
     if ((this.mode === 'adventure' || this.oneBlock.ruinUnlocked) && !this.ruin.defeated && this.arena.guideStage(position) === 'surface') {
       this.setGuideObjective(
-        this.arena.ruinFound ? 'Botão direito na estátua: enfrentar o Sentinela' : 'Encontre o Sentinela: siga a bússola ou use Visitar no menu',
+        this.arena.ruinFound ? this.touchLine('Botão direito na estátua: enfrentar o Sentinela') : 'Encontre o Sentinela: siga a bússola ou use Visitar no menu',
       );
       this.pointCompass(position, RUIN_STATUE.x + 0.5, position.y, RUIN_STATUE.z + 0.5);
       return;
     }
 
     if ((this.mode === 'adventure' || this.oneBlock.beaconUnlocked) && this.ruin.defeated && this.arena.defeated && !this.grove.defeated) {
-      this.setGuideObjective('O farol está ao sul. Botão direito na luz para enfrentar o Faroleiro');
+      this.setGuideObjective(this.touchLine('O farol está ao sul. Botão direito na luz para enfrentar o Faroleiro'));
       this.pointCompass(position, GROVE.x + 0.5, position.y, GROVE.z + 0.5);
       return;
     }
@@ -1338,7 +1399,7 @@ export class Game {
     if (this.ruin.active || this.arena.active || this.practice) return;
     if (this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked) return;
     if (!this.arena.tryDiscoverRuin(this.player.position)) return;
-    this.hud.showHint('Você encontrou o Sentinela! Botão direito na estátua para escolher a luta', 4.2);
+    this.note('Você encontrou o Sentinela! Botão direito na estátua para escolher a luta', 4.2);
     this.saveSoon = true;
   }
 
@@ -1363,7 +1424,7 @@ export class Game {
       life: 0.55,
       gravity: 6,
     });
-    this.hud.showHint(
+    this.note(
       leftovers > 0
         ? 'Recompensa guardada na mochila. Você vai renascer aqui.'
         : 'Você encontrou materiais! Vai renascer aqui.',
@@ -1642,7 +1703,7 @@ export class Game {
       this.pause();
       return;
     }
-    this.hud.showHint(this.cameraViewDescription(), 2.4);
+    this.note(this.cameraViewDescription(), 2.4);
   }
 
   private cameraViewDescription(): string {
@@ -1692,7 +1753,7 @@ export class Game {
 
   private showBuildingTools(): void {
     this.stopForPanel();
-    this.overlay.show({ title: this.player.creative ? 'Vamos construir!' : 'Mochila e criação', text: this.player.creative ? 'O contorno verde mostra onde colocar. Z desfaz; Y refaz.' : 'Escolha seus materiais ou crie itens.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    this.overlay.show({ title: this.player.creative ? 'Vamos construir!' : 'Mochila e criação', text: this.player.creative ? (this.input.coarse ? 'O contorno verde mostra onde colocar. O menu desfaz e refaz.' : 'O contorno verde mostra onde colocar. Z desfaz; Y refaz.') : 'Escolha seus materiais ou crie itens.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     this.overlay.addAction(this.player.creative ? 'Escolher blocos' : 'Abrir mochila', () => this.openCatalog(), { icon: '🧱' });
     if (this.player.creative) {
       this.overlay.addAction('Ideias para construir', () => this.showBuildIdeas(), { icon: '🏰' });
@@ -1755,7 +1816,7 @@ export class Game {
     this.logPanel('catalog');
     this.stopForPanel();
     const creative = this.player.creative;
-    this.overlay.show({ title: creative ? 'Escolha um bloco' : 'Sua mochila', text: creative ? 'Escolha uma figura. Depois, use o botão direito para colocar e o esquerdo para remover.' : 'Os materiais que não couberam na barra ficam aqui. Escolha um para usar no espaço selecionado.', button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+    this.overlay.show({ title: creative ? 'Escolha um bloco' : 'Sua mochila', text: creative ? (this.input.coarse ? 'Toque num bloco. Depois, Colocar põe e Tirar remove.' : 'Escolha uma figura. Depois, use o botão direito para colocar e o esquerdo para remover.') : (this.input.coarse ? 'Toque num material para usá-lo no espaço selecionado.' : 'Os materiais que não couberam na barra ficam aqui. Escolha um para usar no espaço selecionado.'), button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     if (creative) {
       for (const group of Object.keys(CATALOG_GROUPS)) this.overlay.addAction(group, () => this.openCatalog(group));
       const blocks = [...(CATALOG_GROUPS[category] ?? [])];
@@ -1838,7 +1899,7 @@ export class Game {
       this.petFollowing = false;
     }
     const text = buildFoundText(build.kind, petArrived);
-    this.hud.showHint(text, 6);
+    this.note(text, 6);
     this.narrator?.say(text);
     this.sfx.play('victory');
     this.session?.record('build', { id: build.kind });
@@ -1869,7 +1930,7 @@ export class Game {
     if (block && block.distance < hit.distance) return false;
     this.petFollowing = !this.petFollowing;
     const text = this.petFollowing ? 'Seu bichinho vai seguir você' : 'Seu bichinho vai esperar no curral';
-    this.hud.showHint(text, 3);
+    this.note(text, 3);
     this.narrator?.say(text);
     this.sfx.play('eat');
     this.player.startSwing();
@@ -1899,15 +1960,26 @@ export class Game {
   private showHelp(): void {
     this.logPanel('help');
     this.stopForPanel();
-    const firstSteps = this.mode === 'oneblock'
-      ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure o botão esquerdo para quebrá-lo.\n3. Escolha terra na barra e use o direito para ampliar a ilha.\n4. Um baú ao lado abre com o botão direito.'
-      : this.player.creative
-        ? '1. Aperte B e escolha um bloco.\n2. Mire no chão e use o direito para colocar.\n3. Clique com o esquerdo para remover.'
-        : '1. Use o esquerdo para pegar blocos.\n2. Use o direito para colocar ou usar.\n3. Aperte B para abrir a mochila.';
+    const firstSteps = this.input.coarse
+      ? (this.mode === 'oneblock'
+        ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure Tirar para quebrá-lo.\n3. Escolha terra na barra e toque em Colocar para ampliar a ilha.\n4. Um baú ao lado abre com Colocar.'
+        : this.player.creative
+          ? '1. Toque em Blocos e escolha um bloco.\n2. Olhe o chão e toque em Colocar.\n3. Toque em Tirar para remover.'
+          : '1. Toque em Tirar para pegar blocos.\n2. Toque em Colocar para pôr ou usar.\n3. Toque em Blocos para abrir a mochila.')
+      : (this.mode === 'oneblock'
+        ? '1. Olhe para baixo: o bloco infinito está sob seus pés.\n2. Segure o botão esquerdo para quebrá-lo.\n3. Escolha terra na barra e use o direito para ampliar a ilha.\n4. Um baú ao lado abre com o botão direito.'
+        : this.player.creative
+          ? '1. Aperte B e escolha um bloco.\n2. Mire no chão e use o direito para colocar.\n3. Clique com o esquerdo para remover.'
+          : '1. Use o esquerdo para pegar blocos.\n2. Use o direito para colocar ou usar.\n3. Aperte B para abrir a mochila.');
     const bossTip = this.mode === 'oneblock' && !this.oneBlock.ruinUnlocked
       ? `O Sentinela aparece depois de ${this.oneBlock.ruinAt} blocos quebrados.`
-      : 'Para o chefão: Esc > Chefões > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!';
-    this.overlay.show({ title: 'Como brincar', text: `${firstSteps}\n\nPara andar: W A S D ou as setas, e o mouse para olhar.\nV mostra o personagem por trás. Aperte de novo para voltar.\n${bossTip}`, button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
+      : this.input.coarse
+        ? 'Para o chefão: Menu > Chefões > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!'
+        : 'Para o chefão: Esc > Chefões > Visitar o Sentinela. Pule as ondas e bata quando aparecer BATA AGORA!';
+    const move = this.input.coarse
+      ? 'Para andar: use a alavanca. Arraste o dedo na tela para olhar.\nMenu mostra o personagem por trás.'
+      : 'Para andar: W A S D ou as setas, e o mouse para olhar.\nV mostra o personagem por trás. Aperte de novo para voltar.';
+    this.overlay.show({ title: 'Como brincar', text: `${firstSteps}\n\n${move}\n${bossTip}`, button: 'Voltar ao jogo', secondary: 'Menu', showControls: false }, () => this.startPlaying(), () => this.showPaused());
     if (this.player.creative) {
       this.overlay.addAction('Praticar construção', () => { this.tutorialDone = false; this.buildLesson = 0; this.openCatalog(); });
       this.overlay.addAction('Pular tutorial', () => { this.tutorialDone = true; this.buildLesson = 0; this.startPlaying(); });
@@ -1917,7 +1989,10 @@ export class Game {
 
   private showAdvancedHelp(): void {
     this.stopForPanel();
-    this.overlay.show({ title: 'Controles e receitas', text: 'V mostra o personagem por trás. Aperte de novo para a primeira pessoa.\nF liga o voo na construção livre; Espaço sobe e Shift desce. Segurar W acelera.\nSegure Q para soltar um bloco.\nZ desfaz e Y refaz na construção livre, fora das lutas.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.', button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
+    const controlsText = this.input.coarse
+      ? 'Arraste na tela para olhar. A alavanca anda.\nVoar liga o voo na construção livre; Pular sobe e Descer desce.\nSegure a alavanca para a frente para acelerar no voo.\nColocar come cogumelo ou cristal, abre baú e descansa na cama.\n1 carvão faz 4 tochas.\nNo menu, criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nMenu pausa e salva. Exporte o mundo para guardar uma cópia.'
+      : 'V mostra o personagem por trás. Aperte de novo para a primeira pessoa.\nF liga o voo na construção livre; Espaço sobe e Shift desce. Segurar W acelera.\nSegure Q para soltar um bloco.\nZ desfaz e Y refaz na construção livre, fora das lutas.\nCogumelo ou cristal: botão direito para comer.\n1 carvão faz 4 tochas.\nC abre a tela de criar: 4 tábuas fazem uma cama.\n3 ferros ou ouros melhoram o martelo; mais 4 fazem armadura.\nEsc abre o menu e salva. Exporte o mundo para guardar uma cópia.';
+    this.overlay.show({ title: 'Controles e receitas', text: controlsText, button: 'Voltar ao jogo', secondary: 'Ajuda resumida', showControls: true }, () => this.startPlaying(), () => this.showHelp());
   }
 
   private startPractice(): void {
@@ -1932,7 +2007,7 @@ export class Game {
     this.player.setSpawn(x,this.world.generator.surfaceHeight(x,z)+1,z);
     this.ensureSafeSpawn();this.player.respawn();this.player.yaw=Math.PI/2;
     this.practice = new BossPractice(this.player.position.x-3,this.player.position.y,this.player.position.z,
-      text=>this.hud.showHint(text,4),()=>this.stopPractice(true));
+      text=>this.note(text,4),()=>this.stopPractice(true));
     this.entities.add(this.practice);
     this.startPlaying();
   }
@@ -2031,13 +2106,13 @@ export class Game {
     const p = this.player.position;
     const floor = this.world.getBlock(Math.floor(p.x), Math.floor(p.y - 0.1), Math.floor(p.z));
     if (!this.player.body.onGround || !isSolid(floor) || getBlockDef(floor).contactDamage > 0) {
-      this.overlay.show({ title: 'Pouse para marcar sua base', text: 'Escolha um chão firme e desligue o voo com F. Depois marque sua base aqui.', button: 'Voltar ao jogo', showControls: false }, () => this.startPlaying());
+      this.overlay.show({ title: 'Pouse para marcar sua base', text: this.input.coarse ? 'Escolha um chão firme e toque em Voar para pousar. Depois marque sua base aqui.' : 'Escolha um chão firme e desligue o voo com F. Depois marque sua base aqui.', button: 'Voltar ao jogo', showControls: false }, () => this.startPlaying());
       return;
     }
     this.home = { x: p.x, y: p.y, z: p.z };
     this.player.spawn.copy(p);
     this.persistSave();
-    this.startPlaying(); this.hud.showHint('Sua base está marcada! Esc: Voltar à base.', 5);
+    this.startPlaying(); this.note('Sua base está marcada! Esc: Voltar à base.', 5);
   }
 
   private goHome(): void {
@@ -2058,7 +2133,7 @@ export class Game {
     if (!this.player.creative || this.inEncounter) return;
     const ok = this.buildHistory[redo ? 'redo' : 'undo'](this.world, (x,y,z) => this.interaction.intersectsPlayer(x,y,z));
     if (ok && this.buildLesson === 2) this.buildLesson = 1;
-    this.hud.showHint(ok ? (redo ? 'Bloco refeito! Y refaz mais.' : 'Bloco desfeito! Z desfaz mais; Y refaz.') : 'Nenhuma ação disponível aqui. Se há um bloco em você, afaste-se e tente de novo.', 3);
+    this.note(ok ? (redo ? 'Bloco refeito! Y refaz mais.' : 'Bloco desfeito! Z desfaz mais; Y refaz.') : 'Nenhuma ação disponível aqui. Se há um bloco em você, afaste-se e tente de novo.', 3);
   }
 
   private ensureSafeSpawn(): void {
@@ -2090,7 +2165,7 @@ export class Game {
     const previous = loadPreviousSave(mode);
     if (!previous) return;
     this.overlay.show({ title: 'Recuperar cópia anterior?', text: `Voltar à cópia de ${modeName(mode)}${previous.updatedAt ? ' salva em ' + new Date(previous.updatedAt).toLocaleString('pt-BR') : ''}? O outro modo continua igual.`, button: 'Recuperar mundo', secondary: 'Cancelar', showControls: false }, () => {
-      if (!saveRun(previous)) { this.hud.showHint('Não foi possível recuperar. Exporte o mundo e libere espaço.', 6); return; }
+      if (!saveRun(previous)) { this.note('Não foi possível recuperar. Exporte o mundo e libere espaço.', 6); return; }
       this.applySave(previous); this.startPlaying();
     }, () => this.showModeMenu(mode));
   }
@@ -2124,7 +2199,7 @@ export class Game {
     const result = this.oneBlock.break(this.world, this.player, this.entities);
     if (result.unlocked === 'ruin') {
       this.revealStructure(chunkTouchesRuin, RUIN_COURTYARD.centerX, RUIN_COURTYARD.centerZ, RUIN_COURTYARD.radius + 6);
-      this.hud.showHint('Uma ilha apareceu! Siga a bússola até o Sentinela', 4.5);
+      this.note('Uma ilha apareceu! Siga a bússola até o Sentinela', 4.5);
     } else if (result.unlocked === 'shrine') {
       this.revealStructure(
         (cx, cz) => chunkTouchesArena(cx, cz) || chunkTouchesEntrance(cx, cz),
@@ -2132,10 +2207,10 @@ export class Game {
         ENTRANCE.z,
         36,
       );
-      this.hud.showHint('O santuário apareceu ao norte! Há um chefão lá embaixo', 4.8);
+      this.note('O santuário apareceu ao norte! Há um chefão lá embaixo', 4.8);
     } else if (result.unlocked === 'beacon') {
       this.revealStructure(chunkTouchesGrove, GROVE.x, GROVE.z, GROVE.radius + 4);
-      this.hud.showHint('Um farol apareceu ao sul! Siga a bússola até o Faroleiro', 4.5);
+      this.note('Um farol apareceu ao sul! Siga a bússola até o Faroleiro', 4.5);
     }
     if (result.spawnedMob) this.sfx.play('roar');
     this.saveSoon = true;
@@ -2236,7 +2311,7 @@ export class Game {
 
   private markSession(kind: SessionMarkKind): void {
     this.session?.record('mark', { kind, objective: this.guideText ?? undefined });
-    this.hud.showHint(kind === 'help' ? 'Marcado: pediu ajuda' : kind === 'cheer' ? 'Marcado: animou' : 'Marcado: largou', 2);
+    this.note(kind === 'help' ? 'Marcado: pediu ajuda' : kind === 'cheer' ? 'Marcado: animou' : 'Marcado: largou', 2);
     this.showSessionPanel();
   }
 

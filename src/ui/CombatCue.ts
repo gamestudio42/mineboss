@@ -19,6 +19,22 @@ const IDLE_CUE = 'Desvie e espere a abertura';
 export function spokenCue(cue: ActionCue | null): string | null {
   return cue && cue.text !== IDLE_CUE && cue.text !== SHELTER_CUE ? cue.text : null;
 }
+const TOUCH_KEYS: Record<string, string> = {
+  'Espaço': 'Pular',
+  'Esquerdo': 'Tirar',
+  'Direito': 'Colocar',
+  'W A S D': 'Alavanca',
+  'C': 'Menu',
+  'B': 'Blocos',
+};
+
+/** Same cue, with the badge naming an on-screen control. */
+export function cueForTouch(cue: ActionCue): ActionCue {
+  const key = TOUCH_KEYS[cue.key] ?? cue.key;
+  const text = cue.text === 'Colocar · esquerdo remove' ? 'Colocar ou Tirar' : cue.text;
+  return key === cue.key && text === cue.text ? cue : { ...cue, key, text };
+}
+
 export function showActionCue(cue: ActionCue | null): void {
   const root=document.getElementById('action-label')!;
   const signature=JSON.stringify(cue);

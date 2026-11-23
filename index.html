@@ -2,7 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>MineBoss</title>
     <meta name="theme-color" content="#05070c" />
     <meta
@@ -132,6 +132,21 @@
         <div id="water-veil"></div>
         <div id="crosshair"></div>
 
+        <div id="touch-controls" class="hidden">
+          <div id="touch-stick" aria-label="Andar">
+            <div class="touch-knob"></div>
+          </div>
+          <div id="touch-actions">
+            <button id="touch-menu" type="button" aria-label="Menu"><span aria-hidden="true">☰</span><small>Menu</small></button>
+            <button id="touch-fly" type="button" aria-label="Voar ou pousar"><span aria-hidden="true">✈</span><small>Voar</small></button>
+            <button id="touch-down" type="button" aria-label="Descer ou correr"><span aria-hidden="true">⬇</span><small>Descer</small></button>
+            <button id="touch-jump" type="button" aria-label="Pular"><span aria-hidden="true">⬆</span><small>Pular</small></button>
+            <button id="touch-blocks" type="button" aria-label="Abrir blocos"><span aria-hidden="true">▦</span><small>Blocos</small></button>
+            <button id="touch-place" type="button" aria-label="Colocar bloco"><span aria-hidden="true">🧱</span><small>Colocar</small></button>
+            <button id="touch-break" type="button" aria-label="Remover bloco"><span aria-hidden="true">⛏</span><small>Tirar</small></button>
+          </div>
+        </div>
+
         <div id="boss-bar" class="hidden">
           <div class="boss-bar-name">Guardião das Profundezas</div>
           <div class="boss-bar-track">
@@ -219,17 +234,21 @@
             </label>
           </div>
           <ul id="controls">
-            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas: andar</li>
-            <li><kbd>Space</kbd> pular / nadar para cima &middot; <kbd>Shift</kbd> correr / mergulhar / descer no voo</li>
-            <li><kbd>Botão esquerdo</kbd> remover / atacar</li>
-            <li><kbd>Botão direito</kbd> colocar / usar / enfrentar chefão</li>
-            <li><kbd>1</kbd>&hellip;<kbd>9</kbd> ou roda do mouse: escolher material</li>
-            <li>Segure <kbd>Q</kbd> para soltar um bloco</li>
-            <li><kbd>B</kbd> blocos e mochila · <kbd>C</kbd> criar · <kbd>H</kbd> ajuda</li>
-            <li><kbd>Z</kbd> desfazer · <kbd>Y</kbd> refazer</li>
-            <li><kbd>V</kbd> ver o personagem</li>
-            <li><kbd>F</kbd> voo na construção livre · <kbd>Shift</kbd> descer · segure <kbd>W</kbd> para acelerar</li>
-            <li><kbd>Esc</kbd> menu</li>
+            <li class="keys-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas: andar</li>
+            <li class="keys-only"><kbd>Space</kbd> pular / nadar para cima &middot; <kbd>Shift</kbd> correr / mergulhar / descer no voo</li>
+            <li class="keys-only"><kbd>Botão esquerdo</kbd> remover / atacar</li>
+            <li class="keys-only"><kbd>Botão direito</kbd> colocar / usar / enfrentar chefão</li>
+            <li class="keys-only"><kbd>1</kbd>&hellip;<kbd>9</kbd> ou roda do mouse: escolher material</li>
+            <li class="keys-only">Segure <kbd>Q</kbd> para soltar um bloco</li>
+            <li class="keys-only"><kbd>B</kbd> blocos e mochila · <kbd>C</kbd> criar · <kbd>H</kbd> ajuda</li>
+            <li class="keys-only"><kbd>Z</kbd> desfazer · <kbd>Y</kbd> refazer</li>
+            <li class="keys-only"><kbd>V</kbd> ver o personagem</li>
+            <li class="keys-only"><kbd>F</kbd> voo na construção livre · <kbd>Shift</kbd> descer · segure <kbd>W</kbd> para acelerar</li>
+            <li class="keys-only"><kbd>Esc</kbd> menu</li>
+            <li class="touch-only">A alavanca anda. Arraste na tela para olhar.</li>
+            <li class="touch-only">Pular sobe. Voar liga o voo e Descer desce.</li>
+            <li class="touch-only">Colocar põe ou usa. Tirar remove ou bate.</li>
+            <li class="touch-only">Blocos abre a lista. Menu pausa.</li>
           </ul>
         </div>
       </div>

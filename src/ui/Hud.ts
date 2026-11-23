@@ -39,9 +39,17 @@ function requireElement(id: string): HTMLElement {
   return element;
 }
 
-function slotHint(block: number | null, count: number): string {
+function slotHint(block: number | null, count: number, coarse = false): string {
   if (block === null || count <= 0) return '';
   const name = getBlockDef(block).name;
+  if (coarse) {
+    if (isConsumable(block)) return name + ' · Colocar: comer';
+    if (isBed(block)) return name + ' · coloque e toque em Colocar para descansar';
+    if (isChest(block)) return name + ' · coloque e toque em Colocar para abrir';
+    if (isTorchFuel(block) || block === 11 || block === 12) return name + ' · Menu: criar itens';
+    if (isBedMaterial(block)) return name + ' · Colocar: pôr · Menu: criar cama';
+    return name + ' · Colocar: pôr';
+  }
   if (isConsumable(block)) return name + ' · direito: comer';
   if (isBed(block)) return name + ' · coloque e clique para descansar';
   if (isChest(block)) return name + ' · coloque e clique com o direito para abrir';
@@ -53,6 +61,8 @@ function slotHint(block: number | null, count: number): string {
 /** All in-game HUD widgets: hearts, hotbar, hint line, boss bar and debug. */
 export class Hud {
   reducedEffects = false;
+  /** Hotbar captions name the touch buttons instead of the mouse. */
+  touch = false;
   readonly bossBar: BossHealthBar;
   readonly compass: Compass;
   readonly debug: DebugOverlay;
@@ -193,7 +203,7 @@ export class Hud {
     }
 
     const slot = inventory.selectedSlot;
-    const hint = inventory.unlimited && slot.block !== null ? `${getBlockDef(slot.block).name} ∞` : slotHint(slot.block, slot.count);
+    const hint = inventory.unlimited && slot.block !== null ? `${getBlockDef(slot.block).name} ∞` : slotHint(slot.block, slot.count, this.touch);
     if (hint === this.lastHint) return;
     this.lastHint = hint;
     this.slotHintRoot.textContent = hint;

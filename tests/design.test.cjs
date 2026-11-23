@@ -14,6 +14,9 @@ const { PlayerCombat } = require('../src/player/PlayerCombat.ts');
 const { Game } = require('../src/core/Game.ts');
 const { saveRun } = require('../src/core/Save.ts');
 const { hudChrome, PLAY_HELP_SECONDS } = require('../src/ui/HudChrome.ts');
+const { stickAxes, stickKeys } = require('../src/ui/TouchControls.ts');
+const { lessonCaption } = require('../src/ui/BuildLesson.ts');
+const { cueForTouch } = require('../src/ui/CombatCue.ts');
 const { Narrator, spokenText } = require('../src/audio/Narrator.ts');
 const { combatCue, spokenCue } = require('../src/ui/CombatCue.ts');
 const { loadSettings, saveSettings } = require('../src/core/Settings.ts');
@@ -168,6 +171,27 @@ test('free play HUD keeps only the objective and hint once the lesson is over', 
   const fight = hudChrome({ ...base, fighting: true, flying: true });
   assert.equal(fight.flight, '');
   assert.match(fight.playHelp, /pular/);
+
+  const touch = hudChrome({ ...base, coarse: true, tutorialDone: false });
+  assert.match(touch.playHelp, /Blocos/);
+  assert.match(touch.playHelp, /Menu/);
+  assert.doesNotMatch(touch.playHelp, /Esc|Z:/);
+  assert.equal(touch.flight, '✈ Toque em Voar');
+  assert.match(hudChrome({ ...base, coarse: true, flying: true }).flight, /Pular sobe/);
+  assert.match(hudChrome({ ...base, coarse: true, fighting: true }).playHelp, /Tirar/);
+  assert.equal(hudChrome({ ...survival, coarse: true }).flight, '');
+});
+
+test('the touch pad maps a drag to walk keys and leaves a small dead zone', () => {
+  assert.deepEqual(stickAxes(4, 4), { forward: 0, strafe: 0 });
+  const ahead = stickAxes(0, -54);
+  assert.ok(ahead.forward > 0.9 && Math.abs(ahead.strafe) < 0.01);
+  assert.deepEqual(stickKeys(ahead), ['KeyW']);
+  assert.deepEqual(stickKeys(stickAxes(40, 40)).sort(), ['KeyD', 'KeyS']);
+  assert.equal(lessonCaption(1), 'Mire no chão. Aperte o botão direito para colocar.');
+  assert.match(lessonCaption(1, true), /Colocar/);
+  assert.equal(cueForTouch({ icon: '🧱', key: 'Direito', text: 'Colocar · esquerdo remove', kind: 'build' }).text, 'Colocar ou Tirar');
+  assert.equal(cueForTouch({ icon: '↑', key: 'Espaço', text: 'Pule a onda!', kind: 'warning' }).key, 'Pular');
 });
 
 test('the narrator reads clean pt-BR lines, cuts the previous one and never chatters', () => {
