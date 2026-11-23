@@ -31,8 +31,15 @@ export class Input {
   mouseDY = 0;
   wheelDelta = 0;
   locked = false;
+  /** Touch play runs without pointer lock. Set from a coarse-pointer media query. */
+  coarse = false;
   onLockChange: ((locked: boolean) => void) | null = null;
   onLockError: (() => void) | null = null;
+  private readonly touchPoints = new Map<number, { x: number; y: number }>();
+  private stickKeys = new Set<string>();
+  private virtualKeys = new Set<string>();
+  /** A finger just ended, so the compatibility mouse click must not mine or place. */
+  private suppressMouse = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', this.handleKeyDown);
@@ -40,13 +47,21 @@ export class Input {
     window.addEventListener('blur', this.handleBlur);
     document.addEventListener('pointerlockchange', this.handlePointerLockChange);
     document.addEventListener('pointerlockerror', this.handleLockError);
-    canvas.addEventListener('click', () => { if (!this.locked) this.requestLock(); });
+    canvas.addEventListener('click', () => { if (!this.locked && !this.coarse) this.requestLock(); });
+    canvas.addEventListener('pointerdown', this.handlePointerDown);
+    canvas.addEventListener('pointermove', this.handlePointerMove);
+    canvas.addEventListener('pointerup', this.handlePointerEnd);
+    canvas.addEventListener('pointercancel', this.handlePointerEnd);
     canvas.addEventListener('mousedown', event => {
-      if (!this.locked) return;
+      if (this.suppressMouse) return;
+      if (!this.locked && !this.coarse) return;
       this.buttonsHeld.add(event.button);
       this.buttonsPressed.add(event.button);
     });
-    window.addEventListener('mouseup', event => this.buttonsHeld.delete(event.button));
+    window.addEventListener('mouseup', event => {
+      if (this.suppressMouse) return;
+      this.buttonsHeld.delete(event.button);
+    });
     window.addEventListener('mousemove', event => {
       if (!this.locked) return;
       this.mouseDX += event.movementX;
@@ -56,10 +71,11 @@ export class Input {
       if (this.locked) this.wheelDelta += event.deltaY;
     }, { passive: true });
     canvas.addEventListener('contextmenu', event => event.preventDefault());
+    canvas.addEventListener('touchmove', event => event.preventDefault(), { passive: false });
   }
 
   requestLock(): void {
-    if (this.locked || this.requesting) return;
+    if (this.locked || this.requesting || this.coarse) return;
     this.reset();
     this.requesting = true;
     const id = ++this.requestId;
@@ -83,9 +99,40 @@ export class Input {
   reset(): void {
     this.held.clear();
     this.buttonsHeld.clear();
+    this.stickKeys.clear();
+    this.virtualKeys.clear();
     this.endFrame();
   }
-  isDown(code: string): boolean { return this.held.has(code); }
+
+  /** Keys held by the on-screen stick. They stack with the keyboard. */
+  setStick(codes: readonly string[]): void {
+    this.stickKeys = new Set(codes);
+  }
+
+  /** Hold or release a virtual key such as jump or descend. */
+  setKey(code: string, down: boolean): void {
+    if (down) {
+      if (!this.virtualKeys.has(code) && !this.held.has(code)) this.pressed.add(code);
+      this.virtualKeys.add(code);
+    } else this.virtualKeys.delete(code);
+  }
+
+  /** One-frame press for toggles and menus. */
+  tap(code: string): void {
+    this.pressed.add(code);
+  }
+
+  /** Virtual left (0) or right (2) mouse button for the touch buttons. */
+  setMouseButton(button: number, down: boolean): void {
+    if (down) {
+      if (!this.buttonsHeld.has(button)) this.buttonsPressed.add(button);
+      this.buttonsHeld.add(button);
+    } else this.buttonsHeld.delete(button);
+  }
+
+  isDown(code: string): boolean {
+    return this.held.has(code) || this.stickKeys.has(code) || this.virtualKeys.has(code);
+  }
   wasPressed(code: string): boolean { return this.pressed.has(code); }
   isMouseDown(button: number): boolean { return this.buttonsHeld.has(button); }
   wasMousePressed(button: number): boolean { return this.buttonsPressed.has(button); }
@@ -94,6 +141,31 @@ export class Input {
     this.buttonsPressed.clear();
     this.mouseDX = this.mouseDY = this.wheelDelta = 0;
   }
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (event.pointerType === 'mouse') {
+      this.suppressMouse = false;
+      return;
+    }
+    this.suppressMouse = true;
+    this.touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    try { this.canvas.setPointerCapture(event.pointerId); } catch { /* already released */ }
+    event.preventDefault();
+  };
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    const prev = this.touchPoints.get(event.pointerId);
+    if (!prev) return;
+    this.mouseDX += event.clientX - prev.x;
+    this.mouseDY += event.clientY - prev.y;
+    prev.x = event.clientX;
+    prev.y = event.clientY;
+  };
+
+  private readonly handlePointerEnd = (event: PointerEvent): void => {
+    this.touchPoints.delete(event.pointerId);
+  };
+
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (this.locked && CAPTURED_KEYS.has(event.code)) event.preventDefault();
     if (event.repeat) return;

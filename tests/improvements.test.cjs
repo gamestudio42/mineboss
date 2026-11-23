@@ -47,6 +47,37 @@ test('history bounds, stale blocks and protected edits never overwrite another c
  w.setBlock(4,90,4,Block.Blue);h.record({x:4,y:90,z:4,before:Block.Air,after:Block.Blue});w.setBlock(4,90,4,Block.Glass);assert.equal(h.undo(w,()=>false),false);assert.equal(w.getBlock(4,90,4),Block.Glass);
  h.record({x:0,y:72,z:0,before:Block.Grass,after:Block.Dirt});assert.equal(h.canUndo,false);
 });
+test('touch stick, held keys and taps stack with the keyboard and clear on blur', () => {
+  const oldW = global.window, oldD = global.document;
+  global.window = new EventTarget();
+  global.document = new EventTarget();
+  try {
+    const input = new Input(new EventTarget());
+    input.setStick(['KeyW']);
+    input.setKey('Space', true);
+    input.tap('KeyF');
+    input.setMouseButton(2, true);
+    window.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyD', repeat: false }));
+    assert.equal(input.isDown('KeyW'), true);
+    assert.equal(input.isDown('KeyD'), true);
+    assert.equal(input.isDown('Space'), true);
+    assert.equal(input.wasPressed('KeyF'), true);
+    assert.equal(input.isMouseDown(2), true);
+    input.endFrame();
+    assert.equal(input.wasPressed('KeyF'), false);
+    assert.equal(input.isDown('KeyW'), true);
+    assert.equal(input.isMouseDown(2), true);
+    input.setKey('Space', false);
+    assert.equal(input.isDown('Space'), false);
+    window.dispatchEvent(new Event('blur'));
+    assert.equal(input.isDown('KeyW'), false);
+    assert.equal(input.isDown('KeyD'), false);
+    assert.equal(input.isMouseDown(2), false);
+  } finally {
+    global.window = oldW;
+    global.document = oldD;
+  }
+});
 test('Tab is available in menus and captured only while the pointer is locked',()=>{
  const oldW=global.window,oldD=global.document;global.window=new EventTarget();global.document=new EventTarget();
  try{const canvas=new EventTarget(),i=new Input(canvas);for(const locked of [false,true]){i.locked=locked;const e=Object.assign(new Event('keydown',{cancelable:true}),{code:'Tab',repeat:false});window.dispatchEvent(e);assert.equal(e.defaultPrevented,locked);}}
